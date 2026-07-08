@@ -81,24 +81,25 @@ export default function LessonPage({ courseId, lessons, courseAccess, progress, 
   };
 
   return (
-    <div style={containerStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="lesson-page" style={containerStyle}>
+      <div className="page-actions">
         <div>
           <button className="btn btn-secondary" onClick={onBack} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-            ← Return to Overview
+            Back to dashboard
           </button>
         </div>
         <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--success)', backgroundColor: 'var(--success-light)', padding: '0.25rem 0.5rem', borderRadius: '4px' }}>
-          Authorization Token Validated
+          Course access active
         </div>
       </div>
 
       <div className="architecture-alert">
-        <span>Flow: **Learning Management: View Lesson / Update Progress** (Course Service queries Course DB)</span>
+        <span>Learning Management: View Lesson / Update Progress</span>
+        <span className="architecture-alert__detail">Course Service reads and updates Course DB</span>
       </div>
 
       {/* Topology */}
-      <div style={{ padding: '0.625rem 1rem', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', display: 'flex', gap: '0.5rem', border: '1px solid var(--border-color)' }}>
+      <div className="flow-strip">
         <span>Topology:</span>
         <span style={{ color: 'var(--primary)', fontWeight: '700' }}>Web Client</span>
         <span>→</span>
@@ -112,8 +113,8 @@ export default function LessonPage({ courseId, lessons, courseAccess, progress, 
       <div className="grid grid-cols-3 gap-6">
         {/* Lesson Player Area */}
         <div style={{ gridColumn: 'span 2' }}>
-          <div style={videoMockStyle}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📺</div>
+          <div className="lesson-stage" style={videoMockStyle}>
+            <span className="service-badge" style={{ marginBottom: '0.75rem' }}>Video lesson</span>
             <h3 style={{ color: '#ffffff', fontFamily: 'var(--font-sans)', fontWeight: '600', fontSize: '1.1rem' }}>
               {currentLesson.title}
             </h3>
@@ -125,15 +126,15 @@ export default function LessonPage({ courseId, lessons, courseAccess, progress, 
             </div>
           </div>
 
-          <div className="card" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="card lesson-progress-card" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h3 style={{ fontSize: '0.9375rem', fontWeight: '600' }}>Mark Progress Status</h3>
-              <p className="text-xs text-secondary-color">Updates completion logs in Course DB table.</p>
+              <h3 style={{ fontSize: '0.9375rem', fontWeight: '600' }}>Lesson progress</h3>
+              <p className="text-xs text-secondary-color">Mark this lesson complete when you finish watching.</p>
             </div>
             <div>
               {isCompleted ? (
                 <div style={{ color: 'var(--success)', fontWeight: '600', fontSize: '0.875rem' }}>
-                  ✓ Lesson Completed
+                  Lesson completed
                 </div>
               ) : (
                 <button className="btn btn-primary" style={{ fontSize: '0.8125rem' }} onClick={handleMarkComplete} disabled={savingProgress}>
@@ -145,9 +146,9 @@ export default function LessonPage({ courseId, lessons, courseAccess, progress, 
         </div>
 
         {/* Lessons List Sidebar */}
-        <div className="card" style={{ height: 'fit-content' }}>
+        <div className="card lesson-outline" style={{ height: 'fit-content' }}>
           <h3 style={{ fontSize: '0.8125rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
-            Syllabus Modules
+            Course outline
           </h3>
           <ul style={sidebarListStyle}>
             {activeCourseLessons.map((lesson, idx) => {
@@ -160,7 +161,7 @@ export default function LessonPage({ courseId, lessons, courseAccess, progress, 
                     onClick={() => setCurrentLessonIndex(idx)}
                   >
                     <span>{lesson.title}</span>
-                    <span>{completed ? '✓' : '⏳'}</span>
+                    <span className="text-xs">{completed ? 'Done' : 'Open'}</span>
                   </div>
                 </li>
               );

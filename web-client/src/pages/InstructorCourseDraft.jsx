@@ -42,21 +42,23 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
   };
 
   return (
-    <div>
+    <div className="course-draft-page">
       <div className="architecture-alert">
-        <span>Boundaries: **Course Service / Course DB**</span>
+        <span>Course draft boundary</span>
+        <span className="service-badge">Course Service / Course DB</span>
+        <span className="architecture-alert__detail">Save behavior remains in local React state</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-3 gap-6 draft-workspace">
         {/* Form panel */}
         <div style={{ gridColumn: 'span 2' }} className="card">
           <h2 style={{ fontSize: '1.1rem', marginBottom: '1.25rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-            Course Details Form
+            Draft course details
           </h2>
           
           {saveSuccess && (
             <div style={{ padding: '0.75rem', backgroundColor: 'var(--success-light)', color: 'var(--success)', borderRadius: 'var(--border-radius-sm)', marginBottom: '1.25rem', fontSize: '0.8125rem', fontWeight: '600' }}>
-              ✓ Draft saved successfully inside Course DB table!
+              Draft saved to the local demo state.
             </div>
           )}
 
@@ -101,7 +103,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
                 />
               </div>
               <div className="form-group" style={{ flex: 1 }}>
-                <label htmlFor="draft-status">Publish Status</label>
+                <label htmlFor="draft-status">Course status</label>
                 <select 
                   id="draft-status"
                   className="form-control" 
@@ -115,7 +117,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
             </div>
 
             <button type="submit" className="btn btn-primary" style={{ fontWeight: '600' }} disabled={isSaving}>
-              {isSaving ? 'Executing Course Service Save...' : 'Save Draft Course'}
+              {isSaving ? 'Saving local draft...' : 'Save draft course'}
             </button>
           </form>
         </div>
@@ -125,11 +127,11 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
           {/* Live Preview */}
           <div className="card" style={{ backgroundColor: 'var(--bg-primary)' }}>
             <h3 style={{ fontSize: '0.8125rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-              Live Preview
+              Course preview
             </h3>
             <div style={{ padding: '1rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--border-radius-sm)', backgroundColor: 'var(--bg-secondary)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem', gap: '0.5rem' }}>
-                <h4 style={{ fontSize: '0.9375rem', fontWeight: '600' }}>{title || 'Untranslated Title'}</h4>
+                <h4 style={{ fontSize: '0.9375rem', fontWeight: '600' }}>{title || 'Untitled Draft Course'}</h4>
                 <StatusBadge status={status} />
               </div>
               <p className="text-xs text-secondary-color" style={{ minHeight: '60px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -144,7 +146,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
           {/* Existing Drafts */}
           <div className="card">
             <h3 style={{ fontSize: '0.8125rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-              Drafts Inventory
+              Saved drafts
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {drafts.length === 0 ? (

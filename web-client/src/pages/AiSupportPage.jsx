@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { mockAiBotResponses } from '../data/mockData';
+import { mockAiBotResponses, mockAiSuggestions } from '../data/mockData';
 
 export default function AiSupportPage() {
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState([
-    { sender: 'bot', text: "Hello! I am your AI Study Assistant. You can ask me questions about 'gateway', 'isolation', or 'rabbitmq' to see my architectural integrations." }
+    { sender: 'bot', text: "Welcome. Ask a study question about API gateways, data isolation, or RabbitMQ." }
   ]);
   const [isTyping, setIsTyping] = useState(false);
 
@@ -35,7 +35,7 @@ export default function AiSupportPage() {
   const chatContainerStyle = {
     display: 'flex',
     flexDirection: 'column',
-    height: '500px',
+    height: '420px',
     border: '1px solid var(--border-color)',
     borderRadius: 'var(--border-radius)',
     backgroundColor: 'var(--bg-secondary)',
@@ -73,15 +73,25 @@ export default function AiSupportPage() {
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.75rem', fontFamily: 'var(--font-title)' }}>AI Study Assistant</h1>
-        <p className="text-secondary-color">Interact with our external learning chatbot system.</p>
+    <div className="ai-support-page">
+      <div className="page-intro">
+        <p className="page-kicker">External learning assistance</p>
+        <h2 className="page-title">Ask a focused study question</h2>
+        <p className="page-description">Use a suggested prompt or write your own question about the architecture concepts in this demo.</p>
       </div>
 
       <div className="architecture-alert">
-        <span>🤖</span>
-        <span>External System: **AI Chatbot System** (Routed via Course Service. No Chatbot DB exists)</span>
+        <span className="service-badge">External AI Chatbot System</span>
+        <span>Course Service shares learning context with this external system.</span>
+        <span className="architecture-alert__detail">Only the external system shown here is used. No internal chatbot components or dedicated data store are part of the architecture.</span>
+      </div>
+
+      <div className="suggestion-row" aria-label="Suggested questions">
+        {mockAiSuggestions.map(suggestion => (
+          <button type="button" className="suggestion-chip" key={suggestion} onClick={() => setQuery(suggestion)}>
+            {suggestion}
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-3 gap-6">
@@ -105,6 +115,7 @@ export default function AiSupportPage() {
               <input 
                 type="text" 
                 className="form-control" 
+                aria-label="Study question"
                 placeholder="Ask about 'gateway', 'isolation', or 'rabbitmq'..." 
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -125,14 +136,15 @@ export default function AiSupportPage() {
 
         {/* Sidebar Help */}
         <div className="card">
-          <h3 style={{ fontSize: '1rem', marginBottom: '1rem' }}>Help topics</h3>
+          <span className="service-badge">Course Service context</span>
+          <h3 style={{ fontSize: '1rem', margin: '1rem 0 0.5rem' }}>Example prompts</h3>
           <p className="text-sm text-secondary-color">
-            This chatbot connects Course Service context (`ai_learning_context`) with the external **AI Chatbot System**. Try querying:
+            The mock assistant recognizes these architecture topics:
           </p>
-          <ul style={{ listStyle: 'square', paddingLeft: '1.25rem', marginTop: '1rem', fontSize: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <li>`gateway`</li>
-            <li>`isolation`</li>
-            <li>`rabbitmq`</li>
+          <ul className="example-prompt-list">
+            <li>Explain gateway rate limiting.</li>
+            <li>Describe database-per-service isolation.</li>
+            <li>Trace a RabbitMQ payment event.</li>
           </ul>
         </div>
       </div>

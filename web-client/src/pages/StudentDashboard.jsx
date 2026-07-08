@@ -8,12 +8,15 @@ export default function StudentDashboard({
   courseAccess, 
   payments, 
   quizAttempts, 
+  quizzes,
   onNavigate 
 }) {
   
   const enrolledCount = courseAccess.length;
   const totalCourses = courses.filter(c => c.status === 'published');
   const paymentTotal = payments.reduce((acc, curr) => acc + curr.amount, 0);
+  const nextQuiz = quizzes[0];
+  const latestPayment = payments[payments.length - 1];
 
   // Check if student has access to course
   const checkAccess = (courseId) => {
@@ -21,24 +24,18 @@ export default function StudentDashboard({
   };
 
   return (
-    <div>
+    <div className="student-dashboard">
       <div className="architecture-alert">
-        <span>Flow: **Course Catalog & Enrollment Status** (Course Service queries Course DB)</span>
+        <span>Course Catalog & Enrollment Status</span>
+        <span className="architecture-alert__detail">Course Service reads Course DB</span>
       </div>
 
       {/* Architecture flow mini strip */}
-      <div style={{ padding: '0.625rem 1rem', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', border: '1px solid var(--border-color)' }}>
-        <span>Topology:</span>
-        <span style={{ color: 'var(--primary)', fontWeight: '700' }}>Web Client</span>
-        <span>→</span>
-        <span>API Gateway</span>
-        <span>→</span>
-        <span style={{ fontWeight: '600' }}>Course Service</span>
-        <span>→</span>
-        <span>Course DB</span>
+      <div className="flow-strip" aria-label="Architecture flow from Web Client to Course DB">
+        <strong>Web Client</strong><span>→</span><span>API Gateway</span><span>→</span><span>Course Service</span><span>→</span><span>Course DB</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-6 mb-6">
+      <div className="metrics-grid mb-6">
         <StatCard 
           title="Enrolled Courses" 
           value={enrolledCount} 
@@ -50,18 +47,18 @@ export default function StudentDashboard({
           description="Grading records in Exam DB" 
         />
         <StatCard 
-          title="Financial Ledger" 
+          title="Payment Activity"
           value={`$${paymentTotal.toFixed(2)}`} 
           description="Payments processed in Payment DB" 
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-6 mt-6">
+      <div className="grid grid-cols-3 gap-6 mt-6 student-workspace">
         {/* Main Content Area */}
         <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div>
-            <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-              Course Syllabus
+            <h2 className="content-heading">
+              Continue learning
             </h2>
             <div className="grid grid-cols-2 gap-6">
               {totalCourses.map(course => {
@@ -88,17 +85,38 @@ export default function StudentDashboard({
 
         {/* Sidebar Status Area */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="card dashboard-highlight">
+            <div className="dashboard-highlight__topline">
+              <span className="service-badge">Exam & Quiz Service</span>
+              <StatusBadge status={nextQuiz?.status || 'pending'} />
+            </div>
+            <h3>Upcoming quiz</h3>
+            <p>{nextQuiz?.title}</p>
+            <div className="dashboard-highlight__meta">{nextQuiz?.question_count} questions · {nextQuiz?.due_label}</div>
+            <button className="btn btn-primary w-full" onClick={() => onNavigate('quiz', { quizId: nextQuiz?.id })}>Start quiz</button>
+          </div>
+
+          <div className="card dashboard-highlight">
+            <div className="dashboard-highlight__topline">
+              <span className="service-badge">Payment Service</span>
+              <StatusBadge status={latestPayment?.payment_status || 'pending'} />
+            </div>
+            <h3>Payment status</h3>
+            <p>Latest course payment through {latestPayment?.payment_method.toUpperCase()}.</p>
+            <div className="dashboard-highlight__amount">${latestPayment?.amount.toFixed(2)}</div>
+          </div>
+
           {/* Quick Actions */}
           <div className="card">
             <h3 style={{ fontSize: '0.875rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-              Action Center
+              Quick actions
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <button className="btn btn-secondary w-full text-sm" onClick={() => onNavigate('ai-support')}>
-                Consult AI Assistant
+                Ask the study assistant
               </button>
               <button className="btn btn-secondary w-full text-sm" onClick={() => onNavigate('quiz', { quizId: 801 })}>
-                Take Graded Exam
+                Open quiz module
               </button>
             </div>
           </div>

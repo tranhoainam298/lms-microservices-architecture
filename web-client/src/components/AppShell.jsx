@@ -1,30 +1,25 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
-export default function AppShell({ children, currentTab, onTabChange, user, onLogout, title, subtitle }) {
-  const mainWrapperStyle = {
-    marginLeft: 'var(--sidebar-width)',
-    minHeight: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    backgroundColor: 'var(--bg-primary)'
-  };
+gsap.registerPlugin(useGSAP);
 
-  const contentStyle = {
-    flexGrow: 1,
-    padding: '2rem',
-    maxWidth: '1200px',
-    width: '100%',
-    margin: '0 auto'
-  };
+export default function AppShell({ children, currentTab, onTabChange, user, onLogout, title }) {
+  const contentRef = useRef(null);
+
+  useGSAP(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    gsap.fromTo(contentRef.current, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' });
+  }, { dependencies: [children], scope: contentRef, revertOnUpdate: true });
 
   return (
-    <div>
+    <div className="app-shell">
       <Sidebar currentTab={currentTab} onTabChange={onTabChange} />
-      <div style={mainWrapperStyle}>
-        <Header user={user} onLogout={onLogout} title={title} subtitle={subtitle} />
-        <main style={contentStyle}>
+      <div className="app-shell__workspace">
+        <Header user={user} onLogout={onLogout} title={title} />
+        <main className="app-shell__content overflow-x-hidden w-full max-w-full" id="main-content" ref={contentRef}>
           {children}
         </main>
       </div>

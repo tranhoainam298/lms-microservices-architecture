@@ -75,20 +75,21 @@ export default function QuizPage({ onSubmitQuiz, onBack }) {
   };
 
   return (
-    <div>
+    <div className="quiz-page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <div>
           <button className="btn btn-secondary" onClick={onBack} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-            ← Return
+            Back to dashboard
           </button>
         </div>
         <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
-          DB Schema Scope: Exam DB Table Attempts
+          Exam & Quiz Service · Exam DB
         </div>
       </div>
 
       <div className="architecture-alert">
-        <span>Boundaries: **Exam & Quiz Service / Exam DB**</span>
+        <span>Quiz and grading boundary</span>
+        <span className="service-badge">Exam & Quiz Service / Exam DB</span>
       </div>
 
       <div className="grid grid-cols-3 gap-6">
@@ -96,18 +97,23 @@ export default function QuizPage({ onSubmitQuiz, onBack }) {
         <div style={{ gridColumn: 'span 2' }}>
           <form onSubmit={handleSubmit}>
             {quizQuestions.map((q, idx) => (
-              <div key={q.id} className="card" style={{ marginBottom: '1.5rem' }}>
+              <div key={q.id} className="card quiz-question-card" style={{ marginBottom: '1.5rem' }}>
                 <div style={{ fontWeight: '600', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                   Question {idx + 1}: {q.question_text}
                 </div>
                 <ul style={optionListStyle}>
                   {q.options.map(opt => (
-                    <li 
-                      key={opt} 
-                      style={getOptionStyle(q.id, opt)}
-                      onClick={() => handleOptionSelect(q.id, opt)}
-                    >
-                      {opt}
+                    <li key={opt}>
+                      <button
+                        type="button"
+                        className="quiz-option"
+                        style={getOptionStyle(q.id, opt)}
+                        onClick={() => handleOptionSelect(q.id, opt)}
+                        aria-pressed={selectedAnswers[q.id] === opt}
+                        disabled={submitted}
+                      >
+                        {opt}
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -146,7 +152,7 @@ export default function QuizPage({ onSubmitQuiz, onBack }) {
                   : 'You did not pass the scoring limit. Review course contents and try again.'}
               </p>
               <div style={{ marginTop: '1rem', padding: '0.5rem', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', fontSize: '0.675rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                INSERT INTO ExamDB.grading_results VALUES (attempt_id: {scoreResult.attempt_id})
+                Mock grading result saved · Attempt {scoreResult.attempt_id}
               </div>
             </div>
           ) : (

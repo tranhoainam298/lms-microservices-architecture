@@ -2,6 +2,7 @@ import React from 'react';
 import StatusBadge from './StatusBadge';
 
 export default function CourseCard({ course, isEnrolled, onAction, actionLabel }) {
+  const progressValue = isEnrolled ? course.progress_percent || 0 : 0;
   const cardStyle = {
     display: 'flex',
     flexDirection: 'column',
@@ -25,7 +26,7 @@ export default function CourseCard({ course, isEnrolled, onAction, actionLabel }
   };
 
   return (
-    <div className="card hover-lift" style={cardStyle}>
+    <article className="card course-card" style={cardStyle}>
       <div>
         <div style={headerStyle}>
           <h3 style={{ fontSize: '1rem', lineHeight: '1.4', fontWeight: '600' }}>{course.title}</h3>
@@ -34,6 +35,17 @@ export default function CourseCard({ course, isEnrolled, onAction, actionLabel }
         <p className="text-xs text-secondary-color" style={{ marginTop: '0.5rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '54px' }}>
           {course.description}
         </p>
+        {isEnrolled && (
+          <div className="course-progress" aria-label={`${course.title} progress: ${progressValue}%`}>
+            <div className="course-progress__meta">
+              <span>Course progress</span>
+              <strong>{progressValue}%</strong>
+            </div>
+            <div className="progress-bar-container">
+              <div className="progress-bar-fill" style={{ width: `${progressValue}%` }} />
+            </div>
+          </div>
+        )}
       </div>
       
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: 'auto' }}>
@@ -48,6 +60,6 @@ export default function CourseCard({ course, isEnrolled, onAction, actionLabel }
           {actionLabel || (isEnrolled ? 'Open classroom' : 'Buy course')}
         </button>
       </div>
-    </div>
+    </article>
   );
 }

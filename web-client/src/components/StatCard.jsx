@@ -30,7 +30,7 @@ export default function StatCard({ title, value, description }) {
   };
 
   return (
-    <div className="card hover-lift" style={cardStyle}>
+    <div className="card stat-card" style={cardStyle}>
       <div style={titleStyle}>{title}</div>
       <div style={valueStyle}>{value}</div>
       {description && <div style={descStyle}>{description}</div>}

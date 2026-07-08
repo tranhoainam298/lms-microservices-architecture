@@ -10,6 +10,7 @@ import QuizPage from './pages/QuizPage';
 import PaymentPage from './pages/PaymentPage';
 import AdminRevenueReport from './pages/AdminRevenueReport';
 import AiSupportPage from './pages/AiSupportPage';
+import OverviewPage from './pages/OverviewPage';
 
 // Mock Databases
 import { 
@@ -18,8 +19,22 @@ import {
   mockPayments, 
   mockLearningProgress,
   mockQuizAttempts,
-  mockLessons
+  mockLessons,
+  mockQuizzes
 } from './data/mockData';
+
+const pageTitles = {
+  overview: 'System Overview',
+  dashboard: 'Student Dashboard',
+  lesson: 'Lesson Viewer',
+  quiz: 'Quiz Module',
+  payment: 'Payment Simulator',
+  'ai-support': 'AI Study Support',
+  'course-draft': 'Course Drafts',
+  'revenue-report': 'Revenue & Sales'
+};
+
+const tabPages = new Set(['overview', 'dashboard', 'ai-support', 'course-draft', 'revenue-report']);
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -55,8 +70,20 @@ export default function App() {
   };
 
   const handleNavigate = (page, params = null) => {
+    if (tabPages.has(page)) {
+      setCurrentTab(page);
+      setActivePage(null);
+      setPageParams(null);
+      return;
+    }
     setActivePage(page);
     setPageParams(params);
+  };
+
+  const handleBackToDashboard = () => {
+    setActivePage(null);
+    setPageParams(null);
+    setCurrentTab('dashboard');
   };
 
   const handleSaveDraft = (newDraft) => {
@@ -126,7 +153,7 @@ export default function App() {
           courseAccess={courseAccess}
           progress={progress}
           onUpdateProgress={handleUpdateProgress}
-          onBack={() => setActivePage(null)}
+          onBack={handleBackToDashboard}
         />
       );
     }
@@ -135,7 +162,7 @@ export default function App() {
         <QuizPage 
           quizId={pageParams?.quizId} 
           onSubmitQuiz={handleSubmitQuiz}
-          onBack={() => setActivePage(null)}
+          onBack={handleBackToDashboard}
         />
       );
     }
@@ -145,13 +172,15 @@ export default function App() {
         <PaymentPage 
           course={selectedCourse} 
           onPaymentSuccess={handlePaymentSuccess}
-          onBack={() => setActivePage(null)}
+          onBack={handleBackToDashboard}
         />
       );
     }
 
     // Render Tabbed Pages
     switch (currentTab) {
+      case 'overview':
+        return <OverviewPage onNavigate={handleNavigate} />;
       case 'dashboard':
         return (
           <StudentDashboard 
@@ -159,7 +188,30 @@ export default function App() {
             courseAccess={courseAccess}
             payments={payments}
             quizAttempts={quizAttempts}
+            progress={progress}
+            quizzes={mockQuizzes}
             onNavigate={handleNavigate}
+          />
+        );
+      case 'lesson':
+        return (
+          <LessonPage
+            courseId={201}
+            lessons={mockLessons}
+            courseAccess={courseAccess}
+            progress={progress}
+            onUpdateProgress={handleUpdateProgress}
+            onBack={handleBackToDashboard}
+          />
+        );
+      case 'quiz':
+        return <QuizPage quizId={801} onSubmitQuiz={handleSubmitQuiz} onBack={handleBackToDashboard} />;
+      case 'payment':
+        return (
+          <PaymentPage
+            course={courses.find(course => course.id === 201)}
+            onPaymentSuccess={handlePaymentSuccess}
+            onBack={handleBackToDashboard}
           />
         );
       case 'ai-support':
@@ -185,10 +237,11 @@ export default function App() {
 
   return (
     <AppShell 
-      currentTab={activePage ? null : currentTab} 
+      currentTab={activePage || currentTab}
       onTabChange={(tab) => { setActivePage(null); setCurrentTab(tab); }} 
       user={user} 
       onLogout={handleLogout}
+      title={pageTitles[activePage || currentTab]}
     >
       {renderPage()}
     </AppShell>
