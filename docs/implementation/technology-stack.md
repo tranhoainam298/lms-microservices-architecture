@@ -12,7 +12,7 @@ This document details the selected technologies for the LMS Microservices projec
 | **Mobile Client** | Flutter | Matches architecture document, placeholder for mobile app. |
 | **API Gateway** | Node.js + Express | Simple routing, JWT validation, rate limiting. |
 | **Microservices** | Node.js + Express | Consistent backend stack. |
-| **Databases** | MySQL | Matches architecture document and supports database-per-service. |
+| **Databases** | SQL Server | Matches architecture document and supports database-per-service. |
 | **Message Broker** | RabbitMQ | Easier local demo for event-driven communication. |
 | **External Payment** | ZaloPay/Momo placeholder | External system only. |
 | **AI Chatbot** | External AI Chatbot System placeholder | External system only. |

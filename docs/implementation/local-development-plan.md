@@ -3,7 +3,7 @@
 This document outlines the network configurations and local port mappings allocated for running the microservices, clients, databases, and message brokers on a single development machine.
 
 > [!NOTE]
-> These values represent **planning values only** for deployment design. No configurations, Docker containers, database setups, or applications have been initialized in this step.
+> These values represent **planning values only** for deployment design. No configurations, Docker containers, database setups, or applications have been initialized in this step, and no database has been started yet.
 
 ---
 
@@ -19,10 +19,10 @@ This document outlines the network configurations and local port mappings alloca
 | **Web Client** | `5173` | HTTP | ReactJS client dashboard application (Vite default). |
 | **RabbitMQ** | `5672` | AMQP | Message broker event listening interface. |
 | **RabbitMQ Management UI** | `15672` | HTTP | Broker monitoring console for developers. |
-| **MySQL User DB** | `3307` | TCP/MySQL | Database instance dedicated to the User Service. |
-| **MySQL Course DB** | `3308` | TCP/MySQL | Database instance dedicated to the Course Service. |
-| **MySQL Exam DB** | `3309` | TCP/MySQL | Database instance dedicated to the Exam Service. |
-| **MySQL Payment DB** | `3310` | TCP/MySQL | Database instance dedicated to the Payment Service. |
+| **SQL Server User DB** | `14331` | TCP/SQL Server | Database instance dedicated to the User Service. |
+| **SQL Server Course DB** | `14332` | TCP/SQL Server | Database instance dedicated to the Course Service. |
+| **SQL Server Exam DB** | `14333` | TCP/SQL Server | Database instance dedicated to the Exam Service. |
+| **SQL Server Payment DB** | `14334` | TCP/SQL Server | Database instance dedicated to the Payment Service. |
 
 ---
 

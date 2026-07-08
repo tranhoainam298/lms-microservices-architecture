@@ -19,7 +19,7 @@ Bootstrap Node.js/Express applications for each microservice (User Service, Cour
 Implement routing rules, JWT authentication validation middleware, and request forwarding inside the API Gateway.
 
 ### Phase 5: User Service login
-Implement authentication handlers, token generation, user profiles, roles lookup, and login auditing in the User Service and its MySQL database.
+Implement authentication handlers, token generation, user profiles, roles lookup, and login auditing in the User Service and its SQL Server database.
 
 ### Phase 6: Course Service course and lesson flows
 Implement endpoints to save course drafts, view lessons, verify access constraints, and record lesson progress in the Course DB.
