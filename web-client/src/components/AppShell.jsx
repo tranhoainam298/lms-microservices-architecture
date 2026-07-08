@@ -2,7 +2,7 @@ import React from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
-export default function AppShell({ children, currentTab, onTabChange, user, onLogout }) {
+export default function AppShell({ children, currentTab, onTabChange, user, onLogout, title, subtitle }) {
   const mainWrapperStyle = {
     marginLeft: 'var(--sidebar-width)',
     minHeight: '100vh',
@@ -21,9 +21,9 @@ export default function AppShell({ children, currentTab, onTabChange, user, onLo
 
   return (
     <div>
-      <Sidebar currentTab={currentTab} onTabChange={onTabChange} role={user.role} />
+      <Sidebar currentTab={currentTab} onTabChange={onTabChange} />
       <div style={mainWrapperStyle}>
-        <Header user={user} onLogout={onLogout} />
+        <Header user={user} onLogout={onLogout} title={title} subtitle={subtitle} />
         <main style={contentStyle}>
           {children}
         </main>

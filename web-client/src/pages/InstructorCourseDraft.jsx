@@ -43,24 +43,20 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
 
   return (
     <div>
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.75rem', fontFamily: 'var(--font-title)' }}>Course Administration</h1>
-        <p className="text-secondary-color">Design new syllabus items and save course drafts.</p>
-      </div>
-
       <div className="architecture-alert">
-        <span>📘</span>
-        <span>Flow: **Course Management: Save Draft Course** (Course Service / Course DB)</span>
+        <span>Boundaries: **Course Service / Course DB**</span>
       </div>
 
       <div className="grid grid-cols-3 gap-6">
         {/* Form panel */}
         <div style={{ gridColumn: 'span 2' }} className="card">
-          <h2 style={{ fontSize: '1.25rem', marginBottom: '1.25rem' }}>Create Course Draft</h2>
+          <h2 style={{ fontSize: '1.1rem', marginBottom: '1.25rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
+            Course Details Form
+          </h2>
           
           {saveSuccess && (
-            <div style={{ padding: '0.75rem', backgroundColor: 'var(--success-light)', color: 'var(--success)', borderRadius: 'var(--border-radius-sm)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
-              ✓ Draft saved successfully in **Course DB**!
+            <div style={{ padding: '0.75rem', backgroundColor: 'var(--success-light)', color: 'var(--success)', borderRadius: 'var(--border-radius-sm)', marginBottom: '1.25rem', fontSize: '0.8125rem', fontWeight: '600' }}>
+              ✓ Draft saved successfully inside Course DB table!
             </div>
           )}
 
@@ -118,8 +114,8 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
               </div>
             </div>
 
-            <button type="submit" className="btn btn-primary" disabled={isSaving}>
-              {isSaving ? 'Saving to Course DB...' : 'Save Draft Course'}
+            <button type="submit" className="btn btn-primary" style={{ fontWeight: '600' }} disabled={isSaving}>
+              {isSaving ? 'Executing Course Service Save...' : 'Save Draft Course'}
             </button>
           </form>
         </div>
@@ -128,16 +124,18 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Live Preview */}
           <div className="card" style={{ backgroundColor: 'var(--bg-primary)' }}>
-            <h3 style={{ fontSize: '1rem', marginBottom: '1rem', color: 'var(--text-secondary)' }}>Live Preview</h3>
+            <h3 style={{ fontSize: '0.8125rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
+              Live Preview
+            </h3>
             <div style={{ padding: '1rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--border-radius-sm)', backgroundColor: 'var(--bg-secondary)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
-                <h4 style={{ fontSize: '1rem' }}>{title || 'Untranslated Title'}</h4>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem', gap: '0.5rem' }}>
+                <h4 style={{ fontSize: '0.9375rem', fontWeight: '600' }}>{title || 'Untranslated Title'}</h4>
                 <StatusBadge status={status} />
               </div>
-              <p className="text-xs text-secondary-color" style={{ minHeight: '60px' }}>
+              <p className="text-xs text-secondary-color" style={{ minHeight: '60px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                 {description || 'Syllabus content description placeholder.'}
               </p>
-              <div style={{ fontWeight: '700', marginTop: '0.5rem', color: 'var(--primary)' }}>
+              <div style={{ fontWeight: '700', marginTop: '0.75rem', color: 'var(--primary)', fontSize: '1.1rem' }}>
                 ${parseFloat(price || 0).toFixed(2)}
               </div>
             </div>
@@ -145,16 +143,18 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
 
           {/* Existing Drafts */}
           <div className="card">
-            <h3 style={{ fontSize: '1rem', marginBottom: '1rem' }}>Saved Drafts</h3>
+            <h3 style={{ fontSize: '0.8125rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
+              Drafts Inventory
+            </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {drafts.length === 0 ? (
                 <div className="text-xs text-tertiary-color text-center">No drafts saved yet.</div>
               ) : (
                 drafts.map(d => (
                   <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
-                    <div style={{ overflow: 'hidden' }}>
-                      <div style={{ fontSize: '0.875rem', fontWeight: '500', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{d.title}</div>
-                      <div className="text-tertiary-color" style={{ fontSize: '0.75rem' }}>${d.price.toFixed(2)}</div>
+                    <div style={{ overflow: 'hidden', maxWidth: '140px' }}>
+                      <div style={{ fontSize: '0.8125rem', fontWeight: '600', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{d.title}</div>
+                      <div className="text-tertiary-color" style={{ fontSize: '0.7rem' }}>${d.price.toFixed(2)}</div>
                     </div>
                     <StatusBadge status={d.status} />
                   </div>

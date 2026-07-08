@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 export default function LessonPage({ courseId, lessons, courseAccess, progress, onUpdateProgress, onBack }) {
-  const activeCourseLessons = lessons.filter(l => l.course_id === courseId);
+  const activeCourseLessons = lessons.filter(l => l.course_id === (courseId || 201));
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
   const [savingProgress, setSavingProgress] = useState(false);
 
@@ -46,7 +46,8 @@ export default function LessonPage({ courseId, lessons, courseAccess, progress, 
     justifyContent: 'center',
     color: '#ffffff',
     position: 'relative',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    border: '1px solid #1e293b'
   };
 
   const sidebarListStyle = {
@@ -72,8 +73,10 @@ export default function LessonPage({ courseId, lessons, courseAccess, progress, 
       color: isCurrent ? 'var(--primary-hover)' : 'var(--text-secondary)',
       border: isCurrent ? '1px solid var(--primary)' : '1px solid transparent',
       textDecoration: 'none',
-      fontWeight: isCurrent ? '600' : '400',
-      cursor: 'pointer'
+      fontWeight: isCurrent ? '600' : '500',
+      fontSize: '0.8125rem',
+      cursor: 'pointer',
+      transition: 'all var(--transition-fast)'
     };
   };
 
@@ -81,50 +84,60 @@ export default function LessonPage({ courseId, lessons, courseAccess, progress, 
     <div style={containerStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <button className="btn btn-secondary" onClick={onBack} style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
-            ← Back to Dashboard
+          <button className="btn btn-secondary" onClick={onBack} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            ← Return to Overview
           </button>
-          <h1 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-title)' }}>Course Classroom</h1>
         </div>
-        <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-          Access: **AUTHORIZED** (course_access check passed)
+        <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--success)', backgroundColor: 'var(--success-light)', padding: '0.25rem 0.5rem', borderRadius: '4px' }}>
+          Authorization Token Validated
         </div>
       </div>
 
       <div className="architecture-alert">
-        <span>📖</span>
-        <span>Flow: **Learning Management: View Lesson / Update Progress** (Course Service / Course DB)</span>
+        <span>Flow: **Learning Management: View Lesson / Update Progress** (Course Service queries Course DB)</span>
+      </div>
+
+      {/* Topology */}
+      <div style={{ padding: '0.625rem 1rem', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', display: 'flex', gap: '0.5rem', border: '1px solid var(--border-color)' }}>
+        <span>Topology:</span>
+        <span style={{ color: 'var(--primary)', fontWeight: '700' }}>Web Client</span>
+        <span>→</span>
+        <span>API Gateway</span>
+        <span>→</span>
+        <span style={{ fontWeight: '600' }}>Course Service</span>
+        <span>→</span>
+        <span>Course DB</span>
       </div>
 
       <div className="grid grid-cols-3 gap-6">
         {/* Lesson Player Area */}
         <div style={{ gridColumn: 'span 2' }}>
           <div style={videoMockStyle}>
-            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📺</div>
-            <h3 style={{ color: '#ffffff', fontFamily: 'var(--font-sans)', fontWeight: '500' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📺</div>
+            <h3 style={{ color: '#ffffff', fontFamily: 'var(--font-sans)', fontWeight: '600', fontSize: '1.1rem' }}>
               {currentLesson.title}
             </h3>
-            <p style={{ color: '#64748b', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-              Simulated Video Player ({currentLesson.content_url})
+            <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.25rem', fontFamily: 'monospace' }}>
+              Source: {currentLesson.content_url}
             </p>
             <div style={{ position: 'absolute', bottom: '1.5rem', width: '90%', height: '6px', backgroundColor: '#334155', borderRadius: '3px' }}>
-              <div style={{ width: isCompleted ? '100%' : '35%', height: '100%', backgroundColor: 'var(--primary)', borderRadius: '3px' }}></div>
+              <div style={{ width: isCompleted ? '100%' : '35%', height: '100%', backgroundColor: 'var(--primary)', borderRadius: '3px', transition: 'width 0.3s ease' }}></div>
             </div>
           </div>
 
           <div className="card" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h3 style={{ fontSize: '1.1rem' }}>Mark Progress</h3>
-              <p className="text-sm text-secondary-color">Track your learning goals in the Course DB.</p>
+              <h3 style={{ fontSize: '0.9375rem', fontWeight: '600' }}>Mark Progress Status</h3>
+              <p className="text-xs text-secondary-color">Updates completion logs in Course DB table.</p>
             </div>
             <div>
               {isCompleted ? (
-                <div style={{ color: 'var(--success)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  ✓ Completed
+                <div style={{ color: 'var(--success)', fontWeight: '600', fontSize: '0.875rem' }}>
+                  ✓ Lesson Completed
                 </div>
               ) : (
-                <button className="btn btn-primary" onClick={handleMarkComplete} disabled={savingProgress}>
-                  {savingProgress ? 'Saving...' : 'Mark Complete'}
+                <button className="btn btn-primary" style={{ fontSize: '0.8125rem' }} onClick={handleMarkComplete} disabled={savingProgress}>
+                  {savingProgress ? 'Saving Progress...' : 'Mark as Complete'}
                 </button>
               )}
             </div>
@@ -133,8 +146,8 @@ export default function LessonPage({ courseId, lessons, courseAccess, progress, 
 
         {/* Lessons List Sidebar */}
         <div className="card" style={{ height: 'fit-content' }}>
-          <h3 style={{ fontSize: '1rem', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
-            Syllabus Lessons
+          <h3 style={{ fontSize: '0.8125rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+            Syllabus Modules
           </h3>
           <ul style={sidebarListStyle}>
             {activeCourseLessons.map((lesson, idx) => {
@@ -147,7 +160,7 @@ export default function LessonPage({ courseId, lessons, courseAccess, progress, 
                     onClick={() => setCurrentLessonIndex(idx)}
                   >
                     <span>{lesson.title}</span>
-                    <span>{completed ? '✅' : '⏳'}</span>
+                    <span>{completed ? '✓' : '⏳'}</span>
                   </div>
                 </li>
               );

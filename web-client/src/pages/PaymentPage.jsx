@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 
 export default function PaymentPage({ course, onPaymentSuccess, onBack }) {
+  const targetCourse = course || { id: 201, title: 'Introduction to Microservices', price: 99.00 };
   const [method, setMethod] = useState('zalopay');
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentDone, setPaymentDone] = useState(false);
@@ -15,8 +16,8 @@ export default function PaymentPage({ course, onPaymentSuccess, onBack }) {
       const newPayment = {
         id: Date.now(),
         user_id: 1,
-        course_id: course.id,
-        amount: course.price,
+        course_id: targetCourse.id,
+        amount: targetCourse.price,
         payment_method: method,
         payment_status: 'completed',
         created_at: new Date().toISOString()
@@ -27,21 +28,24 @@ export default function PaymentPage({ course, onPaymentSuccess, onBack }) {
   };
 
   const containerStyle = {
-    maxWidth: '600px',
-    margin: '0 auto'
+    maxWidth: '640px',
+    margin: '0 auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem'
   };
 
   const methodSelectStyle = {
     display: 'flex',
     gap: '1rem',
-    margin: '1.25rem 0'
+    margin: '1rem 0'
   };
 
   const getMethodCardStyle = (m) => {
     const isSelected = method === m;
     return {
       flex: 1,
-      padding: '1rem',
+      padding: '1.25rem 1rem',
       borderRadius: 'var(--border-radius-sm)',
       border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border-color)',
       backgroundColor: isSelected ? 'var(--primary-light)' : 'var(--bg-secondary)',
@@ -49,69 +53,90 @@ export default function PaymentPage({ course, onPaymentSuccess, onBack }) {
       textAlign: 'center',
       cursor: 'pointer',
       fontWeight: '600',
+      fontSize: '0.875rem',
       transition: 'all var(--transition-fast)'
     };
   };
 
   return (
     <div style={containerStyle}>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <button className="btn btn-secondary" onClick={onBack} style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
-          ← Back
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <button className="btn btn-secondary" onClick={onBack} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', fontWeight: '600' }}>
+          ← Return
         </button>
-        <h1 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-title)' }}>Checkout Invoice</h1>
+        <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
+          DB Scope: Payment DB (transactions_log)
+        </span>
       </div>
 
       <div className="architecture-alert">
-        <span>💳</span>
-        <span>Flow: **Payment Management: Pay for Course** (Payment Service / Payment DB)</span>
+        <span>Flow: **Payment Checkout Integration** (Payment Service logs to Payment DB)</span>
+      </div>
+
+      <div style={{ padding: '0.625rem 1rem', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', display: 'flex', gap: '0.5rem', border: '1px solid var(--border-color)' }}>
+        <span>Event Topology:</span>
+        <span>Payment Service</span>
+        <span>→</span>
+        <span style={{ color: 'var(--primary)', fontWeight: '700' }}>RabbitMQ Exchange</span>
+        <span>→</span>
+        <span>Course Service</span>
+        <span>→</span>
+        <span>Course DB Access Table</span>
       </div>
 
       <div className="card">
-        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Order Summary</h3>
+        <h3 style={{ fontSize: '0.9375rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+          Checkout Billing
+        </h3>
+        
         <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
           <div>
-            <div style={{ fontWeight: '600' }}>{course.title}</div>
-            <div className="text-xs text-tertiary-color">Owner Service: Course Service</div>
+            <div style={{ fontWeight: '600', fontSize: '0.9375rem' }}>{targetCourse.title}</div>
+            <div className="text-xs text-tertiary-color" style={{ marginTop: '0.125rem' }}>
+              Owner Domain: Course Service Catalog
+            </div>
           </div>
-          <div style={{ fontWeight: '700', fontFamily: 'var(--font-title)' }}>${course.price.toFixed(2)}</div>
+          <div style={{ fontWeight: '700', fontFamily: 'var(--font-title)', fontSize: '1.1rem' }}>
+            ${targetCourse.price.toFixed(2)}
+          </div>
         </div>
 
         {paymentDone ? (
-          <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>✅</div>
-            <h4 style={{ color: 'var(--success)' }}>Payment Confirmed!</h4>
-            <p className="text-sm text-secondary-color" style={{ marginTop: '0.5rem' }}>
-              We published a **PaymentSucceededEvent** to **RabbitMQ**. Course Service has processed it and activated your course access in **Course DB**.
+          <div style={{ marginTop: '1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
+            <div style={{ fontSize: '2.5rem' }}>✓</div>
+            <h4 style={{ color: 'var(--success)', fontWeight: '700', fontSize: '1.1rem' }}>Purchase Finalized</h4>
+            <p className="text-xs text-secondary-color">
+              Payment Service published a **PaymentSucceededEvent** payload to RabbitMQ. Course Service consumes the message and updates access records in Course DB.
             </p>
-            <button className="btn btn-primary mt-6 w-full" onClick={onBack}>
-              Go to Dashboard & Study
+            <button className="btn btn-primary w-full mt-4" style={{ fontWeight: '600' }} onClick={onBack}>
+              Return to Studies
             </button>
           </div>
         ) : (
           <>
-            <div style={{ marginTop: '1.5rem' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--text-secondary)' }}>Select Gateway Method</label>
+            <div style={{ marginTop: '1.25rem' }}>
+              <label style={{ fontSize: '0.8125rem', fontWeight: '600', color: 'var(--text-secondary)' }}>Gateway Provider</label>
               <div style={methodSelectStyle}>
                 <div style={getMethodCardStyle('zalopay')} onClick={() => setMethod('zalopay')}>
-                  📱 ZaloPay
+                  Zalopay Gateway
                 </div>
                 <div style={getMethodCardStyle('momo')} onClick={() => setMethod('momo')}>
-                  📱 MoMo
+                  Momo e-Wallet
                 </div>
               </div>
             </div>
 
-            <div style={{ margin: '1.5rem 0', padding: '0.75rem', backgroundColor: 'var(--danger-light)', color: 'var(--danger)', fontSize: '0.8125rem', borderRadius: 'var(--border-radius-sm)' }}>
-              ⚠️ **DEMO MODE**: This is a simulated checkout. Clicking pay triggers mock events, no real money will be charged.
+            <div style={{ margin: '1.25rem 0', padding: '0.75rem', backgroundColor: 'var(--danger-light)', color: 'var(--danger)', fontSize: '0.75rem', borderRadius: 'var(--border-radius-sm)', fontWeight: '500' }}>
+              NOTICE: This is a simulated invoice billing checkpoint. No real monetary transactions or external API gateway connections will occur.
             </div>
 
             <button 
               className="btn btn-primary w-full" 
+              style={{ fontWeight: '600' }}
               onClick={handlePay} 
               disabled={isProcessing}
             >
-              {isProcessing ? 'Connecting to Gateway API...' : `Confirm Payment: $${course.price.toFixed(2)}`}
+              {isProcessing ? 'Executing API gateway handshake...' : `Pay Invoice: $${targetCourse.price.toFixed(2)}`}
             </button>
           </>
         )}

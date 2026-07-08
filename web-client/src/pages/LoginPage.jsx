@@ -21,7 +21,6 @@ export default function LoginPage({ onLogin }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Simulate User Service login
     const foundUser = mockUsers.find(u => u.email === email && u.role === role);
     if (foundUser) {
       onLogin(foundUser);
@@ -40,7 +39,7 @@ export default function LoginPage({ onLogin }) {
 
   const loginCardStyle = {
     width: '100%',
-    maxWidth: '400px',
+    maxWidth: '420px',
     padding: '2.5rem',
     borderRadius: 'var(--border-radius)',
     backgroundColor: 'var(--bg-secondary)',
@@ -52,29 +51,33 @@ export default function LoginPage({ onLogin }) {
     padding: '0.75rem',
     backgroundColor: 'var(--danger-light)',
     color: 'var(--danger)',
-    fontSize: '0.875rem',
+    fontSize: '0.8125rem',
     borderRadius: 'var(--border-radius-sm)',
-    marginBottom: '1rem'
+    marginBottom: '1.25rem',
+    fontWeight: '500'
   };
 
   return (
     <div style={containerStyle}>
       <div style={loginCardStyle}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '1.75rem', fontFamily: 'var(--font-title)', color: 'var(--primary)' }}>🎓 LMS Portal</h1>
-          <p className="text-sm text-secondary-color" style={{ marginTop: '0.5rem' }}>Microservices Demo UI Scaffold</p>
+          <h1 style={{ fontSize: '1.875rem', fontFamily: 'var(--font-title)', color: 'var(--primary)', fontWeight: '700' }}>
+            LMS Platform Portal
+          </h1>
+          <p className="text-xs text-secondary-color" style={{ marginTop: '0.25rem' }}>
+            Microservices Architecture Prototype
+          </p>
         </div>
 
         <div className="architecture-alert">
-          <span>🔒</span>
-          <span>Flow: **Account Management: Login** (User Service / User DB)</span>
+          <span>Flow: **Account Management: Login** (User Service routing to User DB)</span>
         </div>
 
         {error && <div style={alertStyle}>{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="role">Select System Role</label>
+            <label htmlFor="role">Select System Persona</label>
             <select 
               id="role" 
               className="form-control" 
@@ -82,9 +85,9 @@ export default function LoginPage({ onLogin }) {
               onChange={handleRoleChange}
               style={{ cursor: 'pointer' }}
             >
-              <option value="student">Student</option>
-              <option value="instructor">Instructor</option>
-              <option value="admin">Administrator</option>
+              <option value="student">Student / Learner</option>
+              <option value="instructor">Instructor / Academic</option>
+              <option value="admin">Platform Administrator</option>
             </select>
           </div>
 
@@ -112,8 +115,8 @@ export default function LoginPage({ onLogin }) {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary w-full mt-6">
-            Log In
+          <button type="submit" className="btn btn-primary w-full mt-6" style={{ fontWeight: '600' }}>
+            Authenticate & Enter
           </button>
         </form>
       </div>

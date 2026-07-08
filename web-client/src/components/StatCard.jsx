@@ -1,27 +1,27 @@
 import React from 'react';
 
-export default function StatCard({ title, value, icon, description }) {
+export default function StatCard({ title, value, description }) {
   const cardStyle = {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.5rem',
+    gap: '0.375rem',
     minWidth: '200px'
   };
 
-  const headerStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'between',
+  const titleStyle = {
     color: 'var(--text-secondary)',
-    fontSize: '0.875rem',
-    fontWeight: '500'
+    fontSize: '0.8125rem',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em'
   };
 
   const valueStyle = {
-    fontSize: '1.875rem',
+    fontSize: '1.75rem',
     fontWeight: '700',
     color: 'var(--text-primary)',
-    fontFamily: 'var(--font-title)'
+    fontFamily: 'var(--font-title)',
+    lineHeight: '1.2'
   };
 
   const descStyle = {
@@ -30,11 +30,8 @@ export default function StatCard({ title, value, icon, description }) {
   };
 
   return (
-    <div className="card" style={cardStyle}>
-      <div style={headerStyle}>
-        <span>{title}</span>
-        <span style={{ fontSize: '1.25rem' }}>{icon}</span>
-      </div>
+    <div className="card hover-lift" style={cardStyle}>
+      <div style={titleStyle}>{title}</div>
       <div style={valueStyle}>{value}</div>
       {description && <div style={descStyle}>{description}</div>}
     </div>
