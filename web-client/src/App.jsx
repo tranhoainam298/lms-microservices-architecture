@@ -35,9 +35,13 @@ const pageTitles = {
 };
 
 const tabPages = new Set(['overview', 'dashboard', 'ai-support', 'course-draft', 'revenue-report']);
+const studentOnlyPages = new Set(['dashboard', 'lesson', 'quiz', 'payment', 'ai-support']);
 
 export default function App() {
-  const [user, setUser] = useState(null);
+  const [authSession, setAuthSession] = useState(null);
+  const user = authSession
+    ? { ...authSession.userProfile, role: authSession.role, full_name: authSession.userProfile.fullName }
+    : null;
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [activePage, setActivePage] = useState(null); // 'lesson', 'quiz', 'payment'
   const [pageParams, setPageParams] = useState(null);
@@ -49,21 +53,22 @@ export default function App() {
   const [progress, setProgress] = useState(mockLearningProgress);
   const [quizAttempts, setQuizAttempts] = useState(mockQuizAttempts);
 
-  const handleLogin = (loggedInUser) => {
-    setUser(loggedInUser);
+  const handleLogin = (session) => {
+    const authenticatedRole = session.role;
+    setAuthSession(session);
     setActivePage(null);
     setPageParams(null);
-    if (loggedInUser.role === 'student') {
+    if (authenticatedRole === 'student') {
       setCurrentTab('dashboard');
-    } else if (loggedInUser.role === 'instructor') {
+    } else if (authenticatedRole === 'instructor') {
       setCurrentTab('course-draft');
-    } else if (loggedInUser.role === 'admin') {
+    } else if (authenticatedRole === 'admin') {
       setCurrentTab('revenue-report');
     }
   };
 
   const handleLogout = () => {
-    setUser(null);
+    setAuthSession(null);
     setCurrentTab('dashboard');
     setActivePage(null);
     setPageParams(null);
@@ -87,7 +92,7 @@ export default function App() {
   };
 
   const handleSaveDraft = (newDraft) => {
-    setCourses(prev => [newDraft, ...prev]);
+    setCourses(prev => [{ ...newDraft, instructor_id: newDraft.instructorId }, ...prev]);
   };
 
   const handlePaymentSuccess = (newPayment) => {
@@ -145,6 +150,17 @@ export default function App() {
 
   // Render Sub-pages (within Student shell)
   const renderPage = () => {
+    const requestedPage = activePage || currentTab;
+    if (studentOnlyPages.has(requestedPage) && authSession.role !== 'student') {
+      return <div className="card" role="alert">This page is available to students only.</div>;
+    }
+    if (requestedPage === 'course-draft' && authSession.role !== 'instructor') {
+      return <div className="card" role="alert">Only instructors can save draft courses.</div>;
+    }
+    if (requestedPage === 'revenue-report' && authSession.role !== 'admin') {
+      return <div className="card" role="alert">This page is available to administrators only.</div>;
+    }
+
     if (activePage === 'lesson') {
       return (
         <LessonPage 
@@ -221,6 +237,9 @@ export default function App() {
           <InstructorCourseDraft 
             onSaveDraft={handleSaveDraft}
             initialDrafts={courses.filter(c => c.instructor_id === user.id && c.status === 'draft')}
+            accessToken={authSession.accessToken}
+            userProfile={authSession.userProfile}
+            role={authSession.role}
           />
         );
       case 'revenue-report':

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
 
-export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] }) {
+export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [], accessToken, userProfile, role }) {
   const [drafts, setDrafts] = useState(initialDrafts);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -9,36 +9,56 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
   const [status, setStatus] = useState('draft');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
+    if (role !== 'instructor') {
+      setSaveError('Only instructors can save draft courses.');
+      return;
+    }
+
     setIsSaving(true);
     setSaveSuccess(false);
+    setSaveError('');
 
-    // Simulate saving in Course Service / Course DB
-    setTimeout(() => {
-      const newDraft = {
-        id: Date.now(),
-        instructor_id: 2,
-        title,
-        description,
-        price: parseFloat(price) || 0.00,
-        status
-      };
+    try {
+      const response = await fetch('http://localhost:3000/courses/draft', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          title,
+          description,
+          price: Number(price),
+          status,
+          instructorId: userProfile.id
+        })
+      });
+      const responseBody = await response.json();
 
-      setDrafts([newDraft, ...drafts]);
-      setIsSaving(false);
+      if (!response.ok) {
+        throw new Error(responseBody.message || 'The draft course could not be saved.');
+      }
+
+      const newDraft = responseBody.course;
+      setDrafts(currentDrafts => [newDraft, ...currentDrafts]);
       setSaveSuccess(true);
       onSaveDraft(newDraft);
-
-      // Reset form
       setTitle('');
       setDescription('');
       setPrice('49.00');
       setStatus('draft');
-
-      setTimeout(() => setSaveSuccess(false), 3000);
-    }, 800);
+    } catch (requestError) {
+      const message = requestError instanceof TypeError
+        ? 'Course draft service is unavailable. Start the API Gateway and Course Service, then try again.'
+        : requestError.message;
+      setSaveError(message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -46,8 +66,12 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
       <div className="architecture-alert">
         <span>Course draft boundary</span>
         <span className="service-badge">Course Service / Course DB</span>
-        <span className="architecture-alert__detail">Save behavior remains in local React state</span>
+        <span className="architecture-alert__detail">Drafts are stored in Course Service memory for this demo</span>
       </div>
+
+      {role !== 'instructor' ? (
+        <div className="card" role="alert">Only instructors can save draft courses.</div>
+      ) : (
 
       <div className="grid grid-cols-3 gap-6 draft-workspace">
         {/* Form panel */}
@@ -58,7 +82,13 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
           
           {saveSuccess && (
             <div style={{ padding: '0.75rem', backgroundColor: 'var(--success-light)', color: 'var(--success)', borderRadius: 'var(--border-radius-sm)', marginBottom: '1.25rem', fontSize: '0.8125rem', fontWeight: '600' }}>
-              Draft saved to the local demo state.
+              Draft saved through the API Gateway.
+            </div>
+          )}
+
+          {saveError && (
+            <div style={{ padding: '0.75rem', backgroundColor: 'var(--danger-light)', color: 'var(--danger)', borderRadius: 'var(--border-radius-sm)', marginBottom: '1.25rem', fontSize: '0.8125rem', fontWeight: '600' }} role="alert">
+              {saveError}
             </div>
           )}
 
@@ -96,6 +126,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
                   id="draft-price"
                   type="number" 
                   step="0.01"
+                  min="0"
                   className="form-control" 
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
@@ -109,15 +140,15 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
                   className="form-control" 
                   value={status} 
                   onChange={(e) => setStatus(e.target.value)}
+                  disabled
                 >
                   <option value="draft">Draft</option>
-                  <option value="published">Published</option>
                 </select>
               </div>
             </div>
 
             <button type="submit" className="btn btn-primary" style={{ fontWeight: '600' }} disabled={isSaving}>
-              {isSaving ? 'Saving local draft...' : 'Save draft course'}
+              {isSaving ? 'Saving draft...' : 'Save draft course'}
             </button>
           </form>
         </div>
@@ -156,7 +187,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
                   <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
                     <div style={{ overflow: 'hidden', maxWidth: '140px' }}>
                       <div style={{ fontSize: '0.8125rem', fontWeight: '600', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{d.title}</div>
-                      <div className="text-tertiary-color" style={{ fontSize: '0.7rem' }}>${d.price.toFixed(2)}</div>
+                      <div className="text-tertiary-color" style={{ fontSize: '0.7rem' }}>${Number(d.price).toFixed(2)}</div>
                     </div>
                     <StatusBadge status={d.status} />
                   </div>
@@ -166,6 +197,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [] 
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

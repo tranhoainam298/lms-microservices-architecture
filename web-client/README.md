@@ -3,14 +3,24 @@
 This directory contains the React + Vite UI prototype scaffold for the Learning Management System (LMS) Microservices architecture.
 
 > [!IMPORTANT]
-> The current setup is a **frontend UI prototype only**. It uses local React states and simulated mock databases to represent microservice boundaries. No backend APIs are connected, no databases have been created on the host machine, and no live SQL Server connections are active.
+> Login and Save Draft Course are the implemented backend flows. Other screens still use local React state and mock data. No SQL Server connections are active.
+
+## Login Flow
+
+`LoginPage.jsx` sends `email`, `password`, and `role` to the API Gateway at `http://localhost:3000/auth/login`. The Gateway forwards the request to the User Service. On success, `App.jsx` stores the returned `accessToken`, `userProfile`, and `role` in React state and opens the dashboard for that role.
+
+The API Gateway and User Service must both be running before testing real login. If either backend process is unavailable, the login form remains usable and shows a connection error.
+
+## Course Draft Flow
+
+`InstructorCourseDraft.jsx` sends draft course data and the logged-in instructor's mock access token to `http://localhost:3000/courses/draft`. The API Gateway forwards the request to the Course Service on port `3002`. Draft persistence is mock/in-memory only until backend database integration.
 
 ---
 
 ## Architecture Alignment
 
 All pages and flows are built to match the operations and database schemas defined in the architecture mapping docs:
-1. **User Service & User DB**: Authentication login flow with role lookup (`LoginPage.jsx`).
+1. **User Service**: Real login API with a mock user store and role lookup (`LoginPage.jsx`). User DB is not connected yet.
 2. **Course Service & Course DB**: Syllabus lessons, active access checks (`LessonPage.jsx`), and course drafts creation (`InstructorCourseDraft.jsx`).
 3. **Exam Service & Exam DB**: Assessment questions and scoring (`QuizPage.jsx`).
 4. **Payment Service & Payment DB**: Simulates ZaloPay/Momo callbacks and logging (`PaymentPage.jsx`).

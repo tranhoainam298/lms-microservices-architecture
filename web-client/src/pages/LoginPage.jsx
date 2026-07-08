@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { mockUsers } from '../data/mockData';
 
 export default function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('student@lms.edu');
-  const [password, setPassword] = useState('password');
+  const [password, setPassword] = useState('password123');
   const [role, setRole] = useState('student');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleRoleChange = (e) => {
     const selectedRole = e.target.value;
     setRole(selectedRole);
+    setError('');
     if (selectedRole === 'student') {
       setEmail('student@lms.edu');
     } else if (selectedRole === 'instructor') {
@@ -19,13 +20,34 @@ export default function LoginPage({ onLogin }) {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const foundUser = mockUsers.find(u => u.email === email && u.role === role);
-    if (foundUser) {
-      onLogin(foundUser);
-    } else {
-      setError('Invalid credentials for the selected role.');
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('http://localhost:3000/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, role })
+      });
+      const responseBody = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 403 && responseBody.code === 'ROLE_MISMATCH') {
+          throw new Error('Selected role does not match this account.');
+        }
+        throw new Error(responseBody.message || 'Login failed. Check your credentials and role.');
+      }
+
+      onLogin(responseBody);
+    } catch (requestError) {
+      const message = requestError instanceof TypeError
+        ? 'Login service is unavailable. Start the API Gateway and User Service, then try again.'
+        : requestError.message;
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -85,7 +107,7 @@ export default function LoginPage({ onLogin }) {
           <span className="architecture-alert__detail">User Service routes to User DB</span>
         </div>
 
-        {error && <div style={alertStyle}>{error}</div>}
+        {error && <div style={alertStyle} role="alert">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -95,6 +117,7 @@ export default function LoginPage({ onLogin }) {
               className="form-control" 
               value={role} 
               onChange={handleRoleChange}
+              disabled={isLoading}
               style={{ cursor: 'pointer' }}
             >
               <option value="student">Student / Learner</option>
@@ -110,7 +133,9 @@ export default function LoginPage({ onLogin }) {
               type="email" 
               className="form-control"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); setError(''); }}
+              autoComplete="username"
+              disabled={isLoading}
               required 
             />
           </div>
@@ -122,13 +147,15 @@ export default function LoginPage({ onLogin }) {
               type="password" 
               className="form-control"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value); setError(''); }}
+              autoComplete="current-password"
+              disabled={isLoading}
               required 
             />
           </div>
 
-          <button type="submit" className="btn btn-primary w-full mt-6" style={{ fontWeight: '600' }}>
-            Enter demo
+          <button type="submit" className="btn btn-primary w-full mt-6" style={{ fontWeight: '600' }} disabled={isLoading}>
+            {isLoading ? 'Signing in...' : 'Enter demo'}
           </button>
         </form>
       </div>

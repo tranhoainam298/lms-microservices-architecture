@@ -27,17 +27,22 @@ Authorization: Bearer {accessToken}
 |---|---|---|---|
 | title | string | Yes | Course title |
 | description | string | Yes | Course description |
-| category | string | Yes | Course category |
+| price | number | Yes | Course price, greater than or equal to 0 |
+| status | string | Yes | Must be `draft` in this step |
 | instructorId | string | Yes | ID of the instructor creating the course |
-| lessons | array | No | Initial list of lesson outlines (optional at draft stage) |
 
 ### Success Response (201 Created)
 
 | Field | Type | Description |
 |---|---|---|
-| courseId | string | Generated course ID |
-| status | string | Course status ("draft") |
-| createdAt | string | Timestamp of creation |
+| course | object | Created draft course |
+| course.id | string | Generated course draft ID |
+| course.title | string | Course title |
+| course.description | string | Course description |
+| course.price | number | Course price |
+| course.status | string | Course status (`draft`) |
+| course.instructorId | string | Instructor ID |
+| course.createdAt | string | Timestamp of creation |
 
 ### Error Responses
 
@@ -45,6 +50,7 @@ Authorization: Bearer {accessToken}
 |---|---|---|
 | 401 | UNAUTHORIZED | Missing or invalid access token |
 | 403 | FORBIDDEN | User does not have instructor role |
+| 400 | VALIDATION_ERROR | Draft payload is invalid |
 
 ### Related Sequence Diagram
 
