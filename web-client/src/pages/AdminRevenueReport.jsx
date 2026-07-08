@@ -7,42 +7,76 @@ export default function AdminRevenueReport({ payments, courses }) {
   const totalSalesCount = payments.length;
   const totalRevenue = payments.reduce((acc, curr) => acc + curr.amount, 0);
   const averageTicket = totalSalesCount > 0 ? totalRevenue / totalSalesCount : 0;
+  const revenueByCourse = courses
+    .map(course => ({
+      id: course.id,
+      title: course.title,
+      amount: payments
+        .filter(payment => payment.course_id === course.id)
+        .reduce((sum, payment) => sum + payment.amount, 0)
+    }))
+    .filter(course => course.amount > 0);
+  const highestRevenue = Math.max(...revenueByCourse.map(course => course.amount), 1);
 
   return (
-    <div>
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.75rem', fontFamily: 'var(--font-title)' }}>System Financial Dashboard</h1>
-        <p className="text-secondary-color">View invoices, sales transactions, and course revenues.</p>
+    <div className="revenue-page">
+      <div className="page-intro">
+        <p className="page-kicker">Payment and course data</p>
+        <h2 className="page-title">Revenue performance at a glance</h2>
+        <p className="page-description">Review completed payments, course sales contribution, and the current transaction ledger.</p>
       </div>
 
       <div className="architecture-alert">
-        <span>📊</span>
-        <span>Flow: **Reporting Management: View Revenue Report** (Query from: Payment Service [revenue_records] + Course Service [courses]. No Reporting DB exists)</span>
+        <span>Revenue report flow</span>
+        <span className="service-badge">Payment Service + Course Service</span>
+        <span className="architecture-alert__detail">Data is combined in the UI without a dedicated reporting data store.</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-6 mb-6">
+      <div className="metrics-grid mb-6">
         <StatCard 
           title="Total Gross Revenue" 
           value={`$${totalRevenue.toFixed(2)}`} 
-          icon="💰" 
           description="Consolidated sales ledger" 
         />
         <StatCard 
           title="Completed Transactions" 
           value={totalSalesCount} 
-          icon="🧾" 
           description="Invoices processed successfully" 
         />
         <StatCard 
           title="Average Order Value" 
           value={`$${averageTicket.toFixed(2)}`} 
-          icon="📈" 
           description="Average ticket price per course" 
         />
       </div>
 
+      <section className="card mb-6">
+        <div className="section-heading">
+          <div>
+            <p className="section-label">Course contribution</p>
+            <h2>Revenue summary</h2>
+          </div>
+          <span className="service-badge">USD</span>
+        </div>
+        <div className="chart-container" role="img" aria-label="Bar chart showing revenue by course">
+          {revenueByCourse.map(course => (
+            <div className="chart-bar-wrapper" key={course.id}>
+              <span className="chart-value">${course.amount.toFixed(2)}</span>
+              <div className="chart-bar" style={{ height: `${Math.max((course.amount / highestRevenue) * 140, 16)}px` }} />
+              <span className="chart-label" title={course.title}>{course.title}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="card mb-6">
-        <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>Transaction Ledger (Payment DB)</h2>
+        <div className="section-heading">
+          <div>
+            <p className="section-label">Payment DB records</p>
+            <h2>Transaction ledger</h2>
+          </div>
+          <span className="service-badge">{totalSalesCount} completed</span>
+        </div>
         <div className="table-container">
           <table className="table">
             <thead>
@@ -61,7 +95,7 @@ export default function AdminRevenueReport({ payments, courses }) {
                 return (
                   <tr key={p.id}>
                     <td>#{p.id}</td>
-                    <td>student_#{p.user_id}</td>
+                    <td>Student {p.user_id}</td>
                     <td style={{ fontWeight: '500' }}>{relatedCourse?.title || 'Unknown Course'}</td>
                     <td>${p.amount.toFixed(2)}</td>
                     <td>{p.payment_method.toUpperCase()}</td>

@@ -59,18 +59,19 @@ export default function PaymentPage({ course, onPaymentSuccess, onBack }) {
   };
 
   return (
-    <div style={containerStyle}>
+    <div className="payment-page" style={containerStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button className="btn btn-secondary" onClick={onBack} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', fontWeight: '600' }}>
-          ← Return
+          Back to dashboard
         </button>
         <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
-          DB Scope: Payment DB (transactions_log)
+          Payment Service · Payment DB
         </span>
       </div>
 
       <div className="architecture-alert">
-        <span>Flow: **Payment Checkout Integration** (Payment Service logs to Payment DB)</span>
+        <span>Payment Checkout Integration</span>
+        <span className="architecture-alert__detail">Payment Service records the simulated transaction in Payment DB state</span>
       </div>
 
       <div style={{ padding: '0.625rem 1rem', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-sm)', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', display: 'flex', gap: '0.5rem', border: '1px solid var(--border-color)' }}>
@@ -103,10 +104,10 @@ export default function PaymentPage({ course, onPaymentSuccess, onBack }) {
 
         {paymentDone ? (
           <div style={{ marginTop: '1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-            <div style={{ fontSize: '2.5rem' }}>✓</div>
+            <span className="service-badge">Payment confirmed</span>
             <h4 style={{ color: 'var(--success)', fontWeight: '700', fontSize: '1.1rem' }}>Purchase Finalized</h4>
             <p className="text-xs text-secondary-color">
-              Payment Service published a **PaymentSucceededEvent** payload to RabbitMQ. Course Service consumes the message and updates access records in Course DB.
+              Payment Service published a PaymentSucceededEvent payload to RabbitMQ. Course Service consumes the message and updates access records in Course DB.
             </p>
             <button className="btn btn-primary w-full mt-4" style={{ fontWeight: '600' }} onClick={onBack}>
               Return to Studies
@@ -117,12 +118,12 @@ export default function PaymentPage({ course, onPaymentSuccess, onBack }) {
             <div style={{ marginTop: '1.25rem' }}>
               <label style={{ fontSize: '0.8125rem', fontWeight: '600', color: 'var(--text-secondary)' }}>Gateway Provider</label>
               <div style={methodSelectStyle}>
-                <div style={getMethodCardStyle('zalopay')} onClick={() => setMethod('zalopay')}>
+                <button type="button" className="payment-method" style={getMethodCardStyle('zalopay')} onClick={() => setMethod('zalopay')} aria-pressed={method === 'zalopay'}>
                   Zalopay Gateway
-                </div>
-                <div style={getMethodCardStyle('momo')} onClick={() => setMethod('momo')}>
+                </button>
+                <button type="button" className="payment-method" style={getMethodCardStyle('momo')} onClick={() => setMethod('momo')} aria-pressed={method === 'momo'}>
                   Momo e-Wallet
-                </div>
+                </button>
               </div>
             </div>
 
@@ -136,7 +137,7 @@ export default function PaymentPage({ course, onPaymentSuccess, onBack }) {
               onClick={handlePay} 
               disabled={isProcessing}
             >
-              {isProcessing ? 'Executing API gateway handshake...' : `Pay Invoice: $${targetCourse.price.toFixed(2)}`}
+              {isProcessing ? 'Processing simulated payment...' : `Pay $${targetCourse.price.toFixed(2)}`}
             </button>
           </>
         )}

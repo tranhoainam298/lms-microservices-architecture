@@ -58,26 +58,38 @@ export default function LoginPage({ onLogin }) {
   };
 
   return (
-    <div style={containerStyle}>
-      <div style={loginCardStyle}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '1.875rem', fontFamily: 'var(--font-title)', color: 'var(--primary)', fontWeight: '700' }}>
-            LMS Platform Portal
-          </h1>
-          <p className="text-xs text-secondary-color" style={{ marginTop: '0.25rem' }}>
-            Microservices Architecture Prototype
-          </p>
+    <div className="login-page" style={containerStyle}>
+      <aside className="login-thesis">
+        <div>
+          <span className="login-thesis__label">LMS architecture demo</span>
+          <h1>Learn the course.<br />See the system.</h1>
+          <p>A working interface for exploring how learning flows cross clear microservice boundaries.</p>
+        </div>
+        <div className="login-topology" aria-label="Login request architecture">
+          <span>Web Client</span><i aria-hidden="true" />
+          <span>API Gateway</span><i aria-hidden="true" />
+          <span>User Service</span><i aria-hidden="true" />
+          <span>User DB</span>
+        </div>
+      </aside>
+
+      <div className="login-panel" style={loginCardStyle}>
+        <div className="login-panel__heading">
+          <span className="page-kicker">Choose a demo role</span>
+          <h2>Enter the learning workspace</h2>
+          <p>Each role opens a different view of the same architecture.</p>
         </div>
 
         <div className="architecture-alert">
-          <span>Flow: **Account Management: Login** (User Service routing to User DB)</span>
+          <span>Account Management: Login</span>
+          <span className="architecture-alert__detail">User Service routes to User DB</span>
         </div>
 
         {error && <div style={alertStyle}>{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="role">Select System Persona</label>
+            <label htmlFor="role">Demo role</label>
             <select 
               id="role" 
               className="form-control" 
@@ -92,7 +104,7 @@ export default function LoginPage({ onLogin }) {
           </div>
 
           <div className="form-group">
-            <label htmlFor="email">Email Address</label>
+            <label htmlFor="email">Email</label>
             <input 
               id="email"
               type="email" 
@@ -116,7 +128,7 @@ export default function LoginPage({ onLogin }) {
           </div>
 
           <button type="submit" className="btn btn-primary w-full mt-6" style={{ fontWeight: '600' }}>
-            Authenticate & Enter
+            Enter demo
           </button>
         </form>
       </div>

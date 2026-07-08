@@ -15,9 +15,9 @@ export const mockLoginAuditLogs = [
 
 // 2. Course DB (Owned by Course Service)
 export const mockCourses = [
-  { id: 201, instructor_id: 2, title: "Introduction to Microservices", description: "Learn microservices architectural patterns, API Gateways, and event-driven styling using RabbitMQ.", price: 99.00, status: "published" },
-  { id: 202, instructor_id: 2, title: "Advanced React with CSS Grid", description: "Design responsive, highly interactive web applications without Tailwind CSS.", price: 49.00, status: "published" },
-  { id: 203, instructor_id: 2, title: "Building Scalable T-SQL Schemas", description: "Draft database layouts, foreign key boundaries, and optimize SQL Server database transactions.", price: 79.00, status: "draft" }
+  { id: 201, instructor_id: 2, title: "Introduction to Microservices", description: "Learn microservices architectural patterns, API Gateways, and event-driven styling using RabbitMQ.", price: 99.00, status: "published", progress_percent: 33 },
+  { id: 202, instructor_id: 2, title: "Advanced React with CSS Grid", description: "Design responsive, highly interactive web applications without Tailwind CSS.", price: 49.00, status: "published", progress_percent: 100 },
+  { id: 203, instructor_id: 2, title: "Building Scalable T-SQL Schemas", description: "Draft database layouts, foreign key boundaries, and optimize SQL Server database transactions.", price: 79.00, status: "draft", progress_percent: 0 }
 ];
 
 export const mockLessons = [
@@ -51,7 +51,7 @@ export const mockQuestionBank = [
 ];
 
 export const mockQuizzes = [
-  { id: 801, course_id: 201, title: "Microservices Architecture Basics", status: "published" }
+  { id: 801, course_id: 201, title: "Microservices Architecture Basics", status: "published", due_label: "Due Friday at 17:00", question_count: 3 }
 ];
 
 export const mockQuizQuestions = [
@@ -100,4 +100,31 @@ export const mockAiBotResponses = [
   { keyword: "gateway", reply: "In a microservices architecture, the API Gateway serves as the single entry point. It forwards requests to services (User, Course, Exam, Payment) and handles cross-cutting concerns like authentication, routing, and rate limiting." },
   { keyword: "isolation", reply: "Database-per-service means that each microservice has absolute ownership of its private database. No service can query another service's database directly. For example, User Service accesses User DB only, and Course Service accesses Course DB only." },
   { keyword: "rabbitmq", reply: "RabbitMQ is used for event-driven asynchronous communication. When a student completes checkout, the Payment Service publishes a PaymentSucceededEvent. Course Service consumes this event to activate course access without direct DB links." }
+];
+
+export const mockAiSuggestions = [
+  "How does an API Gateway route requests?",
+  "Why does each service own its database?",
+  "When should RabbitMQ be used?"
+];
+
+export const mockExperienceFeedback = [
+  {
+    id: 1,
+    quote: "The course experience and the service boundary stay visible together, so the architecture never feels abstract.",
+    name: "Minh Anh Tran",
+    role: "Software engineering student"
+  },
+  {
+    id: 2,
+    quote: "The payment journey shows exactly where responsibility changes without turning the interface into documentation.",
+    name: "Khoa Nguyen",
+    role: "Architecture reviewer"
+  },
+  {
+    id: 3,
+    quote: "I can teach the learning flow and the system design from the same screen.",
+    name: "Thu Ha Le",
+    role: "Course instructor"
+  }
 ];
