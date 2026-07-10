@@ -71,11 +71,11 @@ async function e2eTest() {
     res = await fetch(`${GATEWAY_URL}/questions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${instructorToken}` },
-      body: JSON.stringify({ quizId, topic: 'RabbitMQ', content: 'What is a topic exchange?', options: '["A router","A DB","A cache"]', correctAnswer: 'A router' })
+      body: JSON.stringify({ courseId, topic: 'RabbitMQ', content: 'What is a topic exchange?', options: '["A router","A DB","A cache"]', correctAnswer: 'A router' })
     });
     if (!res.ok) throw new Error('Question creation failed: ' + await res.text());
     const questionData = await res.json();
-    console.log(`✅ Question added to Quiz (Question ID: ${questionData.id})\n`);
+    console.log(`✅ Question added to Quiz (Question ID: ${questionData.questionId})\n`);
 
     // ---------------------------------------------------------
     // 4. STUDENT ATTEMPTS UNAUTHORIZED ACCESS
@@ -124,7 +124,7 @@ async function e2eTest() {
     console.log('--- 7. Quiz Attempt Flow ---');
     const answerPayload = {
       studentId,
-      answers: { [questionData.id]: 'A router' } // Correct answer
+      answers: { [questionData.questionId]: 'A router' } // Correct answer
     };
     res = await fetch(`${GATEWAY_URL}/quizzes/${quizId}/submit`, {
       method: 'POST',

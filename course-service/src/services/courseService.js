@@ -124,3 +124,41 @@ export async function enrollStudent(studentId, courseId) {
   }
 }
 
+export async function getCourses() {
+  try {
+    const connection = await pool.getConnection();
+    try {
+      const [courses] = await connection.query('SELECT * FROM courses');
+      return { status: 200, body: courses };
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error getting courses:', error);
+    return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Failed to get courses.' } };
+  }
+}
+
+export async function getEnrolledCourses(studentId) {
+  if (!studentId) {
+    return { status: 401, body: { code: 'UNAUTHORIZED', message: 'Missing student_id.' } };
+  }
+  try {
+    const connection = await pool.getConnection();
+    try {
+      const [courses] = await connection.query(
+        `SELECT c.* FROM courses c 
+         JOIN enrollments e ON c.id = e.course_id 
+         WHERE e.student_id = ? AND e.status = 'active'`,
+        [studentId]
+      );
+      return { status: 200, body: courses };
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error getting enrolled courses:', error);
+    return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Failed to get enrolled courses.' } };
+  }
+}
+

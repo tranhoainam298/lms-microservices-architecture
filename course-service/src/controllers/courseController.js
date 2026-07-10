@@ -1,4 +1,4 @@
-import { createDraftCourse, createLesson, getLesson } from '../services/courseService.js';
+import { createDraftCourse, createLesson, getLesson, getCourses, getEnrolledCourses } from '../services/courseService.js';
 
 export async function createDraft(req, res) {
   const payload = req.body || {};
@@ -26,5 +26,16 @@ export async function getLessonHandler(req, res) {
   const studentId = req.get('x-user-id'); // assuming API Gateway passes student ID here
   
   const result = await getLesson(lessonId, studentId);
+  res.status(result.status).json(result.body);
+}
+
+export async function getCoursesHandler(req, res) {
+  const result = await getCourses();
+  res.status(result.status).json(result.body);
+}
+
+export async function getEnrolledCoursesHandler(req, res) {
+  const studentId = req.get('x-user-id');
+  const result = await getEnrolledCourses(studentId);
   res.status(result.status).json(result.body);
 }

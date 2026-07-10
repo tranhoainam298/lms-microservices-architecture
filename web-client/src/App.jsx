@@ -78,12 +78,46 @@ export default function App() {
   const [activePage, setActivePage] = useState(null); // 'lesson', 'quiz', 'payment'
   const [pageParams, setPageParams] = useState(null);
 
-  // Simulated Database states
-  const [courses, setCourses] = useState(mockCourses);
-  const [courseAccess, setCourseAccess] = useState(mockCourseAccess);
+  // Real Database states
+  const [courses, setCourses] = useState([]);
+  const [courseAccess, setCourseAccess] = useState([]);
   const [payments, setPayments] = useState(mockPayments);
   const [progress, setProgress] = useState(mockLearningProgress);
   const [quizAttempts, setQuizAttempts] = useState(mockQuizAttempts);
+
+  React.useEffect(() => {
+    async function loadData() {
+      try {
+        const res = await fetch('http://localhost:3000/courses', {
+          headers: authSession ? { 'Authorization': `Bearer ${authSession.accessToken}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setCourses(data);
+        }
+        
+        if (authSession?.role === 'student') {
+          const accessRes = await fetch('http://localhost:3000/courses/enrolled', {
+            headers: { 'Authorization': `Bearer ${authSession.accessToken}` }
+          });
+          if (accessRes.ok) {
+            const enrolled = await accessRes.json();
+            // Map enrolled courses to access array format expected by UI
+            setCourseAccess(enrolled.map(c => ({
+              id: c.id,
+              user_id: user.id,
+              course_id: c.id,
+              access_status: 'active'
+            })));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load courses', err);
+        setCourses(mockCourses); // fallback
+      }
+    }
+    loadData();
+  }, [authSession]);
 
   const handleLogin = (session) => {
     const authenticatedRole = session.role;
@@ -127,19 +161,42 @@ export default function App() {
     setCourses(prev => [{ ...newDraft, instructor_id: newDraft.instructorId }, ...prev]);
   };
 
-  const handlePaymentSuccess = (newPayment) => {
+  const handlePaymentSuccess = async (newPayment) => {
+    // Save locally
     setPayments(prev => [newPayment, ...prev]);
     
-    // Simulate RabbitMQ Event-Driven Access Activation:
-    // Course Service receives PaymentSucceededEvent and updates Course DB (course_access).
-    const newAccess = {
-      id: Date.now(),
-      user_id: user.id,
-      course_id: newPayment.course_id,
-      access_status: 'active',
-      activated_at: new Date().toISOString()
-    };
-    setCourseAccess(prev => [...prev, newAccess]);
+    // Trigger real backend webhook to test RabbitMQ flow!
+    try {
+      await fetch('http://localhost:3000/payments/webhook/zalopay', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authSession.accessToken}`
+        },
+        body: JSON.stringify({
+          studentId: user.id,
+          courseId: newPayment.course_id,
+          transactionId: `MOCK_TXN_${Date.now()}`
+        })
+      });
+      // Give RabbitMQ a second to process and then refresh enrollment
+      setTimeout(async () => {
+        const accessRes = await fetch('http://localhost:3000/courses/enrolled', {
+          headers: { 'Authorization': `Bearer ${authSession.accessToken}` }
+        });
+        if (accessRes.ok) {
+          const enrolled = await accessRes.json();
+          setCourseAccess(enrolled.map(c => ({
+            id: c.id,
+            user_id: user.id,
+            course_id: c.id,
+            access_status: 'active'
+          })));
+        }
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to process mock payment via backend', err);
+    }
   };
 
   const handleUpdateProgress = (lessonId, status) => {
