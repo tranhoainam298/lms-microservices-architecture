@@ -1,4 +1,4 @@
-import { createDraftCourse } from '../services/courseService.js';
+import { createDraftCourse, createLesson, getLesson } from '../services/courseService.js';
 
 export async function createDraft(req, res) {
   const payload = req.body || {};
@@ -9,5 +9,22 @@ export async function createDraft(req, res) {
   }
   
   const result = await createDraftCourse(payload);
+  res.status(result.status).json(result.body);
+}
+
+export async function createLessonHandler(req, res) {
+  const { courseId, title, videoUrl, documentUrl } = req.body;
+  
+  // Optionally verify instructor is the owner of the course
+  // but for now, we just proceed
+  const result = await createLesson({ courseId, title, videoUrl, documentUrl });
+  res.status(result.status).json(result.body);
+}
+
+export async function getLessonHandler(req, res) {
+  const { lessonId } = req.params;
+  const studentId = req.get('x-user-id'); // assuming API Gateway passes student ID here
+  
+  const result = await getLesson(lessonId, studentId);
   res.status(result.status).json(result.body);
 }

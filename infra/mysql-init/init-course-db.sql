@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS enrollments (
   student_id INT NOT NULL,
   course_id INT NOT NULL,
   progress_percent DECIMAL(5, 2) DEFAULT 0.0,
+  status VARCHAR(50) DEFAULT 'active',
   enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

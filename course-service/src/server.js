@@ -4,6 +4,7 @@ import express from 'express';
 import courseRoutes from './routes/courseRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { initializeDatabase } from './data/initDb.js';
+import { startRabbitMQListener } from './rabbitmq-listener.js';
 
 const app = express();
 const port = Number(process.env.PORT) || 5002;
@@ -15,4 +16,5 @@ app.use(errorHandler);
 
 app.listen(port, () => {
   console.log(`Course Service listening on http://localhost:${port}`);
+  startRabbitMQListener();
 });
