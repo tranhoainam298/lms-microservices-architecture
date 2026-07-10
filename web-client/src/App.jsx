@@ -11,6 +11,8 @@ import PaymentPage from './pages/PaymentPage';
 import AdminRevenueReport from './pages/AdminRevenueReport';
 import AiSupportPage from './pages/AiSupportPage';
 import OverviewPage from './pages/OverviewPage';
+import ProfilePage from './pages/ProfilePage';
+import AdminUserManagement from './pages/AdminUserManagement';
 
 // Mock Databases
 import { 
@@ -18,9 +20,7 @@ import {
   mockCourseAccess, 
   mockPayments, 
   mockLearningProgress,
-  mockQuizAttempts,
   mockLessons,
-  mockQuizzes
 } from './data/mockData';
 
 const pageMeta = {
@@ -63,10 +63,12 @@ const pageMeta = {
     title: 'Revenue and sales',
     subtitle: 'Review payment activity and course contribution without a reporting service.',
     context: 'Administration'
-  }
+  },
+  profile: { title: 'Your profile', subtitle: 'Manage your account details and password.', context: 'User account' },
+  'user-management': { title: 'User management', subtitle: 'Review and activate platform accounts.', context: 'Administration' }
 };
 
-const tabPages = new Set(['overview', 'dashboard', 'ai-support', 'course-draft', 'revenue-report']);
+const tabPages = new Set(['overview', 'dashboard', 'ai-support', 'course-draft', 'revenue-report', 'profile', 'user-management']);
 const studentOnlyPages = new Set(['dashboard', 'lesson', 'quiz', 'payment', 'ai-support']);
 
 export default function App() {
@@ -83,7 +85,6 @@ export default function App() {
   const [courseAccess, setCourseAccess] = useState([]);
   const [payments, setPayments] = useState(mockPayments);
   const [progress, setProgress] = useState(mockLearningProgress);
-  const [quizAttempts, setQuizAttempts] = useState(mockQuizAttempts);
 
   React.useEffect(() => {
     async function loadData() {
@@ -138,6 +139,14 @@ export default function App() {
     setCurrentTab('dashboard');
     setActivePage(null);
     setPageParams(null);
+  };
+
+  const handleProfileUpdated = (profile) => {
+    setAuthSession(session => ({
+      ...session,
+      role: profile.role,
+      userProfile: { ...session.userProfile, ...profile }
+    }));
   };
 
   const handleNavigate = (page, params = null) => {
@@ -220,18 +229,6 @@ export default function App() {
     }
   };
 
-  const handleSubmitQuiz = (result) => {
-    const newAttempt = {
-      id: result.attempt_id,
-      quiz_id: 801,
-      user_id: user.id,
-      started_at: new Date().toISOString(),
-      submitted_at: new Date().toISOString(),
-      status: 'graded'
-    };
-    setQuizAttempts(prev => [...prev, newAttempt]);
-  };
-
   // Render Login if no authenticated session
   if (!user) {
     return <LoginPage onLogin={handleLogin} />;
@@ -248,6 +245,9 @@ export default function App() {
     }
     if (requestedPage === 'revenue-report' && authSession.role !== 'admin') {
       return <div className="access-denied" role="alert"><strong>Administrator access required</strong><span>Revenue data is restricted to administrator accounts.</span></div>;
+    }
+    if (requestedPage === 'user-management' && authSession.role !== 'admin') {
+      return <div className="access-denied" role="alert"><strong>Administrator access required</strong><span>Only administrators can manage user accounts.</span></div>;
     }
 
     if (activePage === 'lesson') {
@@ -266,7 +266,8 @@ export default function App() {
       return (
         <QuizPage 
           quizId={pageParams?.quizId} 
-          onSubmitQuiz={handleSubmitQuiz}
+          courseId={pageParams?.courseId}
+          accessToken={authSession.accessToken}
           onBack={handleBackToDashboard}
         />
       );
@@ -292,9 +293,9 @@ export default function App() {
             courses={courses}
             courseAccess={courseAccess}
             payments={payments}
-            quizAttempts={quizAttempts}
+            quizAttempts={[]}
             progress={progress}
-            quizzes={mockQuizzes}
+            quizzes={[]}
             user={user}
             onNavigate={handleNavigate}
           />
@@ -311,7 +312,7 @@ export default function App() {
           />
         );
       case 'quiz':
-        return <QuizPage quizId={801} onSubmitQuiz={handleSubmitQuiz} onBack={handleBackToDashboard} />;
+        return <QuizPage courseId={pageParams?.courseId} accessToken={authSession.accessToken} onBack={handleBackToDashboard} />;
       case 'payment':
         return (
           <PaymentPage
@@ -339,6 +340,10 @@ export default function App() {
             courses={courses} 
           />
         );
+      case 'profile':
+        return <ProfilePage accessToken={authSession.accessToken} onProfileUpdated={handleProfileUpdated} />;
+      case 'user-management':
+        return <AdminUserManagement accessToken={authSession.accessToken} currentUserId={user.id} />;
       default:
         return <div>Tab not found</div>;
     }

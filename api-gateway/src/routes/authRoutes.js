@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { forwardLogin, forwardRegister } from '../proxy/userServiceProxy.js';
 import { loginRateLimiter } from '../middleware/loginRateLimiter.js';
+import { registerRateLimiter } from '../middleware/registerRateLimiter.js';
 
 const router = Router();
 
@@ -15,7 +16,7 @@ router.post('/login', loginRateLimiter, async (req, res, next) => {
   }
 });
 
-router.post('/register', async (req, res, next) => {
+router.post('/register', registerRateLimiter, async (req, res, next) => {
   try {
     const upstreamResponse = await forwardRegister(req.body);
     res.status(upstreamResponse.status).json(upstreamResponse.body);

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "migrate:login-audit": "node src/data/migrateLoginAudit.js"
+    "migrate:login-audit": "node src/data/migrateLoginAudit.js",
+    "migrate:user-status": "node src/data/migrateUserStatus.js"
   },
   "engines": {
     "node": ">=18"

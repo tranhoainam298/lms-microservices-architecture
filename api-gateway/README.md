@@ -1,5 +1,7 @@
 # API Gateway
 
+Registration and password-change rate limits use the in-memory store for local single-instance development. Production multi-instance deployments require a shared rate-limit store.
+
 The API Gateway is the single backend entry point for the Web Client. It forwards requests without containing authentication or course business logic.
 
 ## Current Route
