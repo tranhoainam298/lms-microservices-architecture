@@ -1,128 +1,78 @@
-import React, { useRef, useState } from 'react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { useGSAP } from '@gsap/react';
-import { mockExperienceFeedback } from '../data/mockData';
+import React from 'react';
+import ArchitectureFlow from '../components/ArchitectureFlow';
+import StatusBadge from '../components/StatusBadge';
 
-gsap.registerPlugin(ScrollTrigger, useGSAP);
+const serviceInventory = [
+  {
+    name: 'User Service',
+    responsibility: 'Authentication, account identity, and role validation.',
+    database: 'User DB',
+    status: 'Login API integrated'
+  },
+  {
+    name: 'Course Service',
+    responsibility: 'Course catalog, lesson delivery, progress, and instructor drafts.',
+    database: 'Course DB',
+    status: 'Draft API integrated'
+  },
+  {
+    name: 'Exam & Quiz Service',
+    responsibility: 'Question delivery, answer evaluation, and quiz attempts.',
+    database: 'Exam DB',
+    status: 'UI flow mocked'
+  },
+  {
+    name: 'Payment Service',
+    responsibility: 'Checkout intent, payment records, and access events.',
+    database: 'Payment DB',
+    status: 'UI flow mocked'
+  }
+];
 
-export default function OverviewPage({ onNavigate }) {
-  const rootRef = useRef(null);
-  const [feedbackIndex, setFeedbackIndex] = useState(0);
-  const feedback = mockExperienceFeedback[feedbackIndex];
-  const storyWords = 'Every request keeps a visible path from intent to ownership, so learners can understand both the feature and the architecture behind it.'.split(' ');
-
-  useGSAP(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    gsap.from('.overview-hero__copy > *', {
-      opacity: 0,
-      y: 28,
-      duration: 0.9,
-      stagger: 0.1,
-      ease: 'power3.out'
-    });
-
-    gsap.fromTo('.overview-hero__media img',
-      { scale: 0.84, opacity: 0.6 },
-      {
-        scale: 1,
-        opacity: 1,
-        ease: 'none',
-        scrollTrigger: {
-          trigger: '.overview-hero',
-          start: 'top top',
-          end: 'bottom top',
-          scrub: 1
-        }
-      }
-    );
-
-    gsap.fromTo('.overview-story__word',
-      { opacity: 0.12 },
-      {
-        opacity: 1,
-        stagger: 0.08,
-        ease: 'none',
-        scrollTrigger: {
-          trigger: '.overview-story',
-          start: 'top 78%',
-          end: 'bottom 42%',
-          scrub: 1
-        }
-      }
-    );
-
-    const cards = gsap.utils.toArray('.journey-card');
-    cards.forEach((card, index) => {
-      if (index === cards.length - 1) return;
-      gsap.to(card, {
-        scale: 0.94,
-        opacity: 0.32,
-        ease: 'none',
-        scrollTrigger: {
-          trigger: cards[index + 1],
-          start: 'top 82%',
-          end: 'top 24%',
-          scrub: 1
-        }
-      });
-    });
-  }, { scope: rootRef });
-  const containerStyle = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2rem'
-  };
-
-  const flowListStyle = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-    gap: '1rem',
-    marginTop: '1rem'
-  };
-
-  const flowItemStyle = {
-    padding: '1.25rem',
-    borderRadius: 'var(--border-radius-sm)',
-    border: '1px solid var(--border-color)',
-    backgroundColor: 'var(--bg-secondary)',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    gap: '0.75rem',
-    transition: 'all var(--transition-normal)'
-  };
-
-  const flowBadgeStyle = () => {
-    const color = '#0b8f87';
-    return {
-      fontSize: '0.75rem',
-      fontWeight: '600',
-      padding: '0.125rem 0.5rem',
-      borderRadius: '12px',
-      backgroundColor: `${color}15`,
-      color: color,
-      width: 'fit-content'
-    };
-  };
+export default function OverviewPage({ onNavigate, role }) {
+  const roleDestination = role === 'instructor'
+    ? { page: 'course-draft', label: 'Open instructor workspace' }
+    : role === 'admin'
+      ? { page: 'revenue-report', label: 'Open admin workspace' }
+      : { page: 'dashboard', label: 'Open student workspace' };
 
   return (
-    <div className="overview-page" style={containerStyle} ref={rootRef}>
+    <div className="overview-page">
       <section className="overview-hero">
         <div className="overview-hero__copy">
+          <span className="page-kicker">Architecture at a glance</span>
           <h2 className="overview-hero__title">
-            Learning <span className="overview-hero__inline-image" aria-hidden="true" /> flows, engineered in plain sight.
+            One learning platform. Clear ownership at every step.
           </h2>
-          <p>Move through a real LMS experience while every request, service boundary, and owned data store remains legible.</p>
+          <p>Explore a working LMS frontend while each request stays mapped to the API Gateway, its responsible service, and that service's private database.</p>
           <div className="overview-hero__actions">
-            <button className="btn btn-primary" onClick={() => onNavigate('dashboard')}>Explore student flow</button>
+            <button className="btn btn-primary" onClick={() => onNavigate(roleDestination.page)}>{roleDestination.label}</button>
             <button className="btn btn-secondary" onClick={() => document.getElementById('platform-topology')?.scrollIntoView({ behavior: 'smooth' })}>Inspect architecture</button>
           </div>
         </div>
         <div className="overview-hero__media">
-          <img src="https://picsum.photos/seed/network-architecture-campus/1400/1100" alt="Abstract architectural structure representing connected learning systems" />
+          <div className="overview-system-panel" role="img" aria-label="Web and mobile clients route through the API Gateway to four microservices and their owned databases">
+            <div className="overview-system-panel__topline">
+              <span>Live topology</span>
+              <StatusBadge status="configured" tone="success" />
+            </div>
+            <div className="overview-system-panel__clients"><span>Web Client</span><span>Mobile Client</span></div>
+            <i className="overview-system-panel__connector" aria-hidden="true" />
+            <strong className="overview-system-panel__gateway">API Gateway</strong>
+            <i className="overview-system-panel__connector" aria-hidden="true" />
+            <div className="overview-system-panel__services">
+              <span>User</span><span>Course</span><span>Exam</span><span>Payment</span>
+            </div>
+            <div className="overview-system-panel__legend"><span>5 services</span><span>4 owned databases</span></div>
+          </div>
         </div>
+      </section>
+
+      <section className="system-health" aria-label="Current implementation status">
+        <div><span className="status-dot status-dot--active" aria-hidden="true" /><strong>Web client</strong><small>UI ready</small></div>
+        <div><span className="status-dot" aria-hidden="true" /><strong>API Gateway</strong><small>Target configured</small></div>
+        <div><span className="status-dot" aria-hidden="true" /><strong>Live integrations</strong><small>Login and course drafts</small></div>
+        <div><span className="status-dot status-dot--muted" aria-hidden="true" /><strong>Learning flows</strong><small>Local mock state</small></div>
       </section>
 
       <section className="topology-bento" id="platform-topology" aria-label="Platform topology summary">
@@ -145,16 +95,8 @@ export default function OverviewPage({ onNavigate }) {
         </article>
         <article className="topology-bento__cell topology-bento__cell--external">
           <span>Integrations</span>
-          <p>RabbitMQ, ZaloPay / Momo, AI Chatbot System</p>
+          <p>RabbitMQ, ZaloPay / Momo, External AI Chatbot System</p>
         </article>
-      </section>
-
-      <section className="overview-story">
-        <p>
-          {storyWords.map((word, index) => (
-            <span className="overview-story__word" key={`${word}-${index}`}>{word} </span>
-          ))}
-        </p>
       </section>
 
       {/* CSS-Only Visual Architecture Diagram */}
@@ -183,7 +125,7 @@ export default function OverviewPage({ onNavigate }) {
             </div>
           </div>
 
-          <div className="arch-arrow">▼</div>
+          <div className="arch-arrow" aria-hidden="true" />
 
           {/* Gateway layer */}
           <div className="arch-layer">
@@ -196,7 +138,7 @@ export default function OverviewPage({ onNavigate }) {
             </div>
           </div>
 
-          <div className="arch-arrow">▼</div>
+          <div className="arch-arrow" aria-hidden="true" />
 
           {/* Microservices & DB layer */}
           <div className="arch-layer">
@@ -265,7 +207,7 @@ export default function OverviewPage({ onNavigate }) {
                 <span className="arch-node-tech">Payment gateways</span>
               </div>
               <div className="arch-node external-node">
-                <span className="arch-node-title">AI Chatbot System</span>
+                <span className="arch-node-title">External AI Chatbot System</span>
                 <span className="arch-node-tech">External study support</span>
               </div>
             </div>
@@ -273,76 +215,117 @@ export default function OverviewPage({ onNavigate }) {
         </div>
       </section>
 
-      {/* Interactive Architecture Flows */}
-      <div>
-        <h2 style={{ fontSize: '1.25rem', fontFamily: 'var(--font-title)', marginBottom: '0.5rem' }}>Explore the demo flows</h2>
-        <p className="text-sm text-secondary-color">Select any of the primary transactions to test the microservice boundaries.</p>
-
-        <div className="architecture-flow-grid journey-stack" style={flowListStyle}>
-          {/* Flow 1 */}
-          <div style={flowItemStyle} className="journey-card">
-            <div>
-              <div style={flowBadgeStyle('User')}>User Service</div>
-              <h4 style={{ fontSize: '0.95rem', margin: '0.5rem 0 0.25rem 0' }}>Login authentication</h4>
-              <p className="text-xs text-secondary-color">Authenticates users, returns JWT token, and logs history in user login audit DB.</p>
-            </div>
-            <button className="btn btn-secondary w-full text-xs" onClick={() => onNavigate('dashboard')}>Open Student Dashboard</button>
+      <section className="overview-section" aria-labelledby="service-inventory-title">
+        <div className="section-heading">
+          <div>
+            <p className="section-label">Ownership map</p>
+            <h2 id="service-inventory-title">Services and their data boundaries</h2>
           </div>
-
-          {/* Flow 3 */}
-          <div style={flowItemStyle} className="journey-card">
-            <div>
-              <div style={flowBadgeStyle('Course')}>Course Service</div>
-              <h4 style={{ fontSize: '0.95rem', margin: '0.5rem 0 0.25rem 0' }}>View lesson and mark progress</h4>
-              <p className="text-xs text-secondary-color">Student watches course lesson content and updates completed state in Course DB.</p>
-            </div>
-            <button className="btn btn-secondary w-full text-xs" onClick={() => onNavigate('lesson', { courseId: 201 })}>Open Lesson Viewer</button>
-          </div>
-
-          {/* Flow 4 */}
-          <div style={flowItemStyle} className="journey-card">
-            <div>
-              <div style={flowBadgeStyle('Exam')}>Exam Service</div>
-              <h4 style={{ fontSize: '0.95rem', margin: '0.5rem 0 0.25rem 0' }}>Quiz and grading result</h4>
-              <p className="text-xs text-secondary-color">Executes student exams and saves quiz attempt metrics inside Exam DB.</p>
-            </div>
-            <button className="btn btn-secondary w-full text-xs" onClick={() => onNavigate('quiz', { quizId: 801 })}>Open Quiz Module</button>
-          </div>
-
-          {/* Flow 5 */}
-          <div style={flowItemStyle} className="journey-card">
-            <div>
-              <div style={flowBadgeStyle('Payment')}>Payment Service</div>
-              <h4 style={{ fontSize: '0.95rem', margin: '0.5rem 0 0.25rem 0' }}>Course checkout and access</h4>
-              <p className="text-xs text-secondary-color">Payment gateway confirm. RabbitMQ event updates course access inside Course DB.</p>
-            </div>
-            <button className="btn btn-secondary w-full text-xs" onClick={() => onNavigate('payment', { courseId: 201 })}>Open Payment Simulator</button>
-          </div>
-
+          <span className="service-badge">4 domain services</span>
         </div>
-      </div>
-
-      <section className="feedback-carousel" aria-live="polite">
-        <div className="feedback-carousel__portraits" aria-hidden="true">
-          {mockExperienceFeedback.map((item, index) => (
-            <span key={item.id} className={index === feedbackIndex ? 'is-active' : ''}>{item.name.split(' ').map(part => part[0]).join('').slice(0, 2)}</span>
+        <div className="service-inventory">
+          {serviceInventory.map(service => (
+            <article className="service-inventory__card" key={service.name}>
+              <div className="service-inventory__topline">
+                <span className="badge badge--service">Service</span>
+                <StatusBadge status={service.status.includes('integrated') ? 'active' : 'mock'} tone={service.status.includes('integrated') ? 'success' : 'neutral'} />
+              </div>
+              <h3>{service.name}</h3>
+              <p>{service.responsibility}</p>
+              <dl>
+                <div><dt>Owned database</dt><dd><span className="badge badge--database">Database</span>{service.database}</dd></div>
+                <div><dt>Implementation</dt><dd>{service.status}</dd></div>
+              </dl>
+            </article>
           ))}
         </div>
-        <blockquote>
-          <p>“{feedback.quote}”</p>
-          <footer>{feedback.name}<span>{feedback.role}</span></footer>
-        </blockquote>
-        <div className="feedback-carousel__controls">
-          <button type="button" aria-label="Previous feedback" onClick={() => setFeedbackIndex((feedbackIndex - 1 + mockExperienceFeedback.length) % mockExperienceFeedback.length)}>Previous</button>
-          <button type="button" aria-label="Next feedback" onClick={() => setFeedbackIndex((feedbackIndex + 1) % mockExperienceFeedback.length)}>Next</button>
+      </section>
+
+      <section className="integration-grid" aria-label="Broker and external systems">
+        <article className="integration-card integration-card--broker">
+          <span className="badge badge--service">Message broker</span>
+          <h3>RabbitMQ</h3>
+          <p>Carries the mock payment success event from Payment Service to Course Service.</p>
+        </article>
+        <article className="integration-card">
+          <span className="badge badge--external">External</span>
+          <h3>ZaloPay / Momo</h3>
+          <p>Selectable mock payment providers. No real gateway request is sent.</p>
+        </article>
+        <article className="integration-card">
+          <span className="badge badge--external">External</span>
+          <h3>External AI Chatbot System</h3>
+          <p>Provides local mock study responses with course and lesson context.</p>
+        </article>
+      </section>
+
+      <ArchitectureFlow
+        label="Platform request path"
+        steps={['Web / Mobile Client', 'API Gateway', 'Domain Service', 'Owned Database']}
+      />
+
+      {/* Interactive Architecture Flows */}
+      <section className="overview-section" aria-labelledby="demo-flows-title">
+        <div className="section-heading">
+          <div>
+            <p className="section-label">Working journeys</p>
+            <h2 id="demo-flows-title">Explore the demo flows</h2>
+          </div>
+        </div>
+        <p className="page-description">Select a journey to inspect how the current frontend maps an action to its owner.</p>
+
+        <div className="architecture-flow-grid journey-stack">
+          {/* Flow 1 */}
+          <article className="journey-card">
+            <div>
+              <span className="badge badge--service">User Service</span>
+              <h3>Login authentication</h3>
+              <p>Validates credentials and the selected role through User Service and User DB.</p>
+            </div>
+            <span className="journey-card__state">Live API integration</span>
+          </article>
+
+          {/* Flow 3 */}
+          <article className="journey-card">
+            <div>
+              <span className="badge badge--service">Course Service</span>
+              <h3>View lessons and progress</h3>
+              <p>Opens course content and updates local learning progress owned by Course Service.</p>
+            </div>
+            <button className="btn btn-secondary" onClick={() => onNavigate('lesson', { courseId: 201 })}>Open lesson viewer</button>
+          </article>
+
+          {/* Flow 4 */}
+          <article className="journey-card">
+            <div>
+              <span className="badge badge--service">Exam & Quiz Service</span>
+              <h3>Quiz and grading result</h3>
+              <p>Scores a local assessment and records the mock attempt in Exam DB state.</p>
+            </div>
+            <button className="btn btn-secondary" onClick={() => onNavigate('quiz', { quizId: 801 })}>Open quiz module</button>
+          </article>
+
+          {/* Flow 5 */}
+          <article className="journey-card">
+            <div>
+              <span className="badge badge--service">Payment Service</span>
+              <h3>Checkout and course access</h3>
+              <p>Runs a mock checkout, then models a RabbitMQ event activating course access.</p>
+            </div>
+            <button className="btn btn-secondary" onClick={() => onNavigate('payment', { courseId: 201 })}>Open payment simulator</button>
+          </article>
+
         </div>
       </section>
 
       <section className="overview-action">
-        <h2>Choose a role. Follow the request. See who owns the result.</h2>
         <div>
-          <button className="btn btn-primary" onClick={() => onNavigate('dashboard')}>Open student workspace</button>
-          <button className="btn btn-secondary" onClick={() => onNavigate('course-draft')}>Open course drafts</button>
+          <span className="badge badge--mock">Architecture guardrail</span>
+          <h2>No extra service or database is implied by this interface.</h2>
+          <p>Revenue is combined from Payment Service and Course Service. AI support remains an external system.</p>
+        </div>
+        <div>
+          <button className="btn btn-primary" onClick={() => onNavigate(roleDestination.page)}>{roleDestination.label}</button>
         </div>
       </section>
     </div>

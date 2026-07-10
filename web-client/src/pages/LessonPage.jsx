@@ -1,24 +1,41 @@
 import React, { useState } from 'react';
+import ArchitectureFlow from '../components/ArchitectureFlow';
+import ProgressBar from '../components/ProgressBar';
+import { mockCourses } from '../data/mockData';
 
 export default function LessonPage({ courseId, lessons, courseAccess, progress, onUpdateProgress, onBack }) {
-  const activeCourseLessons = lessons.filter(l => l.course_id === (courseId || 201));
+  const activeCourseId = courseId || 201;
+  const activeCourseLessons = lessons.filter(lesson => lesson.course_id === activeCourseId);
+  const activeCourse = mockCourses.find(course => course.id === activeCourseId);
+  const activeAccess = courseAccess?.find(access => (
+    access.course_id === activeCourseId && access.access_status === 'active'
+  ));
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
   const [savingProgress, setSavingProgress] = useState(false);
+  const [lessonNotes, setLessonNotes] = useState({});
 
   const currentLesson = activeCourseLessons[currentLessonIndex];
-  
+
   if (!currentLesson) {
     return (
-      <div className="card text-center" style={{ padding: '3rem' }}>
-        <h2>No lessons found in this course.</h2>
-        <button className="btn btn-secondary mt-6" onClick={onBack}>Back to Dashboard</button>
-      </div>
+      <section className="card empty-state" role="status" aria-labelledby="lesson-empty-title">
+        <span className="page-kicker">Course content</span>
+        <h2 id="lesson-empty-title">No lessons found in this course</h2>
+        <p>Return to your dashboard and choose another available course.</p>
+        <button className="btn btn-secondary" type="button" onClick={onBack}>
+          Back to dashboard
+        </button>
+      </section>
     );
   }
 
   // Get progress status for current lesson
-  const currentProgress = progress.find(p => p.lesson_id === currentLesson.id);
+  const currentProgress = progress.find(item => item.lesson_id === currentLesson.id);
   const isCompleted = currentProgress?.progress_status === 'completed';
+  const completedLessonCount = activeCourseLessons.filter(lesson => (
+    progress.find(item => item.lesson_id === lesson.id)?.progress_status === 'completed'
+  )).length;
+  const moduleProgress = Math.round((completedLessonCount / activeCourseLessons.length) * 100);
 
   const handleMarkComplete = () => {
     setSavingProgress(true);
@@ -29,146 +46,185 @@ export default function LessonPage({ courseId, lessons, courseAccess, progress, 
     }, 600);
   };
 
-  const containerStyle = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.5rem'
+  const handleNotesChange = (event) => {
+    setLessonNotes(previousNotes => ({
+      ...previousNotes,
+      [currentLesson.id]: event.target.value
+    }));
   };
 
-  const videoMockStyle = {
-    width: '100%',
-    aspectRatio: '16/9',
-    backgroundColor: '#0f172a',
-    borderRadius: 'var(--border-radius)',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#ffffff',
-    position: 'relative',
-    overflow: 'hidden',
-    border: '1px solid #1e293b'
+  const handlePreviousLesson = () => {
+    setCurrentLessonIndex(index => Math.max(0, index - 1));
   };
 
-  const sidebarListStyle = {
-    listStyle: 'none',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem'
-  };
-
-  const getLessonLinkStyle = (index) => {
-    const isCurrent = index === currentLessonIndex;
-    const lesson = activeCourseLessons[index];
-    const lessonProgress = progress.find(p => p.lesson_id === lesson.id);
-    const completed = lessonProgress?.progress_status === 'completed';
-
-    return {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0.75rem 1rem',
-      borderRadius: 'var(--border-radius-sm)',
-      backgroundColor: isCurrent ? 'var(--primary-light)' : 'transparent',
-      color: isCurrent ? 'var(--primary-hover)' : 'var(--text-secondary)',
-      border: isCurrent ? '1px solid var(--primary)' : '1px solid transparent',
-      textDecoration: 'none',
-      fontWeight: isCurrent ? '600' : '500',
-      fontSize: '0.8125rem',
-      cursor: 'pointer',
-      transition: 'all var(--transition-fast)'
-    };
+  const handleNextLesson = () => {
+    setCurrentLessonIndex(index => Math.min(activeCourseLessons.length - 1, index + 1));
   };
 
   return (
-    <div className="lesson-page" style={containerStyle}>
-      <div className="page-actions">
-        <div>
-          <button className="btn btn-secondary" onClick={onBack} style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+    <section className="lesson-page page-stack" aria-labelledby="lesson-page-title">
+      <header className="lesson-page__header">
+        <div className="lesson-page__intro">
+          <button className="btn btn-ghost lesson-page__back" type="button" onClick={onBack}>
+            <span aria-hidden="true">&larr;</span>
             Back to dashboard
           </button>
+          <span className="page-kicker">{activeCourse?.title || `Course ${activeCourseId}`}</span>
+          <h2 id="lesson-page-title">Continue your lesson</h2>
+          <p>
+            Lesson {currentLessonIndex + 1} of {activeCourseLessons.length}: {currentLesson.title}
+          </p>
         </div>
-        <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--success)', backgroundColor: 'var(--success-light)', padding: '0.25rem 0.5rem', borderRadius: '4px' }}>
-          Course access active
+
+        <div className="lesson-page__ownership" aria-label="Course access and service ownership">
+          <span className={`status-badge ${activeAccess ? 'status-badge--success' : 'status-badge--warning'}`}>
+            {activeAccess ? 'Course access active' : 'Course access unavailable'}
+          </span>
+          <span className="service-badge">Course Service</span>
         </div>
-      </div>
+      </header>
 
-      <div className="architecture-alert">
-        <span>Learning Management: View Lesson / Update Progress</span>
-        <span className="architecture-alert__detail">Course Service reads and updates Course DB</span>
-      </div>
+      <section className="architecture-context architecture-card" aria-labelledby="lesson-flow-title">
+        <div className="section-heading architecture-context__heading">
+          <div>
+            <span className="section-label">Request ownership</span>
+            <h3 id="lesson-flow-title">Lesson delivery and progress</h3>
+          </div>
+          <span className="database-badge">Course DB</span>
+        </div>
+        <ArchitectureFlow
+          steps={['Web Client', 'API Gateway', 'Course Service', 'Course DB']}
+          ariaLabel="Lesson request flows from Web Client through API Gateway and Course Service to Course DB"
+        />
+      </section>
 
-      {/* Topology */}
-      <div className="flow-strip">
-        <span>Topology:</span>
-        <span style={{ color: 'var(--primary)', fontWeight: '700' }}>Web Client</span>
-        <span>→</span>
-        <span>API Gateway</span>
-        <span>→</span>
-        <span style={{ fontWeight: '600' }}>Course Service</span>
-        <span>→</span>
-        <span>Course DB</span>
-      </div>
-
-      <div className="grid grid-cols-3 gap-6">
-        {/* Lesson Player Area */}
-        <div style={{ gridColumn: 'span 2' }}>
-          <div className="lesson-stage" style={videoMockStyle}>
-            <span className="service-badge" style={{ marginBottom: '0.75rem' }}>Video lesson</span>
-            <h3 style={{ color: '#ffffff', fontFamily: 'var(--font-sans)', fontWeight: '600', fontSize: '1.1rem' }}>
-              {currentLesson.title}
-            </h3>
-            <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.25rem', fontFamily: 'monospace' }}>
-              Source: {currentLesson.content_url}
-            </p>
-            <div style={{ position: 'absolute', bottom: '1.5rem', width: '90%', height: '6px', backgroundColor: '#334155', borderRadius: '3px' }}>
-              <div style={{ width: isCompleted ? '100%' : '35%', height: '100%', backgroundColor: 'var(--primary)', borderRadius: '3px', transition: 'width 0.3s ease' }}></div>
+      <div className="lesson-workspace">
+        <aside className="card lesson-outline" aria-labelledby="lesson-outline-title">
+          <div className="lesson-outline__header">
+            <div>
+              <span className="section-label">Module 1</span>
+              <h3 id="lesson-outline-title">Course outline</h3>
             </div>
+            <span className="lesson-outline__count">{completedLessonCount}/{activeCourseLessons.length}</span>
           </div>
 
-          <div className="card lesson-progress-card" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ fontSize: '0.9375rem', fontWeight: '600' }}>Lesson progress</h3>
-              <p className="text-xs text-secondary-color">Mark this lesson complete when you finish watching.</p>
-            </div>
-            <div>
-              {isCompleted ? (
-                <div style={{ color: 'var(--success)', fontWeight: '600', fontSize: '0.875rem' }}>
-                  Lesson completed
+          <ProgressBar value={moduleProgress} label="Module progress" />
+
+          <nav className="lesson-nav" aria-label="Lesson navigation">
+            <ol className="lesson-nav__list">
+              {activeCourseLessons.map((lesson, index) => {
+                const lessonProgress = progress.find(item => item.lesson_id === lesson.id);
+                const completed = lessonProgress?.progress_status === 'completed';
+                const isCurrent = index === currentLessonIndex;
+
+                return (
+                  <li key={lesson.id}>
+                    <button
+                      type="button"
+                      className={`lesson-nav__item${isCurrent ? ' is-active' : ''}${completed ? ' is-complete' : ''}`}
+                      onClick={() => setCurrentLessonIndex(index)}
+                      aria-current={isCurrent ? 'step' : undefined}
+                    >
+                      <span className="lesson-nav__index" aria-hidden="true">
+                        {completed ? 'OK' : String(index + 1).padStart(2, '0')}
+                      </span>
+                      <span className="lesson-nav__copy">
+                        <strong>{lesson.title}</strong>
+                        <small>{completed ? 'Completed' : isCurrent ? 'In progress' : 'Not started'}</small>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+        </aside>
+
+        <div className="lesson-content">
+          <article className="lesson-player" aria-labelledby="current-lesson-title">
+            <div className="lesson-player__stage">
+              <div className="lesson-player__center">
+                <span className="lesson-player__icon" aria-hidden="true">&#9654;</span>
+                <span>Video lesson</span>
+              </div>
+
+              <div className="lesson-player__caption">
+                <div>
+                  <span className="lesson-player__position">
+                    Lesson {currentLessonIndex + 1} of {activeCourseLessons.length}
+                  </span>
+                  <h3 id="current-lesson-title">{currentLesson.title}</h3>
                 </div>
-              ) : (
-                <button className="btn btn-primary" style={{ fontSize: '0.8125rem' }} onClick={handleMarkComplete} disabled={savingProgress}>
-                  {savingProgress ? 'Saving Progress...' : 'Mark as Complete'}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+                <code>{currentLesson.content_url}</code>
+              </div>
 
-        {/* Lessons List Sidebar */}
-        <div className="card lesson-outline" style={{ height: 'fit-content' }}>
-          <h3 style={{ fontSize: '0.8125rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
-            Course outline
-          </h3>
-          <ul style={sidebarListStyle}>
-            {activeCourseLessons.map((lesson, idx) => {
-              const lessonProgress = progress.find(p => p.lesson_id === lesson.id);
-              const completed = lessonProgress?.progress_status === 'completed';
-              return (
-                <li key={lesson.id}>
-                  <div 
-                    style={getLessonLinkStyle(idx)} 
-                    onClick={() => setCurrentLessonIndex(idx)}
+              <ProgressBar
+                value={isCompleted ? 100 : 35}
+                label={isCompleted ? 'Lesson completed' : 'Lesson playback progress'}
+              />
+            </div>
+
+            <footer className="lesson-player__actions">
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={handlePreviousLesson}
+                disabled={currentLessonIndex === 0}
+              >
+                <span aria-hidden="true">&larr;</span>
+                Previous lesson
+              </button>
+
+              <div className="lesson-completion" aria-live="polite">
+                {isCompleted ? (
+                  <span className="status-badge status-badge--success">Lesson completed</span>
+                ) : (
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    onClick={handleMarkComplete}
+                    disabled={savingProgress}
+                    aria-busy={savingProgress}
                   >
-                    <span>{lesson.title}</span>
-                    <span className="text-xs">{completed ? 'Done' : 'Open'}</span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                    {savingProgress ? 'Saving progress...' : 'Mark as complete'}
+                  </button>
+                )}
+              </div>
+
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={handleNextLesson}
+                disabled={currentLessonIndex === activeCourseLessons.length - 1}
+              >
+                Next lesson
+                <span aria-hidden="true">&rarr;</span>
+              </button>
+            </footer>
+          </article>
+
+          <section className="card lesson-notes" aria-labelledby="lesson-notes-title">
+            <div className="section-heading">
+              <div>
+                <span className="section-label">Private workspace</span>
+                <h3 id="lesson-notes-title">Learning notes</h3>
+              </div>
+              <span className="lesson-notes__status">Saved in this session</span>
+            </div>
+            <label className="sr-only" htmlFor={`lesson-notes-${currentLesson.id}`}>
+              Notes for {currentLesson.title}
+            </label>
+            <textarea
+              id={`lesson-notes-${currentLesson.id}`}
+              className="form-control lesson-notes__input"
+              value={lessonNotes[currentLesson.id] || ''}
+              onChange={handleNotesChange}
+              placeholder="Capture a key concept, question, or example from this lesson."
+              rows="6"
+            />
+          </section>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
