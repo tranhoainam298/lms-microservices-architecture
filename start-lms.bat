@@ -1,9 +1,15 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
 
-title LMS Microservices Launcher
+title LMS Microservices Architecture Launcher
 set "ROOT=%~dp0"
+
 cd /d "%ROOT%"
+if errorlevel 1 (
+    echo [FAILED] Cannot open project directory:
+    echo %ROOT%
+    goto :FAIL
+)
 
 echo.
 echo ==========================================
@@ -11,174 +17,637 @@ echo   LMS Microservices Architecture Launcher
 echo ==========================================
 echo.
 
-call :require_command docker "Docker CLI"
-if errorlevel 1 goto :failed
+REM ============================================================
+REM 1. CHECK REQUIRED COMMANDS
+REM ============================================================
 
-call :require_command node "Node.js"
-if errorlevel 1 goto :failed
-
-call :require_command npm "npm"
-if errorlevel 1 goto :failed
-
-call :require_command dotnet ".NET SDK"
-if errorlevel 1 goto :failed
-
-call :require_command powershell "PowerShell"
-if errorlevel 1 goto :failed
-
-call :ensure_docker
+where docker >nul 2>&1
 if errorlevel 1 (
-  echo Docker Desktop did not become ready within the timeout.
-  goto :failed
+    echo [FAILED] Docker CLI was not found.
+    echo Install Docker Desktop and ensure docker is available in PATH.
+    goto :FAIL
 )
 
-call :load_env_value "%ROOT%api-gateway\.env" "JWT_SECRET"
-call :strip_outer_quotes JWT_SECRET
+where node >nul 2>&1
+if errorlevel 1 (
+    echo [FAILED] Node.js was not found.
+    echo Install Node.js and reopen this launcher.
+    goto :FAIL
+)
+
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo [FAILED] npm was not found.
+    echo Install Node.js and reopen this launcher.
+    goto :FAIL
+)
+
+where dotnet >nul 2>&1
+if errorlevel 1 (
+    echo [FAILED] .NET SDK was not found.
+    echo Install the required .NET SDK and reopen this launcher.
+    goto :FAIL
+)
+
+where powershell >nul 2>&1
+if errorlevel 1 (
+    echo [FAILED] PowerShell was not found.
+    goto :FAIL
+)
+
+REM ============================================================
+REM 2. START DOCKER DESKTOP WHEN NECESSARY
+REM ============================================================
+
+docker info >nul 2>&1
+
+if errorlevel 1 (
+    echo Docker engine is not running.
+    echo Starting Docker Desktop...
+
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "$dockerPath = Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe';" ^
+        "if (Test-Path -LiteralPath $dockerPath) {" ^
+        "    Start-Process -FilePath $dockerPath;" ^
+        "    exit 0" ^
+        "} else {" ^
+        "    exit 1" ^
+        "}"
+
+    if errorlevel 1 (
+        echo [FAILED] Docker Desktop could not be found.
+        echo Start Docker Desktop manually and run this file again.
+        goto :FAIL
+    )
+
+    echo Waiting for Docker engine...
+
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "$deadline = (Get-Date).AddMinutes(3);" ^
+        "do {" ^
+        "    docker info *> $null;" ^
+        "    if ($LASTEXITCODE -eq 0) { exit 0 };" ^
+        "    Start-Sleep -Seconds 2" ^
+        "} while ((Get-Date) -lt $deadline);" ^
+        "exit 1"
+
+    if errorlevel 1 (
+        echo [FAILED] Docker engine did not become ready within 3 minutes.
+        goto :FAIL
+    )
+)
+
+echo [READY] Docker engine is running.
+
+REM ============================================================
+REM 3. LOAD SHARED JWT SECRET
+REM ============================================================
+
+if not exist "%ROOT%api-gateway\.env" (
+    echo.
+    echo [FAILED] Missing file:
+    echo %ROOT%api-gateway\.env
+    echo.
+    echo Copy api-gateway\.env.example to api-gateway\.env
+    echo and configure JWT_SECRET.
+    goto :FAIL
+)
+
+set "JWT_SECRET="
+
+for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ROOT%api-gateway\.env") do (
+    if /i "%%A"=="JWT_SECRET" set "JWT_SECRET=%%B"
+)
+
+REM Remove outer quote characters when present.
+set "JWT_SECRET=%JWT_SECRET:"=%"
+set "JWT_SECRET=%JWT_SECRET:'=%"
 
 if not defined JWT_SECRET (
-  echo JWT_SECRET was not found in api-gateway\.env.
-  echo Create that file from api-gateway\.env.example and try again.
-  goto :failed
+    echo [FAILED] JWT_SECRET was not found in api-gateway\.env.
+    goto :FAIL
 )
 
+REM Child service windows inherit these variables.
+set "COURSE_SERVICE_URL=http://localhost:5002"
+set "ASPNETCORE_URLS=http://127.0.0.1:5003"
+
+REM ============================================================
+REM 4. START DOCKER INFRASTRUCTURE
+REM ============================================================
+
+echo.
 echo Starting Docker infrastructure...
 
 docker compose -f "%ROOT%infra\docker-compose.yml" up -d
 
 if errorlevel 1 (
-  echo Failed to start Docker infrastructure.
-  goto :failed
+    echo [FAILED] Docker infrastructure could not be started.
+    goto :FAIL
 )
 
 echo.
 echo Waiting for MySQL containers...
 
-call :wait_for_port 3316 60 "User MySQL"
-if errorlevel 1 goto :failed
+REM User MySQL - port 3316
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$deadline = (Get-Date).AddSeconds(90);" ^
+    "do {" ^
+    "    $client = New-Object System.Net.Sockets.TcpClient;" ^
+    "    try {" ^
+    "        $client.Connect('127.0.0.1', 3316);" ^
+    "        exit 0" ^
+    "    } catch {" ^
+    "        Start-Sleep -Milliseconds 500" ^
+    "    } finally {" ^
+    "        $client.Dispose()" ^
+    "    }" ^
+    "} while ((Get-Date) -lt $deadline);" ^
+    "exit 1" >nul 2>&1
 
-call :wait_for_port 3317 60 "Course MySQL"
-if errorlevel 1 goto :failed
-
-call :wait_for_port 3308 60 "Exam MySQL"
-if errorlevel 1 goto :failed
-
-call :load_docker_env exam-db-mysql MYSQL_DATABASE EXAM_DB_NAME
-call :load_docker_env exam-db-mysql MYSQL_USER EXAM_DB_USER
-call :load_docker_env exam-db-mysql MYSQL_PASSWORD EXAM_DB_PASSWORD
-
-for /f "usebackq delims=" %%P in (`powershell -NoProfile -Command "$line = docker port exam-db-mysql 3306/tcp | Select-Object -First 1; if ($line) { ($line -split ':')[-1] }"`) do (
-  set "EXAM_DB_PORT=%%P"
+if errorlevel 1 (
+    echo [FAILED] User MySQL did not open port 3316.
+    goto :FAIL
 )
+
+echo [READY] User MySQL on port 3316.
+
+REM Course MySQL - port 3317
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$deadline = (Get-Date).AddSeconds(90);" ^
+    "do {" ^
+    "    $client = New-Object System.Net.Sockets.TcpClient;" ^
+    "    try {" ^
+    "        $client.Connect('127.0.0.1', 3317);" ^
+    "        exit 0" ^
+    "    } catch {" ^
+    "        Start-Sleep -Milliseconds 500" ^
+    "    } finally {" ^
+    "        $client.Dispose()" ^
+    "    }" ^
+    "} while ((Get-Date) -lt $deadline);" ^
+    "exit 1" >nul 2>&1
+
+if errorlevel 1 (
+    echo [FAILED] Course MySQL did not open port 3317.
+    goto :FAIL
+)
+
+echo [READY] Course MySQL on port 3317.
+
+REM Exam MySQL - port 3308
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$deadline = (Get-Date).AddSeconds(90);" ^
+    "do {" ^
+    "    $client = New-Object System.Net.Sockets.TcpClient;" ^
+    "    try {" ^
+    "        $client.Connect('127.0.0.1', 3308);" ^
+    "        exit 0" ^
+    "    } catch {" ^
+    "        Start-Sleep -Milliseconds 500" ^
+    "    } finally {" ^
+    "        $client.Dispose()" ^
+    "    }" ^
+    "} while ((Get-Date) -lt $deadline);" ^
+    "exit 1" >nul 2>&1
+
+if errorlevel 1 (
+    echo [FAILED] Exam MySQL did not open port 3308.
+    goto :FAIL
+)
+
+echo [READY] Exam MySQL on port 3308.
+
+REM ============================================================
+REM 5. LOAD EXAM DATABASE CONFIGURATION FROM CONTAINER
+REM ============================================================
+
+set "EXAM_DB_NAME="
+set "EXAM_DB_USER="
+set "EXAM_DB_PASSWORD="
+set "EXAM_DB_ROOT_PASSWORD="
+set "EXAM_DB_PORT="
+
+for /f "tokens=1,* delims==" %%A in ('docker inspect --format "{{range .Config.Env}}{{println .}}{{end}}" exam-db-mysql 2^>nul') do (
+    if /i "%%A"=="MYSQL_DATABASE" set "EXAM_DB_NAME=%%B"
+    if /i "%%A"=="MYSQL_USER" set "EXAM_DB_USER=%%B"
+    if /i "%%A"=="MYSQL_PASSWORD" set "EXAM_DB_PASSWORD=%%B"
+    if /i "%%A"=="MYSQL_ROOT_PASSWORD" set "EXAM_DB_ROOT_PASSWORD=%%B"
+)
+
+for /f "usebackq delims=" %%P in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$lines = @(& docker port exam-db-mysql 3306/tcp); if ($lines.Count -gt 0) { ($lines[0] -split ':')[-1] }"`) do (
+    set "EXAM_DB_PORT=%%P"
+)
+
+if not defined EXAM_DB_USER set "EXAM_DB_USER=root"
+if not defined EXAM_DB_PASSWORD set "EXAM_DB_PASSWORD=%EXAM_DB_ROOT_PASSWORD%"
+if not defined EXAM_DB_PORT set "EXAM_DB_PORT=3308"
 
 if not defined EXAM_DB_NAME (
-  echo Could not read the Exam database name from the running container.
-  goto :failed
-)
-
-if not defined EXAM_DB_USER (
-  echo Could not read the Exam database user from the running container.
-  goto :failed
+    echo [FAILED] Could not read MYSQL_DATABASE from exam-db-mysql.
+    goto :FAIL
 )
 
 if not defined EXAM_DB_PASSWORD (
-  echo Could not read the Exam database password from the running container.
-  goto :failed
-)
-
-if not defined EXAM_DB_PORT (
-  echo Could not determine the Exam database host port.
-  goto :failed
+    echo [FAILED] Could not read the Exam MySQL password.
+    goto :FAIL
 )
 
 set "ConnectionStrings__DefaultConnection=Server=127.0.0.1;Port=%EXAM_DB_PORT%;Database=%EXAM_DB_NAME%;User=%EXAM_DB_USER%;Password=%EXAM_DB_PASSWORD%;"
-set "COURSE_SERVICE_URL=http://localhost:5002"
+
+REM ============================================================
+REM 6. INSTALL NODE DEPENDENCIES WHEN MISSING
+REM ============================================================
+
+echo.
+echo Checking Node.js dependencies...
+
+if not exist "%ROOT%user-service\node_modules" (
+    echo Installing User Service dependencies...
+
+    pushd "%ROOT%user-service" >nul
+    call npm install --no-audit --no-fund
+
+    if errorlevel 1 (
+        popd >nul
+        echo [FAILED] User Service dependency installation failed.
+        goto :FAIL
+    )
+
+    popd >nul
+)
+
+if not exist "%ROOT%course-service\node_modules" (
+    echo Installing Course Service dependencies...
+
+    pushd "%ROOT%course-service" >nul
+    call npm install --no-audit --no-fund
+
+    if errorlevel 1 (
+        popd >nul
+        echo [FAILED] Course Service dependency installation failed.
+        goto :FAIL
+    )
+
+    popd >nul
+)
+
+if not exist "%ROOT%api-gateway\node_modules" (
+    echo Installing API Gateway dependencies...
+
+    pushd "%ROOT%api-gateway" >nul
+    call npm install --no-audit --no-fund
+
+    if errorlevel 1 (
+        popd >nul
+        echo [FAILED] API Gateway dependency installation failed.
+        goto :FAIL
+    )
+
+    popd >nul
+)
+
+if not exist "%ROOT%web-client\node_modules" (
+    echo Installing Web Client dependencies...
+
+    pushd "%ROOT%web-client" >nul
+    call npm install --no-audit --no-fund
+
+    if errorlevel 1 (
+        popd >nul
+        echo [FAILED] Web Client dependency installation failed.
+        goto :FAIL
+    )
+
+    popd >nul
+)
+
+echo [READY] Node.js dependencies are available.
+
+REM ============================================================
+REM 7. RUN IDEMPOTENT USER SERVICE MIGRATIONS
+REM ============================================================
 
 echo.
 echo Applying idempotent User Service migrations...
 
+pushd "%ROOT%user-service" >nul
+
 if exist "%ROOT%user-service\src\data\migrateLoginAudit.js" (
-  pushd "%ROOT%user-service" >nul
+    call npm run migrate:login-audit
 
-  call npm run migrate:login-audit
-
-  if errorlevel 1 (
-    popd >nul
-    echo Login audit migration failed.
-    goto :failed
-  )
-
-  popd >nul
+    if errorlevel 1 (
+        popd >nul
+        echo [FAILED] Login audit migration failed.
+        goto :FAIL
+    )
 )
 
 if exist "%ROOT%user-service\src\data\migrateUserStatus.js" (
-  pushd "%ROOT%user-service" >nul
+    call npm run migrate:user-status
 
-  call npm run migrate:user-status
-
-  if errorlevel 1 (
-    popd >nul
-    echo User status migration failed.
-    goto :failed
-  )
-
-  popd >nul
+    if errorlevel 1 (
+        popd >nul
+        echo [FAILED] User status migration failed.
+        goto :FAIL
+    )
 )
 
-call :is_port_open 5003
+if exist "%ROOT%user-service\src\data\migrateUserEmailUnique.js" (
+    call npm run migrate:user-email-unique
+
+    if errorlevel 1 (
+        popd >nul
+        echo [FAILED] User email unique migration failed.
+        goto :FAIL
+    )
+)
+
+popd >nul
+
+echo [READY] User Service migrations completed.
+
+REM ============================================================
+REM 8. BUILD EXAM SERVICE WHEN IT IS NOT ALREADY RUNNING
+REM ============================================================
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$client = New-Object System.Net.Sockets.TcpClient;" ^
+    "try {" ^
+    "    $client.Connect('127.0.0.1', 5003);" ^
+    "    exit 0" ^
+    "} catch {" ^
+    "    exit 1" ^
+    "} finally {" ^
+    "    $client.Dispose()" ^
+    "}" >nul 2>&1
 
 if errorlevel 1 (
-  echo.
-  echo Building Exam Service...
+    echo.
+    echo Restoring and building Exam Service...
 
-  dotnet build "%ROOT%exam-service\ExamService.csproj" --nologo
+    dotnet restore "%ROOT%exam-service\ExamService.csproj" --nologo
 
-  if errorlevel 1 (
-    echo Exam Service build failed.
-    goto :failed
-  )
+    if errorlevel 1 (
+        echo [FAILED] Exam Service restore failed.
+        goto :FAIL
+    )
+
+    dotnet build "%ROOT%exam-service\ExamService.csproj" --nologo --no-restore
+
+    if errorlevel 1 (
+        echo [FAILED] Exam Service build failed.
+        goto :FAIL
+    )
+
+    echo [READY] Exam Service build completed.
 ) else (
-  echo Exam Service is already listening on port 5003; skipping build.
+    echo Exam Service is already listening on port 5003; skipping build.
 )
 
-echo.
-echo Starting services that are not already running...
-
-call :start_service_if_needed 5001 "LMS User Service - http://localhost:5001" "user-service" "npm run dev"
-call :start_service_if_needed 5002 "LMS Course Service - http://localhost:5002" "course-service" "npm run dev"
-call :start_service_if_needed 5003 "LMS Exam Service - http://localhost:5003" "." "dotnet run --project exam-service\ExamService.csproj --no-build"
-call :start_service_if_needed 3000 "LMS API Gateway - http://localhost:3000" "api-gateway" "npm run dev"
-call :start_service_if_needed 5173 "LMS Web Client - http://localhost:5173" "web-client" "npm run dev -- --host 0.0.0.0"
+REM ============================================================
+REM 9. START USER SERVICE
+REM ============================================================
 
 echo.
-echo Waiting for application ports...
+echo Starting application services...
 
-set "START_FAILED="
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$client = New-Object System.Net.Sockets.TcpClient;" ^
+    "try {" ^
+    "    $client.Connect('127.0.0.1', 5001);" ^
+    "    exit 0" ^
+    "} catch {" ^
+    "    exit 1" ^
+    "} finally {" ^
+    "    $client.Dispose()" ^
+    "}" >nul 2>&1
 
-call :wait_for_port 5001 30 "User Service"
-if errorlevel 1 set "START_FAILED=1"
-
-call :wait_for_port 5002 30 "Course Service"
-if errorlevel 1 set "START_FAILED=1"
-
-call :wait_for_port 5003 30 "Exam Service"
-if errorlevel 1 set "START_FAILED=1"
-
-call :wait_for_port 3000 30 "API Gateway"
-if errorlevel 1 set "START_FAILED=1"
-
-call :wait_for_port 5173 30 "Web Client"
-if errorlevel 1 set "START_FAILED=1"
-
-if defined START_FAILED (
-  echo.
-  echo One or more services did not become ready.
-  echo Review the opened service window for error details.
-  goto :failed
+if errorlevel 1 (
+    start "LMS User Service - http://localhost:5001" /D "%ROOT%user-service" cmd.exe /k "call npm run dev"
+    echo [START] User Service
+) else (
+    echo [SKIP]  User Service is already running on port 5001.
 )
+
+REM ============================================================
+REM 10. START COURSE SERVICE
+REM ============================================================
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$client = New-Object System.Net.Sockets.TcpClient;" ^
+    "try {" ^
+    "    $client.Connect('127.0.0.1', 5002);" ^
+    "    exit 0" ^
+    "} catch {" ^
+    "    exit 1" ^
+    "} finally {" ^
+    "    $client.Dispose()" ^
+    "}" >nul 2>&1
+
+if errorlevel 1 (
+    start "LMS Course Service - http://localhost:5002" /D "%ROOT%course-service" cmd.exe /k "call npm run dev"
+    echo [START] Course Service
+) else (
+    echo [SKIP]  Course Service is already running on port 5002.
+)
+
+REM ============================================================
+REM 11. START EXAM SERVICE
+REM ============================================================
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$client = New-Object System.Net.Sockets.TcpClient;" ^
+    "try {" ^
+    "    $client.Connect('127.0.0.1', 5003);" ^
+    "    exit 0" ^
+    "} catch {" ^
+    "    exit 1" ^
+    "} finally {" ^
+    "    $client.Dispose()" ^
+    "}" >nul 2>&1
+
+if errorlevel 1 (
+    start "LMS Exam Service - http://localhost:5003" /D "%ROOT%exam-service" cmd.exe /k "dotnet run --no-build"
+    echo [START] Exam Service
+) else (
+    echo [SKIP]  Exam Service is already running on port 5003.
+)
+
+REM ============================================================
+REM 12. START API GATEWAY
+REM ============================================================
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$client = New-Object System.Net.Sockets.TcpClient;" ^
+    "try {" ^
+    "    $client.Connect('127.0.0.1', 3000);" ^
+    "    exit 0" ^
+    "} catch {" ^
+    "    exit 1" ^
+    "} finally {" ^
+    "    $client.Dispose()" ^
+    "}" >nul 2>&1
+
+if errorlevel 1 (
+    start "LMS API Gateway - http://localhost:3000" /D "%ROOT%api-gateway" cmd.exe /k "call npm run dev"
+    echo [START] API Gateway
+) else (
+    echo [SKIP]  API Gateway is already running on port 3000.
+)
+
+REM ============================================================
+REM 13. START WEB CLIENT
+REM ============================================================
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$client = New-Object System.Net.Sockets.TcpClient;" ^
+    "try {" ^
+    "    $client.Connect('127.0.0.1', 5173);" ^
+    "    exit 0" ^
+    "} catch {" ^
+    "    exit 1" ^
+    "} finally {" ^
+    "    $client.Dispose()" ^
+    "}" >nul 2>&1
+
+if errorlevel 1 (
+    start "LMS Web Client - http://localhost:5173" /D "%ROOT%web-client" cmd.exe /k "call npm run dev -- --host 0.0.0.0"
+    echo [START] Web Client
+) else (
+    echo [SKIP]  Web Client is already running on port 5173.
+)
+
+REM ============================================================
+REM 14. WAIT FOR ALL APPLICATION PORTS
+REM ============================================================
+
+echo.
+echo Waiting for application services...
+
+REM User Service
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$deadline = (Get-Date).AddSeconds(60);" ^
+    "do {" ^
+    "    $client = New-Object System.Net.Sockets.TcpClient;" ^
+    "    try {" ^
+    "        $client.Connect('127.0.0.1', 5001);" ^
+    "        exit 0" ^
+    "    } catch {" ^
+    "        Start-Sleep -Milliseconds 500" ^
+    "    } finally {" ^
+    "        $client.Dispose()" ^
+    "    }" ^
+    "} while ((Get-Date) -lt $deadline);" ^
+    "exit 1" >nul 2>&1
+
+if errorlevel 1 (
+    echo [FAILED] User Service did not open port 5001.
+    goto :FAIL
+)
+
+echo [READY] User Service on port 5001.
+
+REM Course Service
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$deadline = (Get-Date).AddSeconds(60);" ^
+    "do {" ^
+    "    $client = New-Object System.Net.Sockets.TcpClient;" ^
+    "    try {" ^
+    "        $client.Connect('127.0.0.1', 5002);" ^
+    "        exit 0" ^
+    "    } catch {" ^
+    "        Start-Sleep -Milliseconds 500" ^
+    "    } finally {" ^
+    "        $client.Dispose()" ^
+    "    }" ^
+    "} while ((Get-Date) -lt $deadline);" ^
+    "exit 1" >nul 2>&1
+
+if errorlevel 1 (
+    echo [FAILED] Course Service did not open port 5002.
+    goto :FAIL
+)
+
+echo [READY] Course Service on port 5002.
+
+REM Exam Service
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$deadline = (Get-Date).AddSeconds(60);" ^
+    "do {" ^
+    "    $client = New-Object System.Net.Sockets.TcpClient;" ^
+    "    try {" ^
+    "        $client.Connect('127.0.0.1', 5003);" ^
+    "        exit 0" ^
+    "    } catch {" ^
+    "        Start-Sleep -Milliseconds 500" ^
+    "    } finally {" ^
+    "        $client.Dispose()" ^
+    "    }" ^
+    "} while ((Get-Date) -lt $deadline);" ^
+    "exit 1" >nul 2>&1
+
+if errorlevel 1 (
+    echo [FAILED] Exam Service did not open port 5003.
+    goto :FAIL
+)
+
+echo [READY] Exam Service on port 5003.
+
+REM API Gateway
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$deadline = (Get-Date).AddSeconds(60);" ^
+    "do {" ^
+    "    $client = New-Object System.Net.Sockets.TcpClient;" ^
+    "    try {" ^
+    "        $client.Connect('127.0.0.1', 3000);" ^
+    "        exit 0" ^
+    "    } catch {" ^
+    "        Start-Sleep -Milliseconds 500" ^
+    "    } finally {" ^
+    "        $client.Dispose()" ^
+    "    }" ^
+    "} while ((Get-Date) -lt $deadline);" ^
+    "exit 1" >nul 2>&1
+
+if errorlevel 1 (
+    echo [FAILED] API Gateway did not open port 3000.
+    goto :FAIL
+)
+
+echo [READY] API Gateway on port 3000.
+
+REM Web Client
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$deadline = (Get-Date).AddSeconds(90);" ^
+    "do {" ^
+    "    $client = New-Object System.Net.Sockets.TcpClient;" ^
+    "    try {" ^
+    "        $client.Connect('127.0.0.1', 5173);" ^
+    "        exit 0" ^
+    "    } catch {" ^
+    "        Start-Sleep -Milliseconds 500" ^
+    "    } finally {" ^
+    "        $client.Dispose()" ^
+    "    }" ^
+    "} while ((Get-Date) -lt $deadline);" ^
+    "exit 1" >nul 2>&1
+
+if errorlevel 1 (
+    echo [FAILED] Web Client did not open port 5173.
+    echo Check the LMS Web Client window for the exact npm error.
+    goto :FAIL
+)
+
+echo [READY] Web Client on port 5173.
+
+REM ============================================================
+REM 15. OPEN THE WEB APPLICATION
+REM ============================================================
 
 echo.
 echo ==========================================
-echo   LMS is ready
+echo   LMS IS READY
 echo ==========================================
 echo.
 echo Web Client:     http://localhost:5173
@@ -187,206 +656,28 @@ echo User Service:   http://localhost:5001
 echo Course Service: http://localhost:5002
 echo Exam Service:   http://localhost:5003
 echo.
-echo Keep the service windows running while using the application.
+echo Opening the LMS website...
+
+start "" "http://localhost:5173"
+
 echo.
-
-if /i not "%LMS_NO_BROWSER%"=="1" (
-  start "" "http://localhost:5173"
-)
-
-goto :finished
-
-
-:require_command
-where %~1 >nul 2>nul
-
-if errorlevel 1 (
-  echo %~2 was not found in PATH.
-  exit /b 1
-)
-
-exit /b 0
-
-
-:ensure_docker
-docker info >nul 2>nul
-
-if not errorlevel 1 (
-  exit /b 0
-)
-
-echo Docker engine is not ready. Starting Docker Desktop...
-
-powershell -NoProfile -Command ^
-  "$path = Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe';" ^
-  "if (Test-Path -LiteralPath $path) {" ^
-  "  Start-Process -FilePath $path -WindowStyle Hidden;" ^
-  "  exit 0" ^
-  "};" ^
-  "exit 1"
-
-if errorlevel 1 (
-  echo Docker Desktop could not be found.
-  echo Start Docker Desktop manually and try again.
-  exit /b 1
-)
-
-for /l %%I in (1,1,60) do (
-  docker info >nul 2>nul
-
-  if not errorlevel 1 (
-    exit /b 0
-  )
-
-  powershell -NoProfile -Command "Start-Sleep -Seconds 2"
-)
-
-exit /b 1
-
-
-:is_port_open
-powershell -NoProfile -Command ^
-  "$client = New-Object System.Net.Sockets.TcpClient;" ^
-  "try {" ^
-  "  $client.Connect('127.0.0.1', %~1);" ^
-  "  exit 0" ^
-  "} catch {" ^
-  "  exit 1" ^
-  "} finally {" ^
-  "  $client.Dispose()" ^
-  "}" >nul 2>nul
-
-exit /b %errorlevel%
-
-
-:wait_for_port
-set "WAIT_PORT=%~1"
-set "WAIT_SECONDS=%~2"
-set "WAIT_LABEL=%~3"
-
-powershell -NoProfile -Command ^
-  "$deadline = (Get-Date).AddSeconds(%WAIT_SECONDS%);" ^
-  "do {" ^
-  "  $client = New-Object System.Net.Sockets.TcpClient;" ^
-  "  try {" ^
-  "    $client.Connect('127.0.0.1', %WAIT_PORT%);" ^
-  "    exit 0" ^
-  "  } catch {" ^
-  "    Start-Sleep -Milliseconds 500" ^
-  "  } finally {" ^
-  "    $client.Dispose()" ^
-  "  }" ^
-  "} while ((Get-Date) -lt $deadline);" ^
-  "exit 1" >nul 2>nul
-
-if errorlevel 1 (
-  echo [FAILED] %WAIT_LABEL% did not open port %WAIT_PORT%.
-  exit /b 1
-)
-
-echo [READY]  %WAIT_LABEL% on port %WAIT_PORT%.
-exit /b 0
-
-
-:start_service_if_needed
-set "SERVICE_PORT=%~1"
-set "WINDOW_TITLE=%~2"
-set "SERVICE_DIR=%~3"
-set "SERVICE_COMMAND=%~4"
-
-call :is_port_open %SERVICE_PORT%
-
-if not errorlevel 1 (
-  echo [SKIP]   %WINDOW_TITLE% is already running.
-  exit /b 0
-)
-
-start "%WINDOW_TITLE%" cmd /k ""cd /d "%ROOT%%SERVICE_DIR%" && %SERVICE_COMMAND%""
-
-echo [START]  %WINDOW_TITLE%
-exit /b 0
-
-
-:load_env_value
-set "ENV_FILE=%~1"
-set "ENV_KEY=%~2"
-
-if not exist "%ENV_FILE%" (
-  exit /b 0
-)
-
-for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
-  if /i "%%A"=="%ENV_KEY%" (
-    set "%ENV_KEY%=%%B"
-  )
-)
-
-exit /b 0
-
-
-:strip_outer_quotes
-call set "ENV_VALUE=%%%~1%%"
-
-if not defined ENV_VALUE (
-  exit /b 0
-)
-
-if "%ENV_VALUE:~0,1%"=="""" (
-  if "%ENV_VALUE:~-1%"=="""" (
-    set "ENV_VALUE=%ENV_VALUE:~1,-1%"
-  )
-)
-
-if "%ENV_VALUE:~0,1%"=="'" (
-  if "%ENV_VALUE:~-1%"=="'" (
-    set "ENV_VALUE=%ENV_VALUE:~1,-1%"
-  )
-)
-
-set "%~1=%ENV_VALUE%"
-set "ENV_VALUE="
-
-exit /b 0
-
-
-:load_docker_env
-set "CONTAINER_NAME=%~1"
-set "DOCKER_ENV_KEY=%~2"
-set "TARGET_VAR=%~3"
-
-for /f "tokens=1,* delims==" %%A in ('docker inspect --format "{{range .Config.Env}}{{println .}}{{end}}" "%CONTAINER_NAME%" 2^>nul') do (
-  if /i "%%A"=="%DOCKER_ENV_KEY%" (
-    set "%TARGET_VAR%=%%B"
-  )
-)
-
-exit /b 0
-
-
-:failed
+echo The website has been opened in your default browser.
+echo Keep the service windows open while using the LMS.
 echo.
-echo ==========================================
-echo   LMS startup failed
-echo ==========================================
-echo.
-echo No database volumes were removed or reset.
-echo Review the error above and the opened service windows.
-echo.
-
-if /i "%LMS_NO_PAUSE%"=="1" (
-  exit /b 1
-)
-
-pause
-exit /b 1
-
-
-:finished
-echo.
-
-if /i "%LMS_NO_PAUSE%"=="1" (
-  exit /b 0
-)
 
 pause
 exit /b 0
+
+
+:FAIL
+echo.
+echo ==========================================
+echo   LMS STARTUP FAILED
+echo ==========================================
+echo.
+echo No Docker volume or database data was deleted.
+echo Read the error above and check any service window that opened.
+echo.
+
+pause
+exit /b 1
