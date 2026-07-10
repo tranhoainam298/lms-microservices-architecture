@@ -1,80 +1,90 @@
-# LMS Microservices Platform - Web Client UI Scaffold
+# LMS Web Client
 
-This directory contains the React + Vite UI prototype scaffold for the Learning Management System (LMS) Microservices architecture.
+React 18 + Vite client cho LMS microservices platform. Web Client gọi API Gateway tại `http://localhost:3000`; nó không truy cập service database trực tiếp và không được dùng làm authorization boundary.
 
-> [!IMPORTANT]
-> Login and Save Draft Course are the implemented backend flows. Other screens still use local React state and mock data. No SQL Server connections are active.
+## Run and build
 
-## Login Flow
-
-`LoginPage.jsx` sends `email`, `password`, and `role` to the API Gateway at `http://localhost:3000/auth/login`. The Gateway forwards the request to the User Service. On success, `App.jsx` stores the returned `accessToken`, `userProfile`, and `role` in React state and opens the dashboard for that role.
-
-The API Gateway and User Service must both be running before testing real login. If either backend process is unavailable, the login form remains usable and shows a connection error.
-
-## Course Draft Flow
-
-`InstructorCourseDraft.jsx` sends draft course data and the logged-in instructor's mock access token to `http://localhost:3000/courses/draft`. The API Gateway forwards the request to the Course Service on port `3002`. Draft persistence is mock/in-memory only until backend database integration.
-
----
-
-## Architecture Alignment
-
-All pages and flows are built to match the operations and database schemas defined in the architecture mapping docs:
-1. **User Service**: Real login API with a mock user store and role lookup (`LoginPage.jsx`). User DB is not connected yet.
-2. **Course Service & Course DB**: Syllabus lessons, active access checks (`LessonPage.jsx`), and course drafts creation (`InstructorCourseDraft.jsx`).
-3. **Exam Service & Exam DB**: Assessment questions and scoring (`QuizPage.jsx`).
-4. **Payment Service & Payment DB**: Simulates ZaloPay/Momo callbacks and logging (`PaymentPage.jsx`).
-5. **RabbitMQ Event-Driven Integration**: Confirmed checkouts trigger a simulated `PaymentSucceededEvent` callback to Course Service to activate active access records.
-6. **Reporting & AI Chatbot Systems**: Reconstructed as mock dashboard aggregates and external chatbot assistants without dedicated database layers.
-
----
-
-## Project Structure
-
-```
-web-client/
-├── package.json          - Dev scripts & dependencies
-├── index.html            - Vite mount HTML
-├── README.md             - Setup instructions
-└── src/
-    ├── main.jsx          - Mount entry point
-    ├── App.jsx           - Route Orchestrator & State store
-    ├── data/
-    │   └── mockData.js   - Mock databases for User, Course, Exam, & Payment DBs
-    ├── styles/
-    │   └── global.css    - Styling and Variables design tokens
-    ├── components/
-    │   ├── AppShell.jsx  - Sidebar + Header grid shell
-    │   ├── Sidebar.jsx   - Role-based dark sidebar navigation
-    │   ├── Header.jsx    - Top bar containing profile summary
-    │   ├── StatCard.jsx  - Numeric analytics card
-    │   ├── CourseCard.jsx- Details card for catalogs
-    │   └── StatusBadge.jsx- Active/Pending/Failed tags
-    └── pages/
-        ├── LoginPage.jsx - Role selection login form
-        ├── StudentDashboard.jsx - Catalog, Quick Actions, & Recent Invoices
-        ├── InstructorCourseDraft.jsx - Create Draft Course forms
-        ├── LessonPage.jsx- Media player mockup & completion toggle
-        ├── QuizPage.jsx  - Questions card & scoring engine
-        ├── PaymentPage.jsx- ZaloPay/Momo gateway checkout mockup
-        ├── AdminRevenueReport.jsx - Sales ledger statistics
-        └── AiSupportPage.jsx - AI Bot chat prompt mockup
+```powershell
+cd web-client
+npm run dev
 ```
 
----
+Default URL: `http://localhost:5173`.
 
-## How to Run Locally (After Installation Phase is Initiated)
+Production build check:
 
-1. Navigate to the client folder:
-   ```bash
-   cd web-client
-   ```
-2. Install standard dependencies:
-   ```bash
-   npm install
-   ```
-3. Run the Vite development server:
-   ```bash
-   npm run dev
-   ```
-4. Access the portal at the port indicated in your CLI (typically `http://localhost:5173`).
+```powershell
+npm run build
+```
+
+## Real backend workflows
+
+### Account
+
+- Login bằng User Service/MySQL và nhận JWT thật.
+- Public student registration.
+- Profile load/update.
+- Password change.
+- Admin user listing và active/inactive controls.
+
+### Instructor authoring
+
+`InstructorCourseDraft.jsx` hỗ trợ:
+
+- Create/list/edit course drafts.
+- Create/list/edit/delete lessons.
+- Publish course.
+- Create/list/edit/delete/publish quizzes.
+- Dynamic single-choice questions với 2–6 options, correct-option selector và points.
+
+Mọi mutation gọi backend thật và reload authoritative data sau success. UI không dùng mock persistence cho course/lesson/quiz authoring.
+
+### Student quiz
+
+`QuizPage.jsx`:
+
+1. List published quizzes cho course đã chọn.
+2. Load questions từ Exam Service.
+3. Giữ selected options trong local component state.
+4. Submit question IDs + selected option indexes.
+5. Hiển thị score/percentage/pass-fail do server trả về.
+
+Frontend không chứa answer key và không tự tính authoritative score. Exam Service chỉ trả quiz khi course published và student có active enrollment.
+
+## Authentication state
+
+`App.jsx` giữ `accessToken`, `userProfile` và role trong React state cho session hiện tại. Role-based navigation chỉ là UX; Gateway và service đích vẫn xác minh JWT và role độc lập.
+
+Frontend không gửi `X-User-Id` hoặc `X-User-Role` cho Exam flow, không gửi `studentId`/score/pass-fail trong quiz submission và không dùng localStorage identity làm backend authorization.
+
+## Main files
+
+```text
+src/App.jsx
+src/components/AppShell.jsx
+src/components/Sidebar.jsx
+src/pages/LoginPage.jsx
+src/pages/ProfilePage.jsx
+src/pages/AdminUserManagement.jsx
+src/pages/InstructorCourseDraft.jsx
+src/pages/QuizPage.jsx
+src/styles/global.css
+```
+
+## Required local services
+
+| Service | URL |
+|---|---|
+| API Gateway | `http://localhost:3000` |
+| User Service | `http://localhost:5001` |
+| Course Service | `http://localhost:5002` |
+| Exam Service | `http://localhost:5003` |
+
+Use `start-lms.bat` từ repository root để start Docker + User/Course/Gateway/Web Client. Exam Service phải start riêng.
+
+## Current limitations
+
+- Payment và AI areas còn có demo/mock behavior ngoài core account/course/exam workflows.
+- Auth session hiện nằm trong React memory; reload có thể yêu cầu login lại.
+- Frontend visibility/disabled controls không phải security control.
+- Browser runtime verification phụ thuộc browser automation availability; `npm run build` chỉ xác nhận compile/bundle.
