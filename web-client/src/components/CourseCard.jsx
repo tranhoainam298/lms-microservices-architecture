@@ -26,7 +26,7 @@ export default function CourseCard({ course, isEnrolled, onAction, actionLabel }
         <div className="course-card__footer">
           <div className="course-card__price">
             <span>{isEnrolled ? 'Access' : 'Course price'}</span>
-            <strong>{isEnrolled ? 'Enrolled' : course.price === 0 ? 'Free' : `$${course.price.toFixed(2)}`}</strong>
+            <strong>{isEnrolled ? 'Enrolled' : Number(course.price) === 0 ? 'Free' : `$${Number(course.price).toFixed(2)}`}</strong>
           </div>
           <button className="btn btn-primary" type="button" onClick={() => onAction(course)}>
             {actionLabel || (isEnrolled ? 'Open classroom' : 'Buy course')}
@@ -34,7 +34,7 @@ export default function CourseCard({ course, isEnrolled, onAction, actionLabel }
         </div>
         {!isEnrolled && (
           <span className="course-card__catalog-price" aria-hidden="true">
-          {course.price === 0 ? 'Free' : `$${course.price.toFixed(2)}`}
+          {Number(course.price) === 0 ? 'Free' : `$${Number(course.price).toFixed(2)}`}
           </span>
         )}
       </div>

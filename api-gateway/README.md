@@ -26,3 +26,8 @@ Optional environment variables:
 - `USER_SERVICE_URL` defaults to `http://localhost:3001`
 - `COURSE_SERVICE_URL` defaults to `http://localhost:3002`
 - `WEB_CLIENT_ORIGIN` defaults to `http://localhost:5173`
+
+## Security Features
+
+- **Rate Limiting**: `POST /auth/login` is rate-limited using `express-rate-limit`. In this local single-instance phase, the rate limiter uses in-memory storage. In a distributed multi-instance deployment phase, a distributed rate limiter using a shared store like Redis would be required to enforce the limit across all gateway instances.
+- **Proxy Configuration**: Supports `TRUST_PROXY_HOPS` to safely trust reverse proxies (like Cloudflare, Nginx, or AWS ALB) in production without blindly accepting arbitrary `X-Forwarded-For` headers.

@@ -616,6 +616,7 @@ textarea.form-control {
   border-radius: var(--radius-control);
   font-size: var(--font-size-13);
   font-weight: var(--weight-medium);
+  animation: page-enter var(--transition-page) var(--ease-premium) both;
 }
 
 .form-alert--error {
@@ -796,6 +797,14 @@ textarea.form-control {
 
 .progress__fill--warning {
   background: var(--color-warning);
+}
+
+.progress__fill--primary {
+  background: var(--color-primary);
+}
+
+.progress__fill--danger {
+  background: var(--color-danger);
 }
 
 .architecture-flow {
@@ -1047,6 +1056,13 @@ textarea.form-control {
 .nav-group {
   display: grid;
   gap: var(--space-2);
+}
+
+.nav-group--current {
+  padding: var(--space-2) 0;
+  border-left: 2px solid var(--color-primary);
+  padding-left: var(--space-2);
+  border-radius: 0;
 }
 
 .nav-group__heading {
@@ -2269,6 +2285,25 @@ textarea.form-control {
   background: var(--color-success-soft);
 }
 
+.metric-card--warning {
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-soft);
+}
+
+.metric-card--danger {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-soft);
+}
+
+.metric-card--info {
+  border-color: var(--color-info-border);
+  background: var(--color-info-soft);
+}
+
+.metric-card--default {
+  /* Default tone inherits the base metric-card styling */
+}
+
 .metric-card__topline {
   display: flex;
   align-items: center;
@@ -2461,6 +2496,19 @@ textarea.form-control {
   border-color: var(--color-primary-border);
   box-shadow: var(--shadow-active);
   transform: translateY(-2px);
+}
+
+.course-card--enrolled {
+  border-color: var(--color-success-border);
+}
+
+.course-card--enrolled .course-card__visual {
+  background: var(--color-success-soft);
+  border-bottom-color: var(--color-success-border);
+}
+
+.course-card--enrolled .course-card__visual span {
+  color: var(--color-success);
 }
 
 .course-card__visual {
@@ -2730,6 +2778,48 @@ textarea.form-control {
 
 .draft-feedback:not(:empty) {
   margin-bottom: var(--space-5);
+}
+
+.lesson-authoring-panel {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.lesson-authoring-state {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+}
+
+.lesson-authoring-list {
+  display: grid;
+  gap: var(--space-3);
+  padding-left: var(--space-5);
+}
+
+.lesson-authoring-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.lesson-authoring-links,
+.lesson-authoring-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.lesson-authoring-links a {
+  color: var(--color-primary);
+  font-size: var(--font-size-11);
 }
 
 .draft-form-section legend {
@@ -3456,6 +3546,7 @@ textarea.form-control {
 
 .quiz-result {
   border-top: 3px solid var(--color-success);
+  animation: page-enter var(--transition-page) var(--ease-premium) both;
 }
 
 .quiz-result.is-failed {
@@ -3794,6 +3885,7 @@ textarea.form-control {
   justify-items: center;
   gap: var(--space-3);
   text-align: center;
+  animation: page-enter var(--transition-page) var(--ease-premium) both;
 }
 
 .payment-success__mark {

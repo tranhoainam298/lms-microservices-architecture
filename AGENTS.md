@@ -14,21 +14,10 @@ Only the following skills are available in this project:
 
 - andrej-karpathy-skills
 - rtk-skill
-- stitch-skills
-- taste-skill
-- ui-ux-pro-max-skill
 
 Do not assume or reference any skill that is not listed above.
 
 ## Skill usage rules
-
-### ui-ux-pro-max-skill
-
-Use this skill when designing or improving Web/Mobile UI, LMS pages, dashboards, forms, layouts, components, or user experience.
-
-### stitch-skills
-
-Use this skill only if the task is related to Stitch-style UI generation, UI screen creation, frontend visual structure, or converting design ideas into interface structure.
 
 ### rtk-skill
 
@@ -37,10 +26,6 @@ Use this skill only if the task is related to Redux Toolkit, frontend state mana
 ### andrej-karpathy-skills
 
 Use this skill only if the task is related to learning, coding workflow, AI-assisted development practice, implementation strategy, or step-by-step software building guidance.
-
-### taste-skill
-
-Use this skill only if the task is related to improving design taste, visual quality, UI polish, layout refinement, or making screens look more professional.
 
 ## If no relevant skill exists
 

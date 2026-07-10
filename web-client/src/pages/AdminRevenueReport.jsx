@@ -9,7 +9,7 @@ export default function AdminRevenueReport({ payments, courses }) {
   const [methodFilter, setMethodFilter] = useState('all');
 
   const totalSalesCount = payments.length;
-  const totalRevenue = payments.reduce((acc, curr) => acc + curr.amount, 0);
+  const totalRevenue = payments.reduce((acc, curr) => acc + Number(curr.amount), 0);
   const averageTicket = totalSalesCount > 0 ? totalRevenue / totalSalesCount : 0;
   const revenueByCourse = courses
     .map(course => ({
@@ -17,7 +17,7 @@ export default function AdminRevenueReport({ payments, courses }) {
       title: course.title,
       amount: payments
         .filter(payment => payment.course_id === course.id)
-        .reduce((sum, payment) => sum + payment.amount, 0)
+        .reduce((sum, payment) => sum + Number(payment.amount), 0)
     }))
     .filter(course => course.amount > 0);
   const highestRevenue = Math.max(...revenueByCourse.map(course => course.amount), 1);
@@ -155,11 +155,11 @@ export default function AdminRevenueReport({ payments, courses }) {
                 const contribution = (course.amount / highestRevenue) * 100;
                 return (
                   <li className="course-ranking__item" key={course.id}>
-                    <span className="course-ranking__position">{String(index + 1).padStart(2, '0')}</span>
-                    <div className="course-ranking__content">
+                    <span className="course-ranking__index">{String(index + 1).padStart(2, '0')}</span>
+                    <div className="course-ranking__copy">
                       <div className="course-ranking__topline">
                         <strong>{course.title}</strong>
-                        <span>${course.amount.toFixed(2)}</span>
+                        <span className="course-ranking__value">${course.amount.toFixed(2)}</span>
                       </div>
                       <ProgressBar
                         value={contribution}
@@ -244,7 +244,7 @@ export default function AdminRevenueReport({ payments, courses }) {
                       <td><time dateTime={payment.created_at}>{formatTransactionDate(payment.created_at)}</time></td>
                       <td>Student {payment.user_id}</td>
                       <td><strong className="transaction-course">{relatedCourse?.title || 'Unknown Course'}</strong></td>
-                      <td><strong>${payment.amount.toFixed(2)}</strong></td>
+                      <td><strong>${Number(payment.amount).toFixed(2)}</strong></td>
                       <td><span className="payment-method-label">{payment.payment_method.toUpperCase()}</span></td>
                       <td><StatusBadge status={payment.payment_status} /></td>
                     </tr>

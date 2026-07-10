@@ -17,7 +17,7 @@ export default function StudentDashboard({
 }) {
   const enrolledCount = courseAccess.length;
   const totalCourses = courses.filter(c => c.status === 'published');
-  const paymentTotal = payments.reduce((acc, curr) => acc + curr.amount, 0);
+  const paymentTotal = payments.reduce((acc, curr) => acc + Number(curr.amount), 0);
   const nextQuiz = quizzes[0];
   const latestPayment = payments[payments.length - 1];
 
@@ -37,7 +37,7 @@ export default function StudentDashboard({
     ...payments.map(payment => ({
       id: `payment-${payment.id}`,
       label: 'Payment completed',
-      detail: `${payment.payment_method.toUpperCase()} / $${payment.amount.toFixed(2)}`,
+      detail: `${payment.payment_method.toUpperCase()} / $${Number(payment.amount).toFixed(2)}`,
       service: 'Payment Service',
       timestamp: payment.created_at
     })),
@@ -144,7 +144,7 @@ export default function StudentDashboard({
               >
                 {continueIsEnrolled ? 'Continue course' : 'Enroll and checkout'}
               </button>
-              <span>{continueIsEnrolled ? `${continueCourse.progress_percent || 0}% complete` : `$${continueCourse.price.toFixed(2)}`}</span>
+              <span>{continueIsEnrolled ? `${continueCourse.progress_percent || 0}% complete` : `$${Number(continueCourse.price).toFixed(2)}`}</span>
             </div>
           </div>
           <div className="continue-learning-card__visual" aria-hidden="true">
@@ -249,7 +249,7 @@ export default function StudentDashboard({
                 ? `Latest course payment through ${latestPayment.payment_method.toUpperCase()}.`
                 : 'No course payments have been recorded yet.'}
             </p>
-            <div className="dashboard-highlight__amount">{latestPayment ? `$${latestPayment.amount.toFixed(2)}` : '$0.00'}</div>
+            <div className="dashboard-highlight__amount">{latestPayment ? `$${Number(latestPayment.amount).toFixed(2)}` : '$0.00'}</div>
           </section>
 
           <section className="card dashboard-panel recommended-action" aria-labelledby="recommended-action-title">

@@ -1,11 +1,21 @@
 const userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:5001';
 
-export async function forwardLogin(payload) {
+export async function forwardLogin(payload, clientIp, userAgent) {
   let response;
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+  if (clientIp) {
+    headers['X-Forwarded-For'] = clientIp;
+  }
+  if (userAgent) {
+    headers['User-Agent'] = userAgent;
+  }
+
   try {
     response = await fetch(`${userServiceUrl}/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload)
     });
   } catch (cause) {
