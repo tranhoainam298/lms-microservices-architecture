@@ -82,10 +82,11 @@ Launcher hiện thực hiện:
 
 1. Khởi động Docker infrastructure từ `infra/docker-compose.yml`.
 2. Chạy migration User Service idempotent khi có.
-3. Mở User Service, Course Service, API Gateway và Web Client.
-4. Mở `http://localhost:5173`.
+3. Build và mở Exam Service khi port 5003 chưa chạy.
+4. Mở User Service, Course Service, API Gateway và Web Client khi các port tương ứng chưa chạy.
+5. Chờ đủ các port 5001, 5002, 5003, 3000 và 5173 rồi mới mở `http://localhost:5173`.
 
-Exam Service chưa nằm trong launcher này và phải chạy riêng như phần dưới.
+Launcher lấy Exam DB connection settings từ container `exam-db-mysql` đang chạy và không in credential ra màn hình.
 
 ## Khởi chạy thủ công
 
@@ -217,7 +218,7 @@ git status --short
 
 ## Giới hạn hiện tại
 
-- `start-lms.bat` chưa khởi động Exam Service.
+- `start-lms.bat` khởi động core User/Course/Exam/Gateway/Web workflow; Payment và AI không được tự động start.
 - Payment và AI screens còn có phần demo/mock, chưa thuộc core workflow được xác minh ở trên.
 - Stateless JWT đã phát hành trước khi đổi mật khẩu không bị thu hồi toàn cục.
 - Rate limiter dùng in-memory store; production nhiều instance cần shared store.

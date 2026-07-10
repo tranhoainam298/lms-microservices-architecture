@@ -80,7 +80,7 @@ src/styles/global.css
 | Course Service | `http://localhost:5002` |
 | Exam Service | `http://localhost:5003` |
 
-Use `start-lms.bat` từ repository root để start Docker + User/Course/Gateway/Web Client. Exam Service phải start riêng.
+Use `start-lms.bat` từ repository root để start Docker + User/Course/Exam/Gateway/Web Client.
 
 ## Current limitations
 

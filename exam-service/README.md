@@ -124,4 +124,4 @@ Questions/results có FK đến quiz. Additive schema upgrades chạy bằng `Da
 dotnet build exam-service/ExamService.csproj
 ```
 
-`start-lms.bat` hiện không start Exam Service; chạy service bằng lệnh ở phần Environment and run.
+`start-lms.bat` ở repository root tự build/start Exam Service khi port 5003 chưa chạy. Phần Environment and run vẫn hữu ích khi cần chạy service độc lập.
