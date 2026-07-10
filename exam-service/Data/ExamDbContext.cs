@@ -26,6 +26,10 @@ namespace ExamService.Data
                 .WithMany(q => q.QuizResults)
                 .HasForeignKey(qr => qr.QuizId)
                 .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<Question>()
+                .HasOne(q => q.Quiz).WithMany(q => q.Questions)
+                .HasForeignKey(q => q.QuizId).OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<QuizResult>().HasIndex(r => new { r.StudentId, r.QuizId }).IsUnique();
         }
     }
 }

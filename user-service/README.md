@@ -1,5 +1,7 @@
 # User Service
 
+Changing a password does not globally revoke stateless JWTs that were issued before the change. Token revocation is outside the current account-workflow scope.
+
 The User Service owns login validation, authentication behavior, and auditing. It connects to the MySQL User DB to retrieve user information, verify roles, compare passwords using bcrypt, and record login attempts.
 
 ## Current Route

@@ -3,37 +3,55 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { publishEvent } from '../events/publisher.js';
 import { recordLoginAttempt } from '../data/loginAuditRepository.js';
+import { validateFullName, validatePassword } from './userService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS ?? 12);
+const controlCharacters = /[\u0000-\u001F\u007F]/;
 
 export async function registerUser({ email, password, fullName, role }) {
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-  const normalizedRole = typeof role === 'string' ? role.trim().toLowerCase() : 'student';
+  const normalizedRole = role === undefined ? 'student' : (typeof role === 'string' ? role.trim().toLowerCase() : '');
 
-  if (!normalizedEmail || !password || !fullName) {
-    return { status: 400, body: { code: 'MISSING_FIELDS', message: 'Email, password, and fullName are required.' } };
+  if (!normalizedEmail || typeof password !== 'string' || !fullName) {
+    return { status: 400, body: { code: 'MISSING_FIELDS', message: 'Email, password, and full name are required.' } };
   }
+  if (normalizedRole !== 'student') {
+    return { status: 403, body: { code: 'REGISTRATION_ROLE_FORBIDDEN', message: 'Public registration is available only for student accounts.' } };
+  }
+  if (normalizedEmail.length > 255 || controlCharacters.test(email) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    return { status: 400, body: { code: 'INVALID_EMAIL', message: 'Enter a valid email address.' } };
+  }
+  const nameValidation = validateFullName(fullName);
+  if (nameValidation.error) return { status: 400, body: { code: 'INVALID_FULL_NAME', message: nameValidation.error } };
+  const passwordValidation = validatePassword(password);
+  if (passwordValidation.error) return { status: 400, body: { code: 'INVALID_PASSWORD', message: passwordValidation.error } };
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
     const connection = await pool.getConnection();
     
     try {
       const [result] = await connection.query(
-        'INSERT INTO users (email, password_hash, full_name, role) VALUES (?, ?, ?, ?)',
-        [normalizedEmail, hashedPassword, fullName, normalizedRole]
+        "INSERT INTO users (email, password_hash, full_name, role, status) VALUES (?, ?, ?, 'student', 'active')",
+        [normalizedEmail, hashedPassword, nameValidation.value]
       );
-      
+      const [rows] = await connection.query(
+        `SELECT id, email, full_name, role, status, created_at
+         FROM users WHERE id = ?`,
+        [result.insertId]
+      );
+      const user = rows[0];
       return {
         status: 201,
-        body: { message: 'User registered successfully', userId: result.insertId }
+        body: { user: { id: user.id, email: user.email, fullName: user.full_name, role: user.role, status: user.status, createdAt: user.created_at } }
       };
     } finally {
       connection.release();
     }
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
-      return { status: 409, body: { code: 'EMAIL_EXISTS', message: 'Email already exists.' } };
+      return { status: 409, body: { code: 'ACCOUNT_ALREADY_EXISTS', message: 'An account with this email cannot be created.' } };
     }
     console.error('Error during registration:', error);
     return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Failed to register user.' } };
@@ -73,7 +91,10 @@ export async function authenticateUser({ email, password, role, ipAddress, userA
     let users = [];
     
     try {
-      const [rows] = await connection.query('SELECT * FROM users WHERE email = ?', [normalizedEmail]);
+      const [rows] = await connection.query(
+        'SELECT id, email, password_hash, full_name, role, status FROM users WHERE email = ? LIMIT 1',
+        [normalizedEmail]
+      );
       users = rows;
     } finally {
       connection.release();
@@ -107,7 +128,7 @@ export async function authenticateUser({ email, password, role, ipAddress, userA
     }
 
     if (user.status === 'inactive' || user.is_active === 0) {
-      const res = { status: 403, body: { code: 'ACCOUNT_INACTIVE', message: 'Account is inactive.' } };
+      const res = { status: 403, body: { code: 'ACCOUNT_INACTIVE', message: 'This account is not active.' } };
       await recordLoginAttempt({
         userId: user.id,
         loginStatus: 'failed',
@@ -159,7 +180,8 @@ export async function authenticateUser({ email, password, role, ipAddress, userA
           id: user.id,
           email: user.email,
           fullName: user.full_name,
-          role: user.role
+          role: user.role,
+          status: user.status
         },
         role: user.role
       }

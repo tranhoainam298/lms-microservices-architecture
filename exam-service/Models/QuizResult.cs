@@ -6,6 +6,10 @@ namespace ExamService.Models
         public int StudentId { get; set; }
         public int QuizId { get; set; }
         public decimal Score { get; set; }
+        public decimal MaximumScore { get; set; }
+        public decimal Percentage { get; set; }
+        public bool Passed { get; set; }
+        public string SubmittedAnswers { get; set; } = "[]";
         public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation Property

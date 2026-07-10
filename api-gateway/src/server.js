@@ -8,6 +8,7 @@ import cors from 'cors';
 import express from 'express';
 import authRoutes from './routes/authRoutes.js';
 import courseRoutes from './routes/courseRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 import examRoutes from './routes/examRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -28,8 +29,12 @@ app.use(cors({ origin: process.env.WEB_CLIENT_ORIGIN || 'http://localhost:5173' 
 app.use(express.json());
 app.use('/auth', authRoutes);
 app.use('/courses', courseRoutes);
-app.use('/quizzes', examRoutes);
-app.use('/questions', examRoutes);
+app.use('/users', userRoutes);
+app.use(['/quizzes', '/questions'], (req, res) => res.status(410).json({
+  code: 'ENDPOINT_DEPRECATED',
+  message: 'Use the secure /exams endpoints.'
+}));
+app.use('/exams', examRoutes);
 app.use(errorHandler);
 
 app.listen(port, () => {

@@ -31,6 +31,50 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
   const [publishingDraftId, setPublishingDraftId] = useState(null);
   const [publishSuccess, setPublishSuccess] = useState('');
   const [publishError, setPublishError] = useState('');
+  const [quizDraft, setQuizDraft] = useState(null);
+  const [quizzes, setQuizzes] = useState([]);
+  const [quizFormOpen, setQuizFormOpen] = useState(false);
+  const [editingQuiz, setEditingQuiz] = useState(null);
+  const [quizTitle, setQuizTitle] = useState('');
+  const [quizDescription, setQuizDescription] = useState('');
+  const [quizDuration, setQuizDuration] = useState(15);
+  const [quizPassingScore, setQuizPassingScore] = useState(60);
+  const [quizQuestions, setQuizQuestions] = useState([{ questionText: '', questionType: 'single_choice', options: ['', ''], correctOptionIndex: 0, points: 1 }]);
+  const [quizBusy, setQuizBusy] = useState(false);
+  const [quizError, setQuizError] = useState('');
+  const [quizSuccess, setQuizSuccess] = useState('');
+
+  const examRequest = async (path, options = {}) => {
+    const response = await fetch(`http://localhost:3000${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, ...(options.headers || {}) } });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.message || 'The Exam Service request failed.');
+    return body;
+  };
+  const loadQuizzes = async (draft) => {
+    setQuizDraft(draft); setQuizBusy(true); setQuizError('');
+    try { const body = await examRequest(`/exams/courses/${draft.id}/quizzes/mine`); setQuizzes(body.items || []); }
+    catch (error) { setQuizError(error.message); }
+    finally { setQuizBusy(false); }
+  };
+  const resetQuizForm = () => { setQuizFormOpen(false); setEditingQuiz(null); setQuizTitle(''); setQuizDescription(''); setQuizDuration(15); setQuizPassingScore(60); setQuizQuestions([{ questionText: '', questionType: 'single_choice', options: ['', ''], correctOptionIndex: 0, points: 1 }]); };
+  const startQuiz = async (draft) => { await loadQuizzes(draft); resetQuizForm(); setQuizFormOpen(true); };
+  const saveQuiz = async (event) => {
+    event.preventDefault(); setQuizBusy(true); setQuizError(''); setQuizSuccess('');
+    try {
+      const path = editingQuiz ? `/exams/courses/${quizDraft.id}/quizzes/${editingQuiz.id}` : `/exams/courses/${quizDraft.id}/quizzes`;
+      const body = await examRequest(path, { method: editingQuiz ? 'PATCH' : 'POST', body: JSON.stringify({ title: quizTitle, description: quizDescription, durationMinutes: Number(quizDuration), passingScore: Number(quizPassingScore), questions: quizQuestions.map(q => ({ ...q, points: Number(q.points), correctOptionIndex: Number(q.correctOptionIndex) })) }) });
+      setQuizSuccess(`Quiz #${body.quiz.id} was ${editingQuiz ? 'updated' : 'created'}.`); resetQuizForm(); await loadQuizzes(quizDraft);
+    } catch (error) { setQuizError(error.message); }
+    finally { setQuizBusy(false); }
+  };
+  const editQuiz = async (quiz) => {
+    setQuizBusy(true); setQuizError('');
+    try { const body = await examRequest(`/exams/courses/${quizDraft.id}/quizzes/${quiz.id}/mine`); const detail = body.quiz; setEditingQuiz(quiz); setQuizFormOpen(true); setQuizTitle(detail.title); setQuizDescription(detail.description || ''); setQuizDuration(detail.durationMinutes); setQuizPassingScore(detail.passingScore); setQuizQuestions(detail.questions.map(q => ({ questionText: q.questionText, questionType: 'single_choice', options: q.options, correctOptionIndex: q.correctOptionIndex, points: q.points }))); }
+    catch (error) { setQuizError(error.message); }
+    finally { setQuizBusy(false); }
+  };
+  const deleteQuiz = async (quiz) => { if (!window.confirm(`Delete quiz “${quiz.title}”?`)) return; setQuizBusy(true); try { await examRequest(`/exams/courses/${quizDraft.id}/quizzes/${quiz.id}`, { method: 'DELETE' }); setQuizSuccess(`Quiz #${quiz.id} was deleted.`); await loadQuizzes(quizDraft); } catch (error) { setQuizError(error.message); } finally { setQuizBusy(false); } };
+  const publishQuiz = async (quiz) => { if (!window.confirm(`Publish quiz “${quiz.title}”? Published quizzes cannot be edited or deleted.`)) return; setQuizBusy(true); try { await examRequest(`/exams/courses/${quizDraft.id}/quizzes/${quiz.id}/publish`, { method: 'PATCH' }); setQuizSuccess(`Quiz #${quiz.id} was published.`); await loadQuizzes(quizDraft); } catch (error) { setQuizError(error.message); } finally { setQuizBusy(false); } };
 
   const handleStartEdit = (draft) => {
     setEditingDraft(draft);
@@ -422,6 +466,8 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
             </div>
 
             <div className="draft-feedback" aria-live="polite" aria-atomic="true">
+              {quizSuccess && <div className="form-alert form-alert--success" role="status">{quizSuccess}</div>}
+              {quizError && <div className="form-alert form-alert--error" role="alert">{quizError}</div>}
               {isSaving && (
                 <div className="form-alert form-alert--loading" role="status">
                   Saving the draft through the API Gateway...
@@ -438,6 +484,18 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                 </div>
               )}
             </div>
+
+            {quizDraft && quizFormOpen && <form className="draft-form" onSubmit={saveQuiz}>
+              <fieldset className="draft-form-section" disabled={quizBusy}><legend>{editingQuiz ? 'Edit quiz' : 'Add quiz'}: {quizDraft.title}</legend>
+                <div className="form-group"><label>Quiz title</label><input className="form-control" value={quizTitle} onChange={e => setQuizTitle(e.target.value)} required /></div>
+                <div className="form-group"><label>Description</label><textarea className="form-control" value={quizDescription} onChange={e => setQuizDescription(e.target.value)} /></div>
+                <div className="draft-form-grid"><div className="form-group"><label>Duration (minutes)</label><input className="form-control" type="number" min="1" max="300" value={quizDuration} onChange={e => setQuizDuration(e.target.value)} /></div><div className="form-group"><label>Passing score (%)</label><input className="form-control" type="number" min="0" max="100" value={quizPassingScore} onChange={e => setQuizPassingScore(e.target.value)} /></div></div>
+                {quizQuestions.map((question, questionIndex) => <section className="card" key={questionIndex}><div className="form-group"><label>Question {questionIndex + 1}</label><input className="form-control" value={question.questionText} onChange={e => setQuizQuestions(items => items.map((q, i) => i === questionIndex ? { ...q, questionText: e.target.value } : q))} required /></div>{question.options.map((option, optionIndex) => <div className="form-group" key={optionIndex}><label>Option {optionIndex + 1}</label><input className="form-control" value={option} onChange={e => setQuizQuestions(items => items.map((q, i) => i === questionIndex ? { ...q, options: q.options.map((o, oi) => oi === optionIndex ? e.target.value : o) } : q))} required /></div>)}<div className="draft-form-grid"><div className="form-group"><label>Correct option</label><select className="form-control" value={question.correctOptionIndex} onChange={e => setQuizQuestions(items => items.map((q, i) => i === questionIndex ? { ...q, correctOptionIndex: Number(e.target.value) } : q))}>{question.options.map((_, i) => <option key={i} value={i}>Option {i + 1}</option>)}</select></div><div className="form-group"><label>Points</label><input className="form-control" type="number" min="1" max="100" value={question.points} onChange={e => setQuizQuestions(items => items.map((q, i) => i === questionIndex ? { ...q, points: e.target.value } : q))} /></div></div><div className="draft-form-actions"><button type="button" className="btn btn-secondary btn-sm" disabled={question.options.length >= 6} onClick={() => setQuizQuestions(items => items.map((q, i) => i === questionIndex ? { ...q, options: [...q.options, ''] } : q))}>Add option</button>{quizQuestions.length > 1 && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setQuizQuestions(items => items.filter((_, i) => i !== questionIndex))}>Remove question</button>}</div></section>)}
+                <button type="button" className="btn btn-secondary" disabled={quizQuestions.length >= 100} onClick={() => setQuizQuestions(items => [...items, { questionText: '', questionType: 'single_choice', options: ['', ''], correctOptionIndex: 0, points: 1 }])}>Add Question</button>
+              </fieldset><div className="draft-form-actions"><button className="btn btn-primary" disabled={quizBusy}>{quizBusy ? 'Saving...' : 'Save Quiz'}</button><button type="button" className="btn btn-secondary" onClick={resetQuizForm}>Cancel</button></div>
+            </form>}
+
+            {quizDraft && <section className="lesson-authoring-panel"><div className="draft-panel-heading"><div><p className="section-kicker">Quiz workspace</p><h3>Quizzes: {quizDraft.title}</h3></div><button className="btn btn-secondary btn-sm" type="button" onClick={() => startQuiz(quizDraft)}>Add Quiz</button></div>{quizBusy ? <p>Loading quizzes...</p> : quizzes.length === 0 ? <p>No quizzes in this draft.</p> : <ul className="lesson-authoring-list">{quizzes.map(quiz => <li className="lesson-authoring-item" key={quiz.id}><div><strong>{quiz.title}</strong><div>{quiz.status} · {quiz.questionCount} questions · {quiz.durationMinutes} minutes · Pass {quiz.passingScore}%</div></div><div className="lesson-authoring-actions">{quiz.status === 'draft' && <><button className="btn btn-secondary btn-sm" type="button" onClick={() => editQuiz(quiz)}>Edit</button><button className="btn btn-secondary btn-sm" type="button" onClick={() => deleteQuiz(quiz)}>Delete</button><button className="btn btn-primary btn-sm" type="button" onClick={() => publishQuiz(quiz)}>Publish</button></>}</div></li>)}</ul>}</section>}
 
             <form className="draft-form" onSubmit={handleSave} noValidate aria-busy={isSaving}>
               <fieldset className="draft-form-section" disabled={isSaving}>
@@ -784,6 +842,8 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                         >
                           View Lessons
                         </button>
+                        <button type="button" onClick={() => startQuiz(draft)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '12px' }}>Add Quiz</button>
+                        <button type="button" onClick={() => loadQuizzes(draft)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '12px' }}>View Quizzes</button>
                         <button
                           type="button"
                           onClick={() => handlePublishDraft(draft)}

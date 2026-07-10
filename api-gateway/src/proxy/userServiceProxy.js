@@ -40,3 +40,43 @@ export async function forwardRegister(payload) {
   return { status: response.status, body };
 }
 
+async function forwardUserRequest(path, { method = 'GET', authorizationHeader, payload } = {}) {
+  let response;
+  try {
+    response = await fetch(`${userServiceUrl}${path}`, {
+      method,
+      headers: {
+        'Accept': 'application/json',
+        ...(payload !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      },
+      ...(payload !== undefined ? { body: JSON.stringify(payload) } : {})
+    });
+  } catch (cause) {
+    return { status: 502, body: { code: 'USER_SERVICE_UNAVAILABLE', message: 'User Service is unavailable.' } };
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export const forwardGetOwnProfile = authorizationHeader =>
+  forwardUserRequest('/users/me', { authorizationHeader });
+
+export const forwardUpdateOwnProfile = (payload, authorizationHeader) =>
+  forwardUserRequest('/users/me', { method: 'PATCH', payload, authorizationHeader });
+
+export const forwardChangeOwnPassword = (payload, authorizationHeader) =>
+  forwardUserRequest('/users/me/password', { method: 'PATCH', payload, authorizationHeader });
+
+export function forwardListUsers(query, authorizationHeader) {
+  const params = new URLSearchParams();
+  for (const key of ['page', 'pageSize', 'role', 'status', 'search']) {
+    if (query[key] !== undefined) params.set(key, String(query[key]));
+  }
+  const suffix = params.size ? `?${params}` : '';
+  return forwardUserRequest(`/users/admin/users${suffix}`, { authorizationHeader });
+}
+
+export const forwardUpdateUserStatus = (userId, payload, authorizationHeader) =>
+  forwardUserRequest(`/users/admin/users/${userId}/status`, { method: 'PATCH', payload, authorizationHeader });
+

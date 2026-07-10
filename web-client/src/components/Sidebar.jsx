@@ -4,7 +4,10 @@ const navigationGroups = [
   {
     label: 'Platform',
     role: 'all',
-    items: [{ id: 'overview', label: 'Overview', short: 'O' }]
+    items: [
+      { id: 'overview', label: 'Overview', short: 'O' },
+      { id: 'profile', label: 'My profile', short: 'ME' }
+    ]
   },
   {
     label: 'Student tools',
@@ -25,7 +28,10 @@ const navigationGroups = [
   {
     label: 'Administration',
     role: 'admin',
-    items: [{ id: 'revenue-report', label: 'Revenue and sales', short: 'R' }]
+    items: [
+      { id: 'revenue-report', label: 'Revenue and sales', short: 'R' },
+      { id: 'user-management', label: 'User management', short: 'U' }
+    ]
   }
 ];
 
@@ -52,7 +58,7 @@ export default function Sidebar({ currentTab, onTabChange, user, onLogout, isOpe
         </div>
 
         <nav className="sidebar__navigation">
-          {navigationGroups.map((group) => {
+          {navigationGroups.filter(group => group.role === 'all' || group.role === user.role).map((group) => {
             const isCurrentRole = group.role === user.role;
             return (
               <section className={`nav-group${isCurrentRole ? ' nav-group--current' : ''}`} key={group.label}>

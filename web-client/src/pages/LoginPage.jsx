@@ -25,13 +25,17 @@ const demoRoles = [
 ];
 
 export default function LoginPage({ onLogin }) {
+  const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('student@lms.edu');
-  const [password, setPassword] = useState('password123');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('student');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [success, setSuccess] = useState('');
 
   const selectedDemoRole = demoRoles.find(option => option.id === role) || demoRoles[0];
 
@@ -56,6 +60,13 @@ export default function LoginPage({ onLogin }) {
     if (!password) {
       nextErrors.password = 'Enter the account password.';
     }
+    if (mode === 'register') {
+      if (!fullName.trim()) nextErrors.fullName = 'Enter your full name.';
+      if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+        nextErrors.password = 'Use at least 8 characters with a letter and a number.';
+      }
+      if (confirmPassword !== password) nextErrors.confirmPassword = 'Passwords do not match.';
+    }
 
     setFieldErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
@@ -69,10 +80,12 @@ export default function LoginPage({ onLogin }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3000/auth/login', {
+      const response = await fetch(`http://localhost:3000/auth/${mode === 'register' ? 'register' : 'login'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, role })
+        body: JSON.stringify(mode === 'register'
+          ? { email, password, fullName, role: 'student' }
+          : { email, password, role })
       });
       const responseBody = await response.json();
 
@@ -83,7 +96,18 @@ export default function LoginPage({ onLogin }) {
         throw new Error(responseBody.message || 'Login failed. Check your credentials and role.');
       }
 
-      onLogin(responseBody);
+      if (mode === 'register') {
+        const normalizedEmail = responseBody.user.email;
+        setMode('login');
+        setRole('student');
+        setEmail(normalizedEmail);
+        setPassword('');
+        setFullName('');
+        setConfirmPassword('');
+        setSuccess('Account created. Sign in with your new student account.');
+      } else {
+        onLogin(responseBody);
+      }
     } catch (requestError) {
       const message = requestError instanceof TypeError
         ? 'Login service is unavailable. Start the API Gateway and User Service, then try again.'
@@ -131,9 +155,14 @@ export default function LoginPage({ onLogin }) {
 
       <main className="login-panel">
         <div className="login-panel__heading">
-          <span className="page-kicker">Welcome back</span>
-          <h2>Sign in to your workspace</h2>
-          <p>Select a role to load its demo account, then authenticate through the live gateway.</p>
+          <span className="page-kicker">{mode === 'register' ? 'Student registration' : 'Welcome back'}</span>
+          <h2>{mode === 'register' ? 'Create your student account' : 'Sign in to your workspace'}</h2>
+          <p>{mode === 'register' ? 'Register securely through the User Service.' : 'Select a role to load its demo account, then authenticate through the live gateway.'}</p>
+        </div>
+
+        <div className="login-mode-switch" role="group" aria-label="Authentication mode">
+          <button type="button" className={`btn ${mode === 'login' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setMode('login'); setError(''); setSuccess(''); }}>Sign in</button>
+          <button type="button" className={`btn ${mode === 'register' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setMode('register'); setRole('student'); setEmail(''); setPassword(''); setError(''); setSuccess(''); }}>Register</button>
         </div>
 
         <div className="login-route-summary" aria-label="Authentication service route">
@@ -145,7 +174,7 @@ export default function LoginPage({ onLogin }) {
         </div>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
-          <fieldset className="login-role-selector" disabled={isLoading}>
+          {mode === 'login' && <fieldset className="login-role-selector" disabled={isLoading}>
             <legend>Choose a demo role</legend>
             <div className="login-role-grid">
               {demoRoles.map(option => {
@@ -169,7 +198,15 @@ export default function LoginPage({ onLogin }) {
                 );
               })}
             </div>
-          </fieldset>
+          </fieldset>}
+
+          {mode === 'register' && (
+            <div className={`form-group${fieldErrors.fullName ? ' has-error' : ''}`}>
+              <label htmlFor="register-full-name">Full name</label>
+              <input id="register-full-name" className="form-control" value={fullName} onChange={event => { setFullName(event.target.value); setFieldErrors(errors => ({ ...errors, fullName: '' })); }} autoComplete="name" disabled={isLoading} />
+              {fieldErrors.fullName && <p className="field-error" role="alert">{fieldErrors.fullName}</p>}
+            </div>
+          )}
 
           <div className={`form-group${fieldErrors.email ? ' has-error' : ''}`}>
             <label htmlFor="email">Email</label>
@@ -192,6 +229,14 @@ export default function LoginPage({ onLogin }) {
             <p className="field-helper" id="email-helper">Use the account linked to the selected role.</p>
             {fieldErrors.email && <p className="field-error" id="email-error" role="alert">{fieldErrors.email}</p>}
           </div>
+
+          {mode === 'register' && (
+            <div className={`form-group${fieldErrors.confirmPassword ? ' has-error' : ''}`}>
+              <label htmlFor="confirm-password">Confirm password</label>
+              <input id="confirm-password" type="password" className="form-control" value={confirmPassword} onChange={event => { setConfirmPassword(event.target.value); setFieldErrors(errors => ({ ...errors, confirmPassword: '' })); }} autoComplete="new-password" disabled={isLoading} />
+              {fieldErrors.confirmPassword && <p className="field-error" role="alert">{fieldErrors.confirmPassword}</p>}
+            </div>
+          )}
 
           <div className={`form-group${fieldErrors.password ? ' has-error' : ''}`}>
             <label htmlFor="password">Password</label>
@@ -230,6 +275,7 @@ export default function LoginPage({ onLogin }) {
 
           <div className="login-form__feedback" aria-live="polite" aria-atomic="true">
             {error && <div className="form-alert form-alert--error" id="login-error" role="alert">{error}</div>}
+            {success && <div className="form-alert form-alert--success" role="status">{success}</div>}
             {isLoading && !error && <p className="form-status" role="status">Authenticating with the API Gateway...</p>}
           </div>
 
@@ -240,20 +286,16 @@ export default function LoginPage({ onLogin }) {
             aria-describedby={error ? 'login-error' : undefined}
           >
             {isLoading && <span className="button-spinner" aria-hidden="true" />}
-            {isLoading ? 'Signing in...' : `Continue as ${selectedDemoRole.label}`}
+            {isLoading ? (mode === 'register' ? 'Creating account...' : 'Signing in...') : (mode === 'register' ? 'Create student account' : `Continue as ${selectedDemoRole.label}`)}
           </button>
         </form>
 
-        <section className="login-demo-hint" aria-label="Demo account credentials">
+        {mode === 'login' && <section className="login-demo-hint" aria-label="Selected demo account">
           <div>
             <span className="login-demo-hint__label">Selected demo account</span>
             <strong>{selectedDemoRole.email}</strong>
           </div>
-          <div>
-            <span className="login-demo-hint__label">Shared password</span>
-            <code>password123</code>
-          </div>
-        </section>
+        </section>}
       </main>
     </div>
   );
