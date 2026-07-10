@@ -3,6 +3,7 @@ import cors from 'cors';
 import express from 'express';
 import authRoutes from './routes/authRoutes.js';
 import courseRoutes from './routes/courseRoutes.js';
+import examRoutes from './routes/examRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -12,6 +13,8 @@ app.use(cors({ origin: process.env.WEB_CLIENT_ORIGIN || 'http://localhost:5173' 
 app.use(express.json());
 app.use('/auth', authRoutes);
 app.use('/courses', courseRoutes);
+app.use('/quizzes', examRoutes);
+app.use('/questions', examRoutes);
 app.use(errorHandler);
 
 app.listen(port, () => {

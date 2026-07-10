@@ -1,109 +1,93 @@
-# Learning Management System - Microservices Architecture
+# LMS Microservices Architecture
 
-Hệ thống quản lý học tập (LMS) xây dựng theo kiến trúc Microservices.
+Welcome to the Learning Management System (LMS) built with a modern Microservices Architecture. This project integrates multiple specialized services using both **Node.js** and **C# .NET Core** to ensure high performance and scalability.
 
-## Yêu cầu hệ thống
+## Architecture Overview
+- **API Gateway (Port 3000):** Built with Node.js/Express. Handles central routing, JWT verification, and proxying.
+- **User Service (Port 5001):** Built with Node.js. Manages user authentication, registration, and profile logic. Uses `user-db-mysql`.
+- **Course Service (Port 5002):** Built with Node.js. Manages course drafts, publishing, lessons, and enrollments. Uses `course-db-mysql`.
+- **Exam & Quiz Service (Port 5003):** Built with C# .NET Core (Entity Framework). Manages exams, questions, and quiz results. Uses `exam-db-mysql`.
+- **Payment Service (Port 5004):** Standby service for future payment gateway integration. Uses `payment-db-mysql`.
+- **Message Broker:** RabbitMQ handles cross-service asynchronous communication.
 
-- **Node.js** >= 18
-- **npm** (đi kèm với Node.js)
+## Prerequisites
+Ensure your local development environment has the following installed:
+1. **Docker & Docker Compose** (for running MySQL databases and RabbitMQ)
+2. **Node.js** (v18+ recommended)
+3. **.NET 10.0 SDK** (or .NET 9.0/8.0 depending on your environment compatibility)
 
-## Kiến trúc hệ thống
+---
 
-```
-Browser (localhost:5173)  →  API Gateway (localhost:3000)  →  User Service (localhost:3001)
-       Web Client                  Proxy trung gian               Xử lý xác thực
-```
+## 🚀 Quick Start Guide
 
-| Service | Công nghệ | Port | Mô tả |
-|---|---|---|---|
-| Web Client | React + Vite | 5173 | Giao diện người dùng |
-| API Gateway | Express.js | 3000 | Điều hướng request tới các service |
-| User Service | Express.js | 3001 | Xác thực và quản lý người dùng |
+Follow these steps to clone and run the entire ecosystem locally.
 
-## Cách chạy dự án
-
-> **Quan trọng:** Cần mở **3 terminal riêng biệt** và chạy đồng thời cả 3 service.
-
-### Bước 1 — Khởi chạy User Service (Terminal 1)
-
+### Step 1: Setup Environment Variables
+We have provided `.env.example` templates for all Node.js services. You need to copy them to `.env`.
+Navigate to each service folder and run:
 ```bash
-cd user-service
-npm install
-npm run dev
+cp api-gateway/.env.example api-gateway/.env
+cp user-service/.env.example user-service/.env
+cp course-service/.env.example course-service/.env
+cp payment-service/.env.example payment-service/.env
 ```
+*(On Windows PowerShell, use `copy` instead of `cp`)*
 
-Khi thấy dòng `User Service listening on http://localhost:3001` là thành công.
+### Step 2: Start the Infrastructure (Databases & Message Broker)
+We use Docker to auto-spin up 4 MySQL instances and 1 RabbitMQ instance. 
+Our Docker Compose is pre-configured with Auto-Init SQL Scripts, so the databases and tables (`users`, `courses`, `lessons`, `enrollments`, etc.) are created automatically on the very first run!
 
-### Bước 2 — Khởi chạy API Gateway (Terminal 2)
+Navigate to the `infra` folder and run:
+```bash
+cd infra
+docker-compose up -d
+```
+*(Wait a few seconds for the databases to fully initialize).*
 
+### Step 3: Install Dependencies & Start Services
+
+You will need to open separate terminal windows for each service.
+
+**1. API Gateway (Node.js)**
 ```bash
 cd api-gateway
 npm install
 npm run dev
 ```
 
-Khi thấy dòng `API Gateway listening on http://localhost:3000` là thành công.
-
-### Bước 3 — Khởi chạy Web Client (Terminal 3)
-
+**2. User Service (Node.js)**
 ```bash
-cd web-client
+cd user-service
 npm install
 npm run dev
 ```
 
-Khi thấy dòng `VITE ready` và link `http://localhost:5173/` là thành công.
-
-### Bước 4 — Mở trình duyệt
-
-Truy cập **http://localhost:5173** để sử dụng hệ thống.
-
-## Tài khoản demo
-
-| Vai trò | Email | Mật khẩu |
-|---|---|---|
-| Student | `student@lms.edu` | `password123` |
-| Instructor | `instructor@lms.edu` | `password123` |
-| Administrator | `admin@lms.edu` | `password123` |
-
-## Thứ tự khởi chạy
-
-```
-1. User Service  (phải chạy trước)
-2. API Gateway   (phụ thuộc User Service)
-3. Web Client    (phụ thuộc API Gateway)
+**3. Course Service (Node.js)**
+```bash
+cd course-service
+npm install
+npm run dev
 ```
 
-> Nếu thiếu User Service hoặc API Gateway, trang web sẽ báo lỗi
-> **"Login service is unavailable"** khi đăng nhập.
+**4. Exam Service (C# .NET Core)**
+```bash
+cd exam-service
+dotnet restore
+dotnet run
+```
 
-## Kiến trúc tổng quan
+---
 
-- **Microservices Architecture** — Mỗi service chạy độc lập
-- **API Gateway** — Điểm truy cập duy nhất cho client
-- **Event-driven** — Giao tiếp giữa các service qua Message Broker
-- **Database per Service** — Mỗi service có database riêng
+## 🛠 Testing the System
+Once everything is up and running, you can test the end-to-end routing through the API Gateway at `http://localhost:3000`.
 
-### Services
+**Ping Test (Routes to Exam Service):**
+```bash
+curl http://localhost:3000/quizzes/ping
+```
+*Expected Output: `{"message":"Exam Service is up and running!"}`*
 
-- User Service
-- Course Service
-- Exam & Quiz Service
-- Payment Service
+**Register & Login:**
+Check out the `POST /auth/register` and `POST /auth/login` endpoints to get your JWT access token. 
 
-### Databases
-
-- User DB
-- Course DB
-- Exam DB
-- Payment DB
-
-### External Systems
-
-- Payment Gateway ZaloPay/Momo
-- AI Chatbot System
-
-## Lưu ý
-
-- Không tạo thêm service hoặc database ngoài tài liệu kiến trúc.
-- Dự án hiện đang ở giai đoạn demo với mock data (chưa kết nối database thật).
+Happy coding! 🎉

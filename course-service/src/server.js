@@ -3,9 +3,10 @@ import cors from 'cors';
 import express from 'express';
 import courseRoutes from './routes/courseRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { initializeDatabase } from './data/initDb.js';
 
 const app = express();
-const port = Number(process.env.PORT) || 3002;
+const port = Number(process.env.PORT) || 5002;
 
 app.use(cors());
 app.use(express.json());

@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  user-db-mysql:
+    image: mysql:8.0
+    container_name: user-db-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: lms_user_db
+      MYSQL_USER: lms_user_admin
+      MYSQL_PASSWORD: UserSecuredPwd2026
+    ports:
+      - "3316:3306"
+    volumes:
+      - user_db_data:/var/lib/mysql
+      - ./mysql-init/init-user-db.sql:/docker-entrypoint-initdb.d/init.sql
+
+  course-db-mysql:
+    image: mysql:8.0
+    container_name: course-db-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: lms_course_db
+      MYSQL_USER: lms_course_admin
+      MYSQL_PASSWORD: CourseSecuredPwd2026
+    ports:
+      - "3317:3306"
+    volumes:
+      - course_db_data:/var/lib/mysql
+      - ./mysql-init/init-course-db.sql:/docker-entrypoint-initdb.d/init.sql
+
+  exam-db-mysql:
+    image: mysql:8.0
+    container_name: exam-db-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: lms_exam_db
+      MYSQL_USER: lms_exam_admin
+      MYSQL_PASSWORD: ExamSecuredPwd2026
+    ports:
+      - "3308:3306"
+    volumes:
+      - exam_db_data:/var/lib/mysql
+
+  payment-db-mysql:
+    image: mysql:8.0
+    container_name: payment-db-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: lms_payment_db
+      MYSQL_USER: lms_payment_admin
+      MYSQL_PASSWORD: PaymentSecuredPwd2026
+    ports:
+      - "3309:3306"
+    volumes:
+      - payment_db_data:/var/lib/mysql
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: lms-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+volumes:
+  user_db_data:
+  course_db_data:
+  exam_db_data:
+  payment_db_data:
+  rabbitmq_data:

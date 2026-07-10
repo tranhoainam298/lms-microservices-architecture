@@ -1,0 +1,229 @@
+TÀI LIỆU MÔ TẢ CHI TIẾT KIẾN TRÚC, LUỒNG DỮ LIỆU VÀ CẤU HÌNH DATABASE
+HỆ THỐNG LEARNING MANAGEMENT SYSTEM (LMS)
+Dự án: Đồ án môn Software Architecture & Design - Nhóm 10 [cite: 4, 5, 6]
+Công nghệ lõi: Microservices, Node.js, C#, React, Flutter, Kafka/RabbitMQ [cite: 96, 97, 123, 142]
+
+================================================================================
+PHẦN 1: TỔNG QUAN CÁCH HỆ THỐNG HOẠT ĐỘNG VÀ KẾT NỐI DỮ LIỆU
+================================================================================
+
+1. Kiến trúc tổng thể (Architecture Style)
+- Hệ thống áp dụng Kiến trúc Microservices kết hợp với API Gateway và giao tiếp qua cơ chế hướng sự kiện (event-driven)[cite: 142].
+- Các domain nghiệp vụ được tách biệt thành các service độc lập: User, Course, Exam & Quiz, Payment, và AI Support[cite: 143].
+
+2. Phương thức giao tiếp và Kết nối dữ liệu (Communication & Data Connection)
+- API Gateway: Đóng vai trò là điểm đầu vào duy nhất cho tất cả các Web/Mobile Client[cite: 123]. API Gateway chịu trách nhiệm định tuyến (routing) request, xác thực JWT (Authentication), và giới hạn tỷ lệ (rate limiting)[cite: 123, 167].
+- Đồng bộ (Synchronous): Các request cần phản hồi ngay lập tức giữa Client và API Gateway, cũng như từ API Gateway đến các microservices được thực hiện qua giao thức HTTPS/REST[cite: 123, 159].
+- Bất đồng bộ (Asynchronous): Hệ thống sử dụng Message Broker (Kafka hoặc RabbitMQ) cho mô hình Publish/Subscribe[cite: 123, 203]. Các sự kiện như đăng nhập, thanh toán hoặc cập nhật khóa học được phát vào Event Bus để các service khác lắng nghe mà không cần gọi trực tiếp[cite: 123].
+- Database per Service: Mỗi microservice làm chủ một cơ sở dữ liệu riêng biệt (User DB, Course DB, Exam DB, Payment DB)[cite: 123, 145]. Không có cơ sở dữ liệu dùng chung; không một service nào được phép truy cập trực tiếp vào cơ sở dữ liệu của service khác[cite: 196].
+- Tích hợp ngoại vi (External Integrations): Việc thanh toán được kết nối qua API của ZaloPay/Momo; tính năng hỗ trợ học tập kết nối với AI Chatbot System[cite: 123].
+
+================================================================================
+PHẦN 2: MÔ TẢ CỰC CHI TIẾT CÁC BIỂU ĐỒ (DIAGRAMS)
+================================================================================
+
+2.1. Hình 1 (UML Use Case Diagram) [cite: 106, 107]
+- Mô tả: Sơ đồ thể hiện các tác nhân (Actors) và các chức năng chính mà họ tương tác.
+- Tác nhân Student (Học viên): Có các Use Case kết nối trực tiếp đến Login/Register, View Lesson, Take Quiz, Pay for Course, và Ask AI Question[cite: 106].
+- Tác nhân Instructor (Giảng viên): Có các Use Case kết nối đến Create Course, Manage Quiz Bank, và View Reports[cite: 106].
+- Tác nhân Admin (Quản trị viên): Kết nối đến Use Case View Reports[cite: 106].
+- Tác nhân External System (Hệ thống ngoài): Kết nối đến Pay for Course (Xử lý thanh toán) và Ask AI Question (Trả lời tự động)[cite: 106].
+
+2.2. Hình 2 (Context Diagram) [cite: 147, 148, 149]
+- Mô tả: Sơ đồ ngữ cảnh đặt Hệ thống LMS làm trung tâm và xác định ranh giới luồng dữ liệu vào/ra với các thực thể bên ngoài[cite: 147, 148].
+- Luồng Student: Gửi dữ liệu Account, Registration request, Payment data vào LMS; nhận Verification, Lectures, Exam results từ LMS[cite: 148].
+- Luồng Teacher: Gửi Course data, Publication request vào LMS; nhận Processing results, Student data từ LMS[cite: 148].
+- Luồng Admin: Gửi Configuration command, Request to export report vào LMS; nhận Confirm update, Statistics data từ LMS[cite: 148].
+- Luồng External System (ZaloPay, Chatbot): LMS gửi Payment order, Consultation question (AI) ra ngoài; nhận lại Reconciliation results, Chatbot response[cite: 148].
+
+2.3. Hình 3.1 (Module View - Decomposition Style) [cite: 151, 152, 153]
+- Mô tả: Phân rã cấu trúc hệ thống thành các module nhỏ hơn từ khối LMS System tổng[cite: 151].
+- User Service Module: Chứa Auth, Profile, Role & Permission, Notification[cite: 152].
+- Course Service Module: Chứa Course Management, Lesson, Enrollment, Progress Tracking, Discussion[cite: 152].
+- Exam & Quiz Module: Chứa Question Bank, Answer, Test Generator, Auto Grading, Result History[cite: 152].
+- Payment Service Module: Chứa Transaction, Invoice, Gateway Integration, Webhook Handler[cite: 152].
+- Analytics Service Module: Chứa Student/Instructor Analytics, Admin Dashboard[cite: 152].
+- Shared/Cross-Cutting Modules: Gồm API Gateway, Event Bus (Kafka), AI Chatbot Module, Logging & Monitoring[cite: 151, 152].
+
+2.4. Hình 3.2 (Module View - Users Style) [cite: 154, 155]
+- Mô tả: Thể hiện mối quan hệ phụ thuộc "Uses" (Sử dụng) giữa các thành phần[cite: 154].
+- Lớp Ứng dụng: Web App Module và Admin Panel Module trỏ mũi tên "uses" xuống API Gateway Module[cite: 154].
+- Lớp Gateway: API Gateway Module trỏ mũi tên "uses" xuống 4 dịch vụ lõi: User, Course, Exam, Payment Service[cite: 154].
+- Lớp Dịch vụ - Dữ liệu: Các service trỏ "uses" xuống DB riêng của mình[cite: 154]. Course Service có mối quan hệ "uses" chéo sang Exam DB để lấy bài kiểm tra cho khóa học[cite: 154].
+- Lớp Sự kiện: Cả 4 dịch vụ cốt lõi trỏ mũi tên "uses" xuống Event Bus (Kafka) để phát/nhận sự kiện[cite: 154].
+
+2.5. Hình 3.3 (Layer View) [cite: 156, 157]
+- Mô tả: Phân tầng hệ thống theo chiều dọc thành 5 tầng rõ rệt[cite: 156].
+- Tầng 1 (Presentation Layer): Web App (ReactJS), Mobile App (Flutter), Admin Dashboard, AI Chatbot UI[cite: 156].
+- Tầng 2 (API Gateway Layer): JWT Authentication, Rate Limiting, Request Routing, Load Balancing[cite: 156].
+- Tầng 3 (Business Logic Layer): 4 Microservices (User, Course, Exam, Payment)[cite: 156].
+- Tầng 4 (Integration Layer): Message Broker, Payment Gateway, AI Chatbot Engine, Email Service[cite: 156].
+- Tầng 5 (Data Layer): User DB, Course DB, Exam DB, Payment DB (PostgreSQL/RDS) và S3 + CloudFront cho Video/Files[cite: 156].
+
+2.6. Hình 4 (Component and Connector View) [cite: 158, 159, 160, 161]
+- Mô tả: Khắc họa các giao thức kết nối khi hệ thống vận hành[cite: 159].
+- Khách hàng giao tiếp bằng HTTPS/REST đến API Gateway[cite: 159].
+- API Gateway định tuyến bằng HTTPS/REST đến các Microservices[cite: 159, 160].
+- Các Microservices kết nối xuống DB tương ứng bằng TCP/IP. Course Service kết nối AWS S3 Storage bằng HTTPS/API[cite: 160].
+- Event-driven: Payment Service phát sự kiện `OrderCreated`, Course Service phát `CourseReserved` đến Message Broker. Notification Service nhận `SendEmail` và gọi qua SMTP[cite: 160].
+
+2.7. Hình 5 (Deployment / Allocation View) [cite: 162, 163, 164, 165]
+- Mô tả: Sơ đồ triển khai vật lý/container hóa hệ thống[cite: 163].
+- Các dịch vụ có thể được triển khai dưới dạng Docker container[cite: 164].
+- Storage Layer & Backup: Mỗi Database (User, Course, Exam, Payment) đều có một bản backup riêng biệt để tăng độ tin cậy[cite: 164].
+
+2.8. Hình 6 -> 12 (Sơ đồ tuần tự - Sequence Diagrams) [cite: 168, 169, 170, 171, 172, 173, 174, 175, 176]
+- Hình 6 (Login): POST /auth/login -> API Gateway -> User Service. Check User DB. Trả token nếu đúng, phát "Login event" qua Message Broker[cite: 169].
+- Hình 7 (Save Draft Course): POST /courses/draft -> API Gateway -> Course Service. Validate và lưu vào Course DB[cite: 170].
+- Hình 8 (View Lesson): GET /lessons/{lessonId} -> API Gateway -> Course Service. Check enrollment trong Course DB. Trả URL nội dung[cite: 171].
+- Hình 9 (Take Quiz): POST /quizzes/{quizId}/submit -> Exam Service chấm điểm dựa trên Exam DB và lưu kết quả[cite: 172].
+- Hình 10 (Pay for Course): POST /payments -> API Gateway -> Payment Service -> ZaloPay/Momo. Thành công -> update Payment DB -> yêu cầu Course Service lưu quyền truy cập vào Course DB[cite: 173].
+- Hình 11 (Revenue Report): GET /reports/revenue -> API Gateway -> Payment Service query Payment DB -> Course Service query Course DB -> Tính doanh thu[cite: 174].
+- Hình 12 (Ask AI): POST /ai/question -> API Gateway -> Course Service. Lấy ngữ cảnh bài học từ Course DB -> Gửi question + context sang AI Chatbot System[cite: 175].
+
+================================================================================
+PHẦN 3: BẢN ĐỒ CẤU HÌNH MÔI TRƯỜNG (ENVIRONMENT VARIABLES)
+================================================================================
+Mỗi Microservice chạy trong một Docker Container riêng và nạp cấu hình từ file .env độc lập[cite: 200].
+
+1. User Service (.env)
+---------------------------------------
+PORT=5001
+NODE_ENV=production
+DB_HOST=user-db-mysql
+DB_PORT=3306
+DB_USER=lms_user_admin
+DB_PASSWORD=UserSecuredPwd2026
+DB_NAME=lms_user_db
+JWT_SECRET=UserMicroserviceSecretKey2026
+
+2. Course Service (.env)
+---------------------------------------
+PORT=5002
+NODE_ENV=production
+DB_HOST=course-db-mysql
+DB_PORT=3306
+DB_USER=lms_course_admin
+DB_PASSWORD=CourseSecuredPwd2026
+DB_NAME=lms_course_db
+AWS_S3_BUCKET=lms-media-storage
+
+3. Exam & Quiz Service (appsettings.json - C#/.NET Platform)
+---------------------------------------
+{
+  "Logging": {
+    "LogLevel": { "Default": "Information", "Microsoft.AspNetCore": "Warning" }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "ExamMysqlConnection": "Server=exam-db-mysql;Port=3306;Database=lms_exam_db;Uid=lms_exam_admin;Pwd=ExamSecuredPwd2026;Pooling=true;MinPoolSize=5;MaxPoolSize=100;"
+  }
+}
+
+4. Payment Service (.env)
+---------------------------------------
+PORT=5004
+NODE_ENV=production
+DB_HOST=payment-db-mysql
+DB_PORT=3306
+DB_USER=lms_payment_admin
+DB_PASSWORD=PaymentSecuredPwd2026
+DB_NAME=lms_payment_db
+ZALOPAY_APP_ID=2553
+ZALOPAY_KEY1=uu459283749823
+MOMO_PARTNER_CODE=MOMO_LMS2026
+
+================================================================================
+PHẦN 4: CHI TIẾT MÃ LỆNH KẾT NỐI DATABASE THỰC TẾ
+================================================================================
+
+1. Mẫu kết nối cho các dịch vụ Node.js (User, Course, Payment Services)
+Sử dụng thư viện 'mysql2/promise' kết hợp Connection Pooling:
+
+const mysql = require('mysql2/promise');
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: parseInt(process.env.DB_PORT, 10) || 3306,
+  waitForConnections: true,
+  connectionLimit: 50,
+  queueLimit: 0,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000
+});
+
+async function testConnection() {
+  try {
+    const connection = await pool.getConnection();
+    console.log(`[DATABASE] Kết nối thành công tới database MySQL: ${process.env.DB_NAME}`);
+    connection.release();
+  } catch (error) {
+    console.error('[DATABASE] Lỗi kết nối cơ sở dữ liệu:', error.message);
+    process.exit(1);
+  }
+}
+module.exports = { pool, testConnection };
+
+2. Mẫu kết nối cho dịch vụ C#/.NET Core (Exam & Quiz Service)
+Định nghĩa Context dữ liệu (ExamDbContext.cs):
+
+using Microsoft.EntityFrameworkCore;
+public class ExamDbContext : DbContext {
+    public ExamDbContext(DbContextOptions<ExamDbContext> options) : base(options) { }
+    public DbSet<Question> Questions { get; set; }
+    public DbSet<Quiz> Quizzes { get; set; }
+    public DbSet<QuizResult> QuizResults { get; set; }
+    protected override void OnModelCreating(ModelBuilder modelBuilder) {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<Question>().HasIndex(q => q.TopicId);
+    }
+}
+
+Đăng ký dịch vụ (Program.cs):
+var builder = WebApplication.CreateBuilder(args);
+var connectionString = builder.Configuration.GetConnectionString("ExamMysqlConnection");
+builder.Services.AddDbContext<ExamDbContext>(options =>
+    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString),
+        mySqlOptions => mySqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5, maxRetryDelay: TimeSpan.fromSeconds(30), errorNumbersToAdd: null
+        )
+    )
+);
+
+================================================================================
+PHẦN 5: LUỒNG DI CHUYỂN DỮ LIỆU VÀ CƠ CHẾ KẾT NỐI CHÉO (ASYNC DATA CONNECTIVITY)
+================================================================================
+Nguyên tắc: Không service nào được gọi trực tiếp vào DB của service khác[cite: 196]. 
+
+Luồng xử lý điển hình: Kích hoạt quyền truy cập sau khi thanh toán [cite: 118]
+- Bước 1: Khách hàng thanh toán qua ZaloPay/Momo thành công.
+- Bước 2: Payment Service cập nhật trạng thái hóa đơn trong Payment DB thành 'Paid'[cite: 118].
+- Bước 3: Payment Service đẩy sự kiện (VD: `order-events`) lên Message Broker (Kafka)[cite: 123].
+- Bước 4: Course Service lắng nghe Topic `order-events`, nhận tin nhắn và tự động ghi dữ liệu vào bảng đăng ký của Course DB[cite: 118].
+
+================================================================================
+PHẦN 6: HƯỚNG DẪN LỆNH KHỞI TẠO VÀ VẬN HÀNH DATABASE QUA CLI
+================================================================================
+
+1. Lệnh tạo các Database độc lập (Run once tại DB Server)
+CREATE DATABASE lms_user_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE lms_course_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE lms_exam_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE lms_payment_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+2. Lệnh khởi chạy Migration tự động cập nhật cấu trúc bảng
+- Node.js Services (Sequelize CLI): $ npx sequelize-cli db:migrate --env production
+- C#/.NET Core Service (EF Core CLI): $ dotnet ef database update --context ExamDbContext
+
+3. Lệnh Backup/Sao lưu dữ liệu độc lập cho từng DB [cite: 201]
+- User DB: $ docker exec -t user-db-mysql mysqldump -u lms_user_admin -pUserSecuredPwd2026 lms_user_db > ./backups/user_db_backup_$(date +%F).sql
+- Course DB: $ docker exec -t course-db-mysql mysqldump -u lms_course_admin -pCourseSecuredPwd2026 lms_course_db > ./backups/course_db_backup_$(date +%F).sql
+- Exam DB: $ docker exec -t exam-db-mysql mysqldump -u lms_exam_admin -pExamSecuredPwd2026 lms_exam_db > ./backups/exam_db_backup_$(date +%F).sql
+- Payment DB: $ docker exec -t payment-db-mysql mysqldump -u lms_payment_admin -pPaymentSecuredPwd2026 lms_payment_db > ./backups/payment_db_backup_$(date +%F).sql
+
+4. Lệnh thao tác chung Docker Compose [cite: 212]
+- Chạy hệ thống: docker compose up -d [cite: 212]
+- Dừng hệ thống: docker compose down [cite: 212]
+- Xem logs: docker compose logs -f <service-name> [cite: 212]
