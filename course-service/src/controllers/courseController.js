@@ -1,4 +1,4 @@
-import { createDraftCourse, createLessonForInstructorDraft, deleteLessonForInstructorDraft, getLesson, getLessonsForInstructorDraft, getCourses, getEnrolledCourses, getInstructorDrafts, publishInstructorDraft, updateInstructorDraft, updateLessonForInstructorDraft } from '../services/courseService.js';
+import { checkStudentExamAccess, createDraftCourse, createLessonForInstructorDraft, deleteLessonForInstructorDraft, getLesson, getLessonsForInstructorDraft, getCourses, getEnrolledCourses, getInstructorDrafts, publishInstructorDraft, updateInstructorDraft, updateLessonForInstructorDraft } from '../services/courseService.js';
 
 export async function createDraft(req, res) {
   const payload = req.body || {};
@@ -33,6 +33,14 @@ export function legacyLessonCreationDeprecatedHandler(req, res) {
     code: 'ENDPOINT_DEPRECATED',
     message: 'Use POST /courses/drafts/:courseId/lessons.'
   });
+}
+
+export async function checkStudentExamAccessHandler(req, res) {
+  const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+
+  const result = await checkStudentExamAccess({ courseId, studentId: req.user.id });
+  res.status(result.status).json(result.body);
 }
 
 export async function createLessonForInstructorDraftHandler(req, res) {
