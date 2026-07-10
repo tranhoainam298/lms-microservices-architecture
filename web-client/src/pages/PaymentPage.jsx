@@ -7,7 +7,7 @@ export default function PaymentPage({ course, onPaymentSuccess, onBack }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentDone, setPaymentDone] = useState(false);
 
-  const formattedPrice = targetCourse.price.toFixed(2);
+  const formattedPrice = Number(targetCourse.price).toFixed(2);
 
   const handlePay = () => {
     setIsProcessing(true);

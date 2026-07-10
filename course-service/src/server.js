@@ -1,4 +1,9 @@
 import 'dotenv/config';
+
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL ERROR: JWT_SECRET is not defined.');
+  process.exit(1);
+}
 import cors from 'cors';
 import express from 'express';
 import courseRoutes from './routes/courseRoutes.js';

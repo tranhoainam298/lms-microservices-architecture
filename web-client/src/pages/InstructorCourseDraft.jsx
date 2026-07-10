@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ArchitectureFlow from '../components/ArchitectureFlow';
 import StatusBadge from '../components/StatusBadge';
 
 export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [], accessToken, userProfile, role }) {
-  const [drafts, setDrafts] = useState(initialDrafts);
+  const [drafts, setDrafts] = useState([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('49.00');
@@ -12,6 +12,271 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [editingDraft, setEditingDraft] = useState(null);
+  const [lessonDraft, setLessonDraft] = useState(null);
+  const [lessonTitle, setLessonTitle] = useState('');
+  const [lessonVideoUrl, setLessonVideoUrl] = useState('');
+  const [lessonDocumentUrl, setLessonDocumentUrl] = useState('');
+  const [isSavingLesson, setIsSavingLesson] = useState(false);
+  const [lessonSuccess, setLessonSuccess] = useState(null);
+  const [lessonError, setLessonError] = useState('');
+  const [lessons, setLessons] = useState([]);
+  const [isLoadingLessons, setIsLoadingLessons] = useState(false);
+  const [lessonLoadError, setLessonLoadError] = useState('');
+  const [isLessonFormOpen, setIsLessonFormOpen] = useState(false);
+  const [editingLesson, setEditingLesson] = useState(null);
+  const [deletingLessonId, setDeletingLessonId] = useState(null);
+  const [publishingDraftId, setPublishingDraftId] = useState(null);
+  const [publishSuccess, setPublishSuccess] = useState('');
+  const [publishError, setPublishError] = useState('');
+
+  const handleStartEdit = (draft) => {
+    setEditingDraft(draft);
+    setTitle(draft.title);
+    setDescription(draft.description);
+    setPrice(String(draft.price));
+    setSaveError('');
+    setSaveSuccess(false);
+    setFieldErrors({});
+  };
+
+  const handleCancelEdit = () => {
+    setEditingDraft(null);
+    setTitle('');
+    setDescription('');
+    setPrice('49.00');
+    setSaveError('');
+    setSaveSuccess(false);
+    setFieldErrors({});
+  };
+
+  const clearLessonWorkspace = () => {
+    setLessonDraft(null);
+    setLessons([]);
+    setIsLessonFormOpen(false);
+    setEditingLesson(null);
+    setLessonTitle('');
+    setLessonVideoUrl('');
+    setLessonDocumentUrl('');
+    setLessonError('');
+    setLessonLoadError('');
+  };
+
+  const handleStartLesson = async (draft) => {
+    setLessonDraft(draft);
+    setIsLessonFormOpen(true);
+    setEditingLesson(null);
+    setLessonTitle('');
+    setLessonVideoUrl('');
+    setLessonDocumentUrl('');
+    setLessonError('');
+    setLessonSuccess(null);
+    await fetchLessons(draft.id);
+  };
+
+  const handleViewLessons = async (draft) => {
+    setLessonDraft(draft);
+    setIsLessonFormOpen(false);
+    setEditingLesson(null);
+    setLessonError('');
+    await fetchLessons(draft.id);
+  };
+
+  const handleCancelLesson = () => {
+    setIsLessonFormOpen(false);
+    setEditingLesson(null);
+    setLessonTitle('');
+    setLessonVideoUrl('');
+    setLessonDocumentUrl('');
+    setLessonError('');
+  };
+
+  const handlePublishDraft = async (draft) => {
+    if (!window.confirm(`Publish “${draft.title}”? A draft needs at least one lesson before it can be published.`)) {
+      return;
+    }
+
+    setPublishingDraftId(draft.id);
+    setPublishError('');
+    setPublishSuccess('');
+
+    try {
+      const response = await fetch(`http://localhost:3000/courses/drafts/${draft.id}/publish`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      const responseBody = await response.json();
+      if (!response.ok) {
+        throw new Error(responseBody.message || 'The draft course could not be published.');
+      }
+
+      if (lessonDraft?.id === draft.id) {
+        clearLessonWorkspace();
+      }
+      if (editingDraft?.id === draft.id) {
+        handleCancelEdit();
+      }
+      await fetchDrafts();
+      setPublishSuccess(`“${responseBody.course.title}” is now published.`);
+    } catch (requestError) {
+      setPublishError(requestError instanceof TypeError
+        ? 'Course publishing service is unavailable. Start the API Gateway and Course Service, then try again.'
+        : requestError.message);
+    } finally {
+      setPublishingDraftId(null);
+    }
+  };
+
+  const handleSaveLesson = async (event) => {
+    event.preventDefault();
+    if (!lessonDraft || role !== 'instructor') {
+      return;
+    }
+
+    setIsSavingLesson(true);
+    setLessonError('');
+    setLessonSuccess(null);
+
+    try {
+      const response = await fetch(editingLesson
+        ? `http://localhost:3000/courses/drafts/${lessonDraft.id}/lessons/${editingLesson.id}`
+        : `http://localhost:3000/courses/drafts/${lessonDraft.id}/lessons`, {
+        method: editingLesson ? 'PATCH' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          title: lessonTitle,
+          videoUrl: lessonVideoUrl,
+          documentUrl: lessonDocumentUrl
+        })
+      });
+      const responseBody = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseBody.message || `The lesson could not be ${editingLesson ? 'updated' : 'created'}.`);
+      }
+
+      const savedLesson = responseBody.lesson;
+      await fetchLessons(lessonDraft.id);
+      setLessonSuccess({
+        id: savedLesson.id,
+        title: savedLesson.title,
+        action: editingLesson ? 'updated' : 'created'
+      });
+      setIsLessonFormOpen(false);
+      setEditingLesson(null);
+      setLessonTitle('');
+      setLessonVideoUrl('');
+      setLessonDocumentUrl('');
+    } catch (requestError) {
+      setLessonError(requestError instanceof TypeError
+        ? 'Lesson service is unavailable. Start the API Gateway and Course Service, then try again.'
+        : requestError.message);
+    } finally {
+      setIsSavingLesson(false);
+    }
+  };
+
+  const fetchLessons = async (courseId) => {
+    setIsLoadingLessons(true);
+    setLessonLoadError('');
+    try {
+      const response = await fetch(`http://localhost:3000/courses/drafts/${courseId}/lessons`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      const responseBody = await response.json();
+      if (!response.ok) {
+        throw new Error(responseBody.message || 'The lessons could not be loaded.');
+      }
+      setLessons(responseBody.items || []);
+    } catch (requestError) {
+      setLessonLoadError(requestError instanceof TypeError
+        ? 'Lesson service is unavailable. Start the API Gateway and Course Service, then try again.'
+        : requestError.message);
+    } finally {
+      setIsLoadingLessons(false);
+    }
+  };
+
+  const handleStartLessonEdit = (lesson) => {
+    setEditingLesson(lesson);
+    setIsLessonFormOpen(true);
+    setLessonTitle(lesson.title || '');
+    setLessonVideoUrl(lesson.videoUrl || '');
+    setLessonDocumentUrl(lesson.documentUrl || '');
+    setLessonError('');
+    setLessonSuccess(null);
+  };
+
+  const handleDeleteLesson = async (lesson) => {
+    if (!lessonDraft || !window.confirm(`Delete lesson “${lesson.title}”? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingLessonId(lesson.id);
+    setLessonError('');
+    setLessonSuccess(null);
+    try {
+      const response = await fetch(`http://localhost:3000/courses/drafts/${lessonDraft.id}/lessons/${lesson.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      const responseBody = await response.json();
+      if (!response.ok) {
+        throw new Error(responseBody.message || 'The lesson could not be deleted.');
+      }
+      if (editingLesson?.id === lesson.id) {
+        handleCancelLesson();
+      }
+      await fetchLessons(lessonDraft.id);
+      setLessonSuccess({ id: lesson.id, title: lesson.title, action: 'deleted' });
+    } catch (requestError) {
+      setLessonError(requestError instanceof TypeError
+        ? 'Lesson service is unavailable. Start the API Gateway and Course Service, then try again.'
+        : requestError.message);
+    } finally {
+      setDeletingLessonId(null);
+    }
+  };
+
+  const fetchDrafts = async () => {
+    setIsLoading(true);
+    setLoadError('');
+    try {
+      const response = await fetch('http://localhost:3000/courses/drafts/mine', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      const responseBody = await response.json();
+      if (!response.ok) {
+        throw new Error(responseBody.message || 'Course drafts could not be loaded.');
+      }
+      setDrafts(responseBody.items || []);
+    } catch (err) {
+      setLoadError(err.message || 'Course drafts could not be loaded.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (role === 'instructor' && accessToken) {
+      fetchDrafts();
+    }
+  }, [role, accessToken]);
 
   const previewPrice = Number.isFinite(Number(price)) && price !== ''
     ? Number(price).toFixed(2)
@@ -65,8 +330,13 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setSaveError('');
 
     try {
-      const response = await fetch('http://localhost:3000/courses/draft', {
-        method: 'POST',
+      const url = editingDraft
+        ? `http://localhost:3000/courses/drafts/${editingDraft.id}`
+        : 'http://localhost:3000/courses/draft';
+      const method = editingDraft ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`
@@ -82,13 +352,14 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
       const responseBody = await response.json();
 
       if (!response.ok) {
-        throw new Error(responseBody.message || 'The draft course could not be saved.');
+        throw new Error(responseBody.message || `The draft course could not be ${editingDraft ? 'updated' : 'saved'}.`);
       }
 
-      const newDraft = responseBody.course;
-      setDrafts(currentDrafts => [newDraft, ...currentDrafts]);
+      const savedDraft = responseBody.course;
+      await fetchDrafts();
       setSaveSuccess(true);
-      onSaveDraft(newDraft);
+      onSaveDraft(savedDraft);
+      setEditingDraft(null);
       setTitle('');
       setDescription('');
       setPrice('49.00');
@@ -143,9 +414,9 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
           <section className="card draft-editor" aria-labelledby="draft-editor-title">
             <div className="draft-section-heading">
               <div>
-                <p className="section-kicker">Course essentials</p>
-                <h3 id="draft-editor-title">Draft details</h3>
-                <p>Start with the information students need to understand the course.</p>
+                <p className="section-kicker">{editingDraft ? 'Editing draft' : 'Course essentials'}</p>
+                <h3 id="draft-editor-title">{editingDraft ? `Edit: ${editingDraft.title}` : 'Draft details'}</h3>
+                <p>{editingDraft ? 'Modify the course draft essentials below.' : 'Start with the information students need to understand the course.'}</p>
               </div>
               <StatusBadge status={status} />
             </div>
@@ -257,14 +528,145 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                 </div>
               </fieldset>
 
-              <div className="draft-form-actions">
+              <div className="draft-form-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button type="submit" className="btn btn-primary" disabled={isSaving}>
                   {isSaving && <span className="button-spinner" aria-hidden="true" />}
-                  {isSaving ? 'Saving draft...' : 'Save draft course'}
+                  {isSaving ? 'Saving draft...' : (editingDraft ? 'Update draft' : 'Save draft course')}
                 </button>
-                <p>Only authenticated instructors can save through this route.</p>
+                {editingDraft && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleCancelEdit}
+                    disabled={isSaving}
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+                <p style={{ margin: 0 }}>Only authenticated instructors can save through this route.</p>
               </div>
             </form>
+
+            <div className="draft-feedback" aria-live="polite" aria-atomic="true">
+              {lessonSuccess && (
+                <div className="form-alert form-alert--success" role="status">
+                  Lesson #{lessonSuccess.id} “{lessonSuccess.title}” was {lessonSuccess.action} through the API Gateway.
+                </div>
+              )}
+              {lessonError && (
+                <div className="form-alert form-alert--error" role="alert">
+                  {lessonError}
+                </div>
+              )}
+              {publishSuccess && (
+                <div className="form-alert form-alert--success" role="status">
+                  {publishSuccess}
+                </div>
+              )}
+              {publishError && (
+                <div className="form-alert form-alert--error" role="alert">
+                  {publishError}
+                </div>
+              )}
+            </div>
+
+            {lessonDraft && isLessonFormOpen && (
+              <form className="draft-form" onSubmit={handleSaveLesson} noValidate aria-busy={isSavingLesson}>
+                <fieldset className="draft-form-section" disabled={isSavingLesson}>
+                  <legend>{editingLesson ? 'Edit lesson in' : 'Add lesson to'}: {lessonDraft.title}</legend>
+                  <div className="form-group">
+                    <label htmlFor="lesson-title">Lesson title</label>
+                    <input
+                      id="lesson-title"
+                      type="text"
+                      className="form-control"
+                      maxLength="255"
+                      value={lessonTitle}
+                      onChange={(event) => setLessonTitle(event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="lesson-video-url">Video URL</label>
+                    <input
+                      id="lesson-video-url"
+                      type="url"
+                      className="form-control"
+                      maxLength="255"
+                      placeholder="https://example.com/video"
+                      value={lessonVideoUrl}
+                      onChange={(event) => setLessonVideoUrl(event.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="lesson-document-url">Document URL</label>
+                    <input
+                      id="lesson-document-url"
+                      type="url"
+                      className="form-control"
+                      maxLength="255"
+                      placeholder="https://example.com/document"
+                      value={lessonDocumentUrl}
+                      onChange={(event) => setLessonDocumentUrl(event.target.value)}
+                    />
+                    <p className="field-helper">Provide a video URL, document URL, or both.</p>
+                  </div>
+                </fieldset>
+                <div className="draft-form-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button type="submit" className="btn btn-primary" disabled={isSavingLesson}>
+                    {isSavingLesson && <span className="button-spinner" aria-hidden="true" />}
+                    {isSavingLesson ? 'Saving lesson...' : (editingLesson ? 'Update Lesson' : 'Save Lesson')}
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={handleCancelLesson} disabled={isSavingLesson}>
+                    {editingLesson ? 'Cancel Edit' : 'Cancel'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {lessonDraft && (
+              <section className="lesson-authoring-panel" aria-labelledby="draft-lessons-title">
+                <div className="draft-panel-heading">
+                  <div>
+                    <p className="section-kicker">Lesson workspace</p>
+                    <h3 id="draft-lessons-title">Lessons: {lessonDraft.title}</h3>
+                  </div>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleStartLesson(lessonDraft)}>
+                    Add Lesson
+                  </button>
+                </div>
+
+                {isLoadingLessons ? (
+                  <p className="lesson-authoring-state" role="status">Loading lessons from Course Service...</p>
+                ) : lessonLoadError ? (
+                  <p className="lesson-authoring-state form-alert form-alert--error" role="alert">{lessonLoadError}</p>
+                ) : lessons.length === 0 ? (
+                  <p className="lesson-authoring-state">No lessons have been added to this draft yet.</p>
+                ) : (
+                  <ol className="lesson-authoring-list">
+                    {lessons.map(lesson => (
+                      <li className="lesson-authoring-item" key={lesson.id}>
+                        <div>
+                          <strong>{lesson.sequenceOrder ? `${lesson.sequenceOrder}. ` : ''}{lesson.title}</strong>
+                          <div className="lesson-authoring-links">
+                            {lesson.videoUrl && <a href={lesson.videoUrl} target="_blank" rel="noopener noreferrer">Video</a>}
+                            {lesson.documentUrl && <a href={lesson.documentUrl} target="_blank" rel="noopener noreferrer">Document</a>}
+                          </div>
+                        </div>
+                        <div className="lesson-authoring-actions">
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleStartLessonEdit(lesson)} disabled={deletingLessonId === lesson.id}>
+                            Edit
+                          </button>
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDeleteLesson(lesson)} disabled={deletingLessonId === lesson.id}>
+                            {deletingLessonId === lesson.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </section>
+            )}
           </section>
 
           <aside className="draft-sidebar" aria-label="Draft preview and saved courses">
@@ -333,7 +735,17 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                 <span className="draft-count" aria-label={`${drafts.length} saved drafts`}>{drafts.length}</span>
               </div>
 
-              {drafts.length === 0 ? (
+              {isLoading ? (
+                <div className="draft-empty-state" role="status">
+                  <strong>Loading drafts...</strong>
+                  <p>Fetching your saved course drafts from the database.</p>
+                </div>
+              ) : loadError ? (
+                <div className="draft-empty-state" role="alert" style={{ color: '#ef4444' }}>
+                  <strong>Failed to load drafts</strong>
+                  <p>{loadError}</p>
+                </div>
+              ) : drafts.length === 0 ? (
                 <div className="draft-empty-state" role="status">
                   <strong>No drafts saved yet</strong>
                   <p>Your first saved course will appear here.</p>
@@ -341,12 +753,47 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
               ) : (
                 <ul className="draft-list">
                   {drafts.map(draft => (
-                    <li className="draft-list__item" key={draft.id}>
+                    <li className="draft-list__item" key={draft.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div className="draft-list__copy">
                         <strong>{draft.title}</strong>
                         <span>${Number(draft.price).toFixed(2)} / Course Service</span>
                       </div>
-                      <StatusBadge status={draft.status} />
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <StatusBadge status={draft.status} />
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(draft)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStartLesson(draft)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
+                        >
+                          Add Lesson
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleViewLessons(draft)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
+                        >
+                          View Lessons
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePublishDraft(draft)}
+                          className="btn btn-primary btn-sm"
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
+                          disabled={publishingDraftId === draft.id}
+                        >
+                          {publishingDraftId === draft.id ? 'Publishing...' : 'Publish'}
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>

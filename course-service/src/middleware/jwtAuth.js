@@ -15,10 +15,20 @@ export function jwtAuth(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    const userId = decoded.id !== undefined ? decoded.id : decoded.sub;
+    const role = typeof decoded.role === 'string' ? decoded.role.toLowerCase() : '';
+
+    if (userId === undefined || userId === null || !role) {
+      return res.status(401).json({
+        code: 'INVALID_TOKEN',
+        message: 'The access token is invalid or expired.'
+      });
+    }
+
     req.user = {
       ...decoded,
-      id: decoded.id !== undefined ? decoded.id : decoded.sub,
-      role: typeof decoded.role === 'string' ? decoded.role.toLowerCase() : ''
+      id: userId,
+      role: role
     };
     next();
   } catch (error) {
@@ -28,4 +38,3 @@ export function jwtAuth(req, res, next) {
     });
   }
 }
-
