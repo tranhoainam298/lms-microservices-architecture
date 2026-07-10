@@ -23,15 +23,47 @@ import {
   mockQuizzes
 } from './data/mockData';
 
-const pageTitles = {
-  overview: 'System Overview',
-  dashboard: 'Student Dashboard',
-  lesson: 'Lesson Viewer',
-  quiz: 'Quiz Module',
-  payment: 'Payment Simulator',
-  'ai-support': 'AI Study Support',
-  'course-draft': 'Course Drafts',
-  'revenue-report': 'Revenue & Sales'
+const pageMeta = {
+  overview: {
+    title: 'System overview',
+    subtitle: 'Trace learning journeys across every service boundary.',
+    context: 'Platform architecture'
+  },
+  dashboard: {
+    title: 'Student dashboard',
+    subtitle: 'Continue coursework, review progress, and plan the next activity.',
+    context: 'Learning workspace'
+  },
+  lesson: {
+    title: 'Lesson viewer',
+    subtitle: 'Study course material and keep module progress up to date.',
+    context: 'Course delivery'
+  },
+  quiz: {
+    title: 'Quiz module',
+    subtitle: 'Complete the assessment with a focused, question-by-question flow.',
+    context: 'Assessment'
+  },
+  payment: {
+    title: 'Payment simulator',
+    subtitle: 'Review a mock checkout and trace course access activation.',
+    context: 'Enrollment checkout'
+  },
+  'ai-support': {
+    title: 'AI study support',
+    subtitle: 'Ask an external assistant using the current lesson context.',
+    context: 'Learning assistance'
+  },
+  'course-draft': {
+    title: 'Course drafts',
+    subtitle: 'Structure and save course metadata through the Course Service.',
+    context: 'Instructor workspace'
+  },
+  'revenue-report': {
+    title: 'Revenue and sales',
+    subtitle: 'Review payment activity and course contribution without a reporting service.',
+    context: 'Administration'
+  }
 };
 
 const tabPages = new Set(['overview', 'dashboard', 'ai-support', 'course-draft', 'revenue-report']);
@@ -152,13 +184,13 @@ export default function App() {
   const renderPage = () => {
     const requestedPage = activePage || currentTab;
     if (studentOnlyPages.has(requestedPage) && authSession.role !== 'student') {
-      return <div className="card" role="alert">This page is available to students only.</div>;
+      return <div className="access-denied" role="alert"><strong>Student access required</strong><span>This workspace is available to authenticated student accounts only.</span></div>;
     }
     if (requestedPage === 'course-draft' && authSession.role !== 'instructor') {
-      return <div className="card" role="alert">Only instructors can save draft courses.</div>;
+      return <div className="access-denied" role="alert"><strong>Instructor access required</strong><span>Only instructors can create and save course drafts.</span></div>;
     }
     if (requestedPage === 'revenue-report' && authSession.role !== 'admin') {
-      return <div className="card" role="alert">This page is available to administrators only.</div>;
+      return <div className="access-denied" role="alert"><strong>Administrator access required</strong><span>Revenue data is restricted to administrator accounts.</span></div>;
     }
 
     if (activePage === 'lesson') {
@@ -196,7 +228,7 @@ export default function App() {
     // Render Tabbed Pages
     switch (currentTab) {
       case 'overview':
-        return <OverviewPage onNavigate={handleNavigate} />;
+        return <OverviewPage onNavigate={handleNavigate} role={authSession.role} />;
       case 'dashboard':
         return (
           <StudentDashboard 
@@ -206,6 +238,7 @@ export default function App() {
             quizAttempts={quizAttempts}
             progress={progress}
             quizzes={mockQuizzes}
+            user={user}
             onNavigate={handleNavigate}
           />
         );
@@ -255,12 +288,12 @@ export default function App() {
   };
 
   return (
-    <AppShell 
+    <AppShell
       currentTab={activePage || currentTab}
       onTabChange={(tab) => { setActivePage(null); setCurrentTab(tab); }} 
       user={user} 
       onLogout={handleLogout}
-      title={pageTitles[activePage || currentTab]}
+      pageMeta={pageMeta[activePage || currentTab]}
     >
       {renderPage()}
     </AppShell>

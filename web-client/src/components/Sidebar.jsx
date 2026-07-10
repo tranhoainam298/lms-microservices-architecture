@@ -1,178 +1,109 @@
 import React from 'react';
 
-export default function Sidebar({ currentTab, onTabChange }) {
-  const sidebarStyle = {
-    width: 'var(--sidebar-width)',
-    height: '100vh',
-    backgroundColor: '#132a32',
-    color: '#aac0c4',
-    padding: '1.5rem 1rem',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    position: 'fixed',
-    left: 0,
-    top: 0,
-    borderRight: '1px solid #24434a',
-    zIndex: 200
-  };
+const navigationGroups = [
+  {
+    label: 'Platform',
+    role: 'all',
+    items: [{ id: 'overview', label: 'Overview', short: 'O' }]
+  },
+  {
+    label: 'Student tools',
+    role: 'student',
+    items: [
+      { id: 'dashboard', label: 'Student dashboard', short: 'S' },
+      { id: 'lesson', label: 'Lesson viewer', short: 'L' },
+      { id: 'quiz', label: 'Quiz module', short: 'Q' },
+      { id: 'payment', label: 'Payment', short: 'P' },
+      { id: 'ai-support', label: 'AI study support', short: 'AI' }
+    ]
+  },
+  {
+    label: 'Instructor tools',
+    role: 'instructor',
+    items: [{ id: 'course-draft', label: 'Course drafts', short: 'C' }]
+  },
+  {
+    label: 'Administration',
+    role: 'admin',
+    items: [{ id: 'revenue-report', label: 'Revenue and sales', short: 'R' }]
+  }
+];
 
-  const logoStyle = {
-    color: '#f4fbfa',
-    fontSize: '1.25rem',
-    fontWeight: '700',
-    fontFamily: 'var(--font-title)',
-    marginBottom: '1.5rem',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0 0.5rem'
-  };
-
-  const navSectionTitleStyle = {
-    fontSize: '0.675rem',
-    fontWeight: '700',
-    color: '#719097',
-    textTransform: 'uppercase',
-    letterSpacing: '0.075em',
-    margin: '1.25rem 0.5rem 0.5rem 0.5rem'
-  };
-
-  const navListStyle = {
-    listStyle: 'none',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem'
-  };
-
-  const getLinkStyle = (tabId) => {
-    const isActive = currentTab === tabId;
-    return {
-      display: 'block',
-      padding: '0.625rem 0.75rem',
-      borderRadius: '6px',
-      color: isActive ? '#ffffff' : '#aac0c4',
-      backgroundColor: isActive ? 'var(--primary)' : 'transparent',
-      textDecoration: 'none',
-      fontWeight: isActive ? '600' : '500',
-      fontSize: '0.8125rem',
-      transition: 'all var(--transition-fast)',
-      cursor: 'pointer'
-    };
+export default function Sidebar({ currentTab, onTabChange, user, onLogout, isOpen, onClose }) {
+  const handleNavigate = (tabId) => {
+    onTabChange(tabId);
+    onClose();
   };
 
   return (
-    <aside className="sidebar" style={sidebarStyle}>
-      <div>
-        <div className="sidebar__brand" style={logoStyle}>
-          <span className="sidebar__mark" aria-hidden="true">L</span> LMS Architecture
+    <aside className={`sidebar${isOpen ? ' sidebar--open' : ''}`} aria-label="Primary navigation">
+      <div className="sidebar__top">
+        <div className="sidebar__brand-row">
+          <button className="sidebar__brand" type="button" onClick={() => handleNavigate('overview')}>
+            <span className="sidebar__mark" aria-hidden="true">M</span>
+            <span className="sidebar__brand-copy">
+              <strong>Meridian LMS</strong>
+              <small>Learning operations</small>
+            </span>
+          </button>
+          <button className="sidebar__close" type="button" onClick={onClose} aria-label="Close navigation">
+            Close
+          </button>
         </div>
-        
-        <nav>
-          {/* Platform General */}
-          <div style={navSectionTitleStyle}>Core System</div>
-          <ul style={navListStyle}>
-            <li>
-              <a 
-                href="#" 
-                style={getLinkStyle('overview')} 
-                onClick={(e) => { e.preventDefault(); onTabChange('overview'); }}
-              >
-                System Overview
-              </a>
-            </li>
-          </ul>
 
-          {/* Student flows */}
-          <div style={navSectionTitleStyle}>Student Flows</div>
-          <ul style={navListStyle}>
-            <li>
-              <a 
-                href="#" 
-                style={getLinkStyle('dashboard')} 
-                onClick={(e) => { e.preventDefault(); onTabChange('dashboard'); }}
-              >
-                Student Dashboard
-              </a>
-            </li>
-            <li>
-              <a 
-                href="#" 
-                style={getLinkStyle('lesson')} 
-                onClick={(e) => { e.preventDefault(); onTabChange('lesson'); }}
-              >
-                Lesson Viewer
-              </a>
-            </li>
-            <li>
-              <a 
-                href="#" 
-                style={getLinkStyle('quiz')} 
-                onClick={(e) => { e.preventDefault(); onTabChange('quiz'); }}
-              >
-                Quiz Module
-              </a>
-            </li>
-            <li>
-              <a 
-                href="#" 
-                style={getLinkStyle('payment')} 
-                onClick={(e) => { e.preventDefault(); onTabChange('payment'); }}
-              >
-                Payment Simulator
-              </a>
-            </li>
-            <li>
-              <a 
-                href="#" 
-                style={getLinkStyle('ai-support')} 
-                onClick={(e) => { e.preventDefault(); onTabChange('ai-support'); }}
-              >
-                AI Study Support
-              </a>
-            </li>
-          </ul>
-
-          {/* Instructor flows */}
-          <div style={navSectionTitleStyle}>Instructor Flows</div>
-          <ul style={navListStyle}>
-            <li>
-              <a 
-                href="#" 
-                style={getLinkStyle('course-draft')} 
-                onClick={(e) => { e.preventDefault(); onTabChange('course-draft'); }}
-              >
-                Course Drafts
-              </a>
-            </li>
-          </ul>
-
-          {/* Admin flows */}
-          <div style={navSectionTitleStyle}>Administrator</div>
-          <ul style={navListStyle}>
-            <li>
-              <a 
-                href="#" 
-                style={getLinkStyle('revenue-report')} 
-                onClick={(e) => { e.preventDefault(); onTabChange('revenue-report'); }}
-              >
-                Revenue & Sales
-              </a>
-            </li>
-          </ul>
+        <nav className="sidebar__navigation">
+          {navigationGroups.map((group) => {
+            const isCurrentRole = group.role === user.role;
+            return (
+              <section className={`nav-group${isCurrentRole ? ' nav-group--current' : ''}`} key={group.label}>
+                <div className="nav-group__heading">
+                  <span>{group.label}</span>
+                  {isCurrentRole && <small>Your role</small>}
+                </div>
+                <ul className="nav-list">
+                  {group.items.map((item) => {
+                    const isActive = currentTab === item.id;
+                    return (
+                      <li key={item.id}>
+                        <button
+                          className={`nav-item${isActive ? ' nav-item--active' : ''}`}
+                          type="button"
+                          onClick={() => handleNavigate(item.id)}
+                          aria-current={isActive ? 'page' : undefined}
+                        >
+                          <span className="nav-item__icon" aria-hidden="true">{item.short}</span>
+                          <span>{item.label}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })}
         </nav>
       </div>
-      
-      {/* Environment labels */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', padding: '0 0.5rem', borderTop: '1px solid #24434a', paddingTop: '1rem' }}>
-        <div style={{ fontSize: '0.675rem', fontWeight: '700', color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Microservices Demo
-        </div>
-        <div style={{ fontSize: '0.625rem', color: '#719097' }}>
-          Architecture-aligned data mapping
-        </div>
-        <div style={{ fontSize: '0.625rem', color: 'var(--primary)' }}>
-          Local mock UI only
+
+      <div className="sidebar__bottom">
+        <aside className="architecture-summary" aria-label="Architecture summary">
+          <div className="architecture-summary__heading">
+            <span className="status-dot status-dot--active" aria-hidden="true" />
+            <strong>Architecture demo</strong>
+          </div>
+          <p>5 service boundaries, 4 owned databases, and RabbitMQ event flow.</p>
+          <span>Frontend ready / local services optional</span>
+        </aside>
+        <div className="sidebar__user">
+          <div className="sidebar__avatar" aria-hidden="true">
+            {(user.full_name || user.email || 'U').charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <strong>{user.full_name}</strong>
+            <span>{user.role}</span>
+          </div>
+          <button className="sidebar__logout" type="button" onClick={onLogout} aria-label="Log out">
+            Log out
+          </button>
         </div>
       </div>
     </aside>

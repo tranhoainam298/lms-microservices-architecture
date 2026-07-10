@@ -1,26 +1,54 @@
-import React, { useRef } from 'react';
-import gsap from 'gsap';
-import { useGSAP } from '@gsap/react';
+import React, { useEffect, useState } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
-gsap.registerPlugin(useGSAP);
+export default function AppShell({ children, currentTab, onTabChange, user, onLogout, pageMeta }) {
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
 
-export default function AppShell({ children, currentTab, onTabChange, user, onLogout, title }) {
-  const contentRef = useRef(null);
+  useEffect(() => {
+    setIsNavigationOpen(false);
+  }, [currentTab]);
 
-  useGSAP(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    gsap.fromTo(contentRef.current, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' });
-  }, { dependencies: [children], scope: contentRef, revertOnUpdate: true });
+  useEffect(() => {
+    if (!isNavigationOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setIsNavigationOpen(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isNavigationOpen]);
 
   return (
     <div className="app-shell">
-      <Sidebar currentTab={currentTab} onTabChange={onTabChange} />
+      <a className="skip-link" href="#main-content">Skip to main content</a>
+      <Sidebar
+        currentTab={currentTab}
+        onTabChange={onTabChange}
+        user={user}
+        onLogout={onLogout}
+        isOpen={isNavigationOpen}
+        onClose={() => setIsNavigationOpen(false)}
+      />
+      {isNavigationOpen && (
+        <button
+          className="sidebar-backdrop"
+          type="button"
+          aria-label="Close navigation"
+          onClick={() => setIsNavigationOpen(false)}
+        />
+      )}
       <div className="app-shell__workspace">
-        <Header user={user} onLogout={onLogout} title={title} />
-        <main className="app-shell__content overflow-x-hidden w-full max-w-full" id="main-content" ref={contentRef}>
-          {children}
+        <Header
+          user={user}
+          pageMeta={pageMeta}
+          onMenuToggle={() => setIsNavigationOpen(true)}
+        />
+        <main className="app-shell__content" id="main-content" tabIndex="-1">
+          <div className="page-transition" key={currentTab}>
+            {children}
+          </div>
         </main>
       </div>
     </div>

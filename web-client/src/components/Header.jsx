@@ -1,20 +1,39 @@
 import React from 'react';
 
-export default function Header({ user, onLogout, title }) {
+export default function Header({ user, pageMeta, onMenuToggle }) {
   const getInitials = (name) => {
-    return (name || '').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    return (name || '')
+      .split(' ')
+      .filter(Boolean)
+      .map(part => part[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
   };
 
   return (
     <header className="top-header">
+      <button className="top-header__menu" type="button" onClick={onMenuToggle} aria-label="Open navigation">
+        <span aria-hidden="true" />
+        <span aria-hidden="true" />
+        <span aria-hidden="true" />
+      </button>
       <div className="top-header__title">
-        <span className="top-header__eyebrow">LMS Microservices Demo</span>
-        <h1>{title || 'System Overview'}</h1>
+        <div className="top-header__context">
+          <span>Meridian LMS</span>
+          <i aria-hidden="true">/</i>
+          <span>{pageMeta?.context || 'Workspace'}</span>
+        </div>
+        <h1>{pageMeta?.title || 'System overview'}</h1>
+        <p>{pageMeta?.subtitle}</p>
       </div>
-      
+
       <div className="top-header__account">
-        <span className="service-badge">API Gateway entry</span>
-        <span className="role-badge">{user.role}</span>
+        <span className="gateway-status">
+          <span className="status-dot" aria-hidden="true" />
+          API Gateway configured
+        </span>
+        <span className="role-badge">{user.role} role</span>
         <div className="top-header__identity">
           <strong>{user.full_name}</strong>
           <span>{user.email}</span>
@@ -22,12 +41,6 @@ export default function Header({ user, onLogout, title }) {
         <div className="avatar" aria-hidden="true">
           {getInitials(user.full_name)}
         </div>
-        <button 
-          className="btn btn-secondary" 
-          onClick={onLogout}
-        >
-          Logout
-        </button>
       </div>
     </header>
   );
