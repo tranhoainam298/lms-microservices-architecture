@@ -1,42 +1,7 @@
-# Dependency directories
 node_modules/
-jspm_packages/
-web_modules/
-
-# Build outputs
-dist/
-build/
-out/
-.next/
-.nuxt/
-.cache/
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-*.log
-
-# Environment variables
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# IDEs and editors
-.idea/
-.vscode/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# OS metadata
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# Exclude copied developer skills folder
-.project-skills/
+.DS_Store
+dist/
+bin/
+obj/
+*.log

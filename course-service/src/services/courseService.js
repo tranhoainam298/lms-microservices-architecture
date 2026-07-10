@@ -1,87 +1,164 @@
-import { mockCourses } from '../data/mockCourses.js';
+import { pool } from '../data/database.js';
 
-const instructorToken = 'mock-token-instructor-instructor-1';
-
-function authorizeInstructor(authorization) {
-  if (!authorization?.startsWith('Bearer ')) {
-    return {
-      status: 401,
-      body: { code: 'UNAUTHORIZED', message: 'Authorization token is required.' }
-    };
+export async function createDraftCourse({ title, description, category, price, cover_image, instructorId }) {
+  if (!title || !title.trim()) {
+    return { status: 400, body: { code: 'VALIDATION_ERROR', message: 'Title is required.' } };
+  }
+  
+  if (!description || !description.trim()) {
+    return { status: 400, body: { code: 'VALIDATION_ERROR', message: 'Description is required.' } };
+  }
+  
+  if (!instructorId) {
+    return { status: 401, body: { code: 'UNAUTHORIZED', message: 'Missing instructor_id from token.' } };
   }
 
-  const token = authorization.slice('Bearer '.length).trim();
-  if (token === instructorToken) {
-    return null;
-  }
+  const courseCategory = category || null;
+  const coursePrice = price !== undefined ? price : 0.0;
+  const courseCoverImage = cover_image || null;
 
-  if (/^mock-token-(student|admin)-/.test(token)) {
-    return {
-      status: 403,
-      body: { code: 'FORBIDDEN', message: 'Only instructors can save draft courses.' }
-    };
+  try {
+    const connection = await pool.getConnection();
+    try {
+      const [result] = await connection.query(
+        'INSERT INTO courses (title, description, category, price, cover_image, instructor_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [title.trim(), description.trim(), courseCategory, coursePrice, courseCoverImage, instructorId, 'draft']
+      );
+      
+      return {
+        status: 201,
+        body: { 
+          message: 'Draft course created successfully', 
+          courseId: result.insertId 
+        }
+      };
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error creating course:', error);
+    return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Failed to create course.' } };
   }
-
-  return {
-    status: 401,
-    body: { code: 'UNAUTHORIZED', message: 'The mock access token is invalid.' }
-  };
 }
 
-function validateDraft({ title, description, price, status, instructorId }) {
-  if (typeof title !== 'string' || !title.trim()) {
-    return 'Title is required.';
+export async function createLesson({ courseId, title, videoUrl, documentUrl }) {
+  if (!courseId || !title || !title.trim()) {
+    return { status: 400, body: { code: 'VALIDATION_ERROR', message: 'CourseId and Title are required.' } };
   }
-  if (typeof description !== 'string' || !description.trim()) {
-    return 'Description is required.';
+  
+  try {
+    const connection = await pool.getConnection();
+    try {
+      const [result] = await connection.query(
+        'INSERT INTO lessons (course_id, title, video_url, document_url) VALUES (?, ?, ?, ?)',
+        [courseId, title.trim(), videoUrl || null, documentUrl || null]
+      );
+      
+      return {
+        status: 201,
+        body: {
+          message: 'Lesson created successfully',
+          lessonId: result.insertId
+        }
+      };
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error creating lesson:', error);
+    return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Failed to create lesson.' } };
   }
-  if (typeof price !== 'number' || !Number.isFinite(price) || price < 0) {
-    return 'Price must be a number greater than or equal to 0.';
-  }
-  if (status !== 'draft') {
-    return 'Status must be draft.';
-  }
-  if (typeof instructorId !== 'string' || !instructorId.trim()) {
-    return 'Instructor ID is required.';
-  }
-  return null;
 }
 
-export function createDraftCourse(payload, authorization) {
-  const authorizationError = authorizeInstructor(authorization);
-  if (authorizationError) {
-    return authorizationError;
+export async function getLesson(lessonId, studentId) {
+  if (!studentId) {
+    return { status: 401, body: { code: 'UNAUTHORIZED', message: 'Missing student_id.' } };
   }
 
-  const validationError = validateDraft(payload);
-  if (validationError) {
-    return {
-      status: 400,
-      body: { code: 'VALIDATION_ERROR', message: validationError }
-    };
+  try {
+    const connection = await pool.getConnection();
+    try {
+      // 1. Get the lesson to find the courseId
+      const [lessons] = await connection.query('SELECT * FROM lessons WHERE id = ?', [lessonId]);
+      if (lessons.length === 0) {
+        return { status: 404, body: { code: 'NOT_FOUND', message: 'Lesson not found.' } };
+      }
+      
+      const lesson = lessons[0];
+      
+      // 2. Check enrollment
+      const [enrollments] = await connection.query(
+        'SELECT status FROM enrollments WHERE student_id = ? AND course_id = ?',
+        [studentId, lesson.course_id]
+      );
+      
+      if (enrollments.length === 0 || enrollments[0].status !== 'active') {
+        return { status: 403, body: { code: 'FORBIDDEN', message: 'You are not actively enrolled in this course.' } };
+      }
+      
+      return { status: 200, body: lesson };
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error getting lesson:', error);
+    return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Failed to get lesson.' } };
   }
-
-  if (payload.instructorId !== 'instructor-1') {
-    return {
-      status: 403,
-      body: { code: 'FORBIDDEN', message: 'Instructor identity does not match the access token.' }
-    };
-  }
-
-  const course = {
-    id: `course-draft-${mockCourses.length + 1}`,
-    title: payload.title.trim(),
-    description: payload.description.trim(),
-    price: payload.price,
-    status: 'draft',
-    instructorId: payload.instructorId,
-    createdAt: new Date().toISOString()
-  };
-
-  mockCourses.push(course);
-
-  return {
-    status: 201,
-    body: { course }
-  };
 }
+
+export async function enrollStudent(studentId, courseId) {
+  try {
+    const connection = await pool.getConnection();
+    try {
+      await connection.query(
+        'INSERT INTO enrollments (student_id, course_id, status) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE status = ?',
+        [studentId, courseId, 'active', 'active']
+      );
+      return { status: 200, body: { message: 'Student enrolled successfully' } };
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error enrolling student:', error);
+    return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Failed to enroll student.' } };
+  }
+}
+
+export async function getCourses() {
+  try {
+    const connection = await pool.getConnection();
+    try {
+      const [courses] = await connection.query('SELECT * FROM courses');
+      return { status: 200, body: courses };
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error getting courses:', error);
+    return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Failed to get courses.' } };
+  }
+}
+
+export async function getEnrolledCourses(studentId) {
+  if (!studentId) {
+    return { status: 401, body: { code: 'UNAUTHORIZED', message: 'Missing student_id.' } };
+  }
+  try {
+    const connection = await pool.getConnection();
+    try {
+      const [courses] = await connection.query(
+        `SELECT c.* FROM courses c 
+         JOIN enrollments e ON c.id = e.course_id 
+         WHERE e.student_id = ? AND e.status = 'active'`,
+        [studentId]
+      );
+      return { status: 200, body: courses };
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error getting enrolled courses:', error);
+    return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Failed to get enrolled courses.' } };
+  }
+}
+
