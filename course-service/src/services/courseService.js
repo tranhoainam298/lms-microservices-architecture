@@ -1,5 +1,46 @@
 import { pool } from '../data/database.js';
 
+export async function checkStudentExamAccess({ courseId, studentId }) {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [rows] = await connection.query(
+      `SELECT c.id
+       FROM courses c
+       INNER JOIN enrollments e ON e.course_id = c.id
+       WHERE c.id = ?
+         AND c.status = 'published'
+         AND e.student_id = ?
+         AND e.status = 'active'
+       LIMIT 1`,
+      [courseId, studentId]
+    );
+
+    if (rows.length === 0) {
+      return {
+        status: 403,
+        body: {
+          code: 'COURSE_ACCESS_REQUIRED',
+          message: 'You must be enrolled in a published course to access its exams.'
+        }
+      };
+    }
+
+    return { status: 200, body: { allowed: true, courseId } };
+  } catch (error) {
+    console.error('Course exam access check failed:', error.message);
+    return {
+      status: 500,
+      body: {
+        code: 'COURSE_ACCESS_CHECK_FAILED',
+        message: 'Course access could not be verified.'
+      }
+    };
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
 export async function createDraftCourse({ title, description, category, price, cover_image, instructorId }) {
   if (typeof title !== 'string' || !title.trim()) {
     return { status: 400, body: { code: 'VALIDATION_ERROR', message: 'Title is required.' } };

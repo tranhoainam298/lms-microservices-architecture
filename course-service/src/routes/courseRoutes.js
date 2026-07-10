@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createDraft, createLessonForInstructorDraftHandler, deleteLessonForInstructorDraftHandler, getLessonHandler, getLessonsForInstructorDraftHandler, getCoursesHandler, getEnrolledCoursesHandler, getInstructorDraftsHandler, legacyLessonCreationDeprecatedHandler, publishDraftHandler, updateDraftHandler, updateLessonForInstructorDraftHandler } from '../controllers/courseController.js';
+import { checkStudentExamAccessHandler, createDraft, createLessonForInstructorDraftHandler, deleteLessonForInstructorDraftHandler, getLessonHandler, getLessonsForInstructorDraftHandler, getCoursesHandler, getEnrolledCoursesHandler, getInstructorDraftsHandler, legacyLessonCreationDeprecatedHandler, publishDraftHandler, updateDraftHandler, updateLessonForInstructorDraftHandler } from '../controllers/courseController.js';
 import { jwtAuth } from '../middleware/jwtAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
 
@@ -17,6 +17,7 @@ function requireInstructor(message) {
 router.get('/', getCoursesHandler);
 router.get('/enrolled', getEnrolledCoursesHandler);
 router.get('/drafts/mine', jwtAuth, requireRole('instructor'), getInstructorDraftsHandler);
+router.get('/:courseId/student-exam-access', jwtAuth, requireRole('student'), checkStudentExamAccessHandler);
 router.patch('/drafts/:courseId', jwtAuth, requireRole('instructor'), updateDraftHandler);
 router.patch('/drafts/:courseId/publish', jwtAuth, requireInstructor('Only instructors can publish courses.'), publishDraftHandler);
 router.post('/draft', jwtAuth, requireRole('instructor'), createDraft);
