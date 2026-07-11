@@ -12,6 +12,11 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const [initialLessons, setInitialLessons] = useState([]);
+  const [tempLessonTitle, setTempLessonTitle] = useState('');
+  const [tempLessonVideoUrl, setTempLessonVideoUrl] = useState('');
+  const [tempLessonDocumentUrl, setTempLessonDocumentUrl] = useState('');
+  const [tempLessonError, setTempLessonError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [editingDraft, setEditingDraft] = useState(null);
@@ -84,6 +89,11 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setSaveError('');
     setSaveSuccess(false);
     setFieldErrors({});
+    setInitialLessons([]);
+    setTempLessonTitle('');
+    setTempLessonVideoUrl('');
+    setTempLessonDocumentUrl('');
+    setTempLessonError('');
   };
 
   const handleCancelEdit = () => {
@@ -94,6 +104,52 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setSaveError('');
     setSaveSuccess(false);
     setFieldErrors({});
+    setInitialLessons([]);
+    setTempLessonTitle('');
+    setTempLessonVideoUrl('');
+    setTempLessonDocumentUrl('');
+    setTempLessonError('');
+  };
+
+  const handleAddInitialLesson = (e) => {
+    e.preventDefault();
+    setTempLessonError('');
+    if (!tempLessonTitle.trim()) {
+      setTempLessonError('Lesson title is required.');
+      return;
+    }
+    if (!tempLessonVideoUrl.trim() && !tempLessonDocumentUrl.trim()) {
+      setTempLessonError('Provide a video URL or document URL.');
+      return;
+    }
+    if (tempLessonVideoUrl.trim() && !tempLessonVideoUrl.trim().startsWith('http://') && !tempLessonVideoUrl.trim().startsWith('https://')) {
+      setTempLessonError('Video URL must use http or https.');
+      return;
+    }
+    if (tempLessonDocumentUrl.trim() && !tempLessonDocumentUrl.trim().startsWith('http://') && !tempLessonDocumentUrl.trim().startsWith('https://')) {
+      setTempLessonError('Document URL must use http or https.');
+      return;
+    }
+
+    const newLesson = {
+      title: tempLessonTitle.trim(),
+      videoUrl: tempLessonVideoUrl.trim() || null,
+      documentUrl: tempLessonDocumentUrl.trim() || null,
+      orderIndex: initialLessons.length + 1
+    };
+
+    setInitialLessons([...initialLessons, newLesson]);
+    setTempLessonTitle('');
+    setTempLessonVideoUrl('');
+    setTempLessonDocumentUrl('');
+  };
+
+  const handleRemoveInitialLesson = (index) => {
+    const updated = initialLessons.filter((_, i) => i !== index).map((lesson, i) => ({
+      ...lesson,
+      orderIndex: i + 1
+    }));
+    setInitialLessons(updated);
   };
 
   const clearLessonWorkspace = () => {
@@ -379,19 +435,22 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
         : 'http://localhost:3000/courses/draft';
       const method = editingDraft ? 'PATCH' : 'POST';
 
+      const bodyData = {
+        title,
+        description,
+        price: Number(price)
+      };
+      if (!editingDraft) {
+        bodyData.lessons = initialLessons;
+      }
+
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`
         },
-        body: JSON.stringify({
-          title,
-          description,
-          price: Number(price),
-          status,
-          instructorId: userProfile.id
-        })
+        body: JSON.stringify(bodyData)
       });
       const responseBody = await response.json();
 
@@ -402,6 +461,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
       const savedDraft = responseBody.course;
       await fetchDrafts();
       setSaveSuccess(true);
+      setInitialLessons([]);
       onSaveDraft(savedDraft);
       setEditingDraft(null);
       setTitle('');
@@ -585,6 +645,74 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                   </div>
                 </div>
               </fieldset>
+
+              {!editingDraft && (
+                <fieldset className="draft-form-section" disabled={isSaving} style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
+                  <legend>Initial Lessons (Optional)</legend>
+
+                  {initialLessons.length > 0 && (
+                    <ul style={{ listStyle: 'none', padding: 0, marginBottom: '16px' }}>
+                      {initialLessons.map((lesson, index) => (
+                        <li key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '4px', marginBottom: '8px', background: '#f8fafc' }}>
+                          <div>
+                            <strong>{lesson.orderIndex}. {lesson.title}</strong>
+                            <div style={{ fontSize: '12px', color: '#64748b' }}>
+                              {lesson.videoUrl && <span>Video: {lesson.videoUrl} </span>}
+                              {lesson.documentUrl && <span>Document: {lesson.documentUrl}</span>}
+                            </div>
+                          </div>
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleRemoveInitialLesson(index)}>
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {tempLessonError && <p className="field-error" style={{ color: '#ef4444', marginBottom: '8px' }}>{tempLessonError}</p>}
+
+                  <div className="form-group">
+                    <label htmlFor="temp-lesson-title">Lesson Title</label>
+                    <input
+                      id="temp-lesson-title"
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g., Intro to Microservices"
+                      value={tempLessonTitle}
+                      onChange={(e) => setTempLessonTitle(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="draft-form-grid">
+                    <div className="form-group">
+                      <label htmlFor="temp-lesson-video">Video URL</label>
+                      <input
+                        id="temp-lesson-video"
+                        type="text"
+                        className="form-control"
+                        placeholder="https://..."
+                        value={tempLessonVideoUrl}
+                        onChange={(e) => setTempLessonVideoUrl(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="temp-lesson-doc">Document URL</label>
+                      <input
+                        id="temp-lesson-doc"
+                        type="text"
+                        className="form-control"
+                        placeholder="https://..."
+                        value={tempLessonDocumentUrl}
+                        onChange={(e) => setTempLessonDocumentUrl(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <button type="button" className="btn btn-secondary" onClick={handleAddInitialLesson} style={{ marginTop: '8px' }}>
+                    Add Lesson to Draft
+                  </button>
+                </fieldset>
+              )}
 
               <div className="draft-form-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button type="submit" className="btn btn-primary" disabled={isSaving}>

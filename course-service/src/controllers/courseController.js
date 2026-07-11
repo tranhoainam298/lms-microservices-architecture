@@ -2,7 +2,7 @@ import { checkStudentExamAccess, createDraftCourse, createLessonForInstructorDra
 
 export async function createDraft(req, res) {
   const payload = req.body || {};
-  const instructorId = req.user?.id;
+  const instructorId = req.user.id;
   
   const result = await createDraftCourse({
     title: payload.title,
@@ -10,7 +10,8 @@ export async function createDraft(req, res) {
     category: payload.category,
     price: payload.price,
     cover_image: payload.cover_image,
-    instructorId
+    instructorId,
+    lessons: payload.lessons
   });
   res.status(result.status).json(result.body);
 }

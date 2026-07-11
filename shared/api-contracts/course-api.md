@@ -28,8 +28,13 @@ Authorization: Bearer {accessToken}
 | title | string | Yes | Course title |
 | description | string | Yes | Course description |
 | price | number | Yes | Course price, greater than or equal to 0 |
-| status | string | Yes | Must be `draft` in this step |
-| instructorId | string | Yes | ID of the instructor creating the course |
+| status | string | No (Ignored) | Deprecated. Automatically forced to `draft` by the backend |
+| instructorId | string | No (Ignored) | Deprecated. Derived solely from the verified JWT token |
+| lessons | array | No | Optional array of initial lessons to insert atomically |
+| lessons[].title | string | Yes | Title of the lesson |
+| lessons[].videoUrl | string | No | URL of the lesson video |
+| lessons[].documentUrl | string | No | URL of the lesson document |
+| lessons[].orderIndex | number | No | The sequence order index for this lesson |
 
 ### Success Response (201 Created)
 
@@ -42,7 +47,13 @@ Authorization: Bearer {accessToken}
 | course.price | number | Course price |
 | course.status | string | Course status (`draft`) |
 | course.instructorId | string | Instructor ID |
-| course.createdAt | string | Timestamp of creation |
+| course.lessons | array | Saved initial lessons |
+| course.lessons[].id | number | Generated lesson ID |
+| course.lessons[].courseId | number | Parent course ID |
+| course.lessons[].title | string | Lesson title |
+| course.lessons[].videoUrl | string | Lesson video URL |
+| course.lessons[].documentUrl | string | Lesson document URL |
+| course.lessons[].orderIndex | number | Lesson sequence order index |
 
 ### Error Responses
 

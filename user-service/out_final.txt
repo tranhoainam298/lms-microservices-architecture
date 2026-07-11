@@ -1,0 +1,7 @@
+
+> lms-user-service@1.0.0 dev
+> node --watch src/server.js
+
+[DATABASE] Bảng users đã được khởi tạo/kiểm tra thành công.
+[RABBITMQ] Connected successfully
+User Service listening on http://localhost:5001
