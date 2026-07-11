@@ -1,0 +1,426 @@
+name: infra
+
+services:
+  nginx-load-balancer:
+    image: nginx:1.27-alpine
+    container_name: nginx-load-balancer
+    ports:
+      - "${PUBLIC_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./infra/nginx/load-balancer.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      web-client:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - edge-network
+    restart: unless-stopped
+
+  web-client:
+    build:
+      context: ./web-client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    container_name: web-client
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - edge-network
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    environment:
+      PORT: "3000"
+      JWT_SECRET: ${JWT_SECRET:-demo_jwt_secret_change_me_for_local_only}
+      WEB_CLIENT_ORIGIN: ${WEB_CLIENT_ORIGIN:-http://localhost:8080}
+      USER_SERVICE_URL: ${USER_SERVICE_URL:-http://user-service:5001}
+      COURSE_SERVICE_URL: ${COURSE_SERVICE_URL:-http://course-service:5002}
+      EXAM_SERVICE_URL: ${EXAM_SERVICE_URL:-http://exam-service:5003}
+      PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL:-http://payment-service:5004}
+      TRUST_PROXY_HOPS: "1"
+      LOGIN_RATE_LIMIT_WINDOW_MS: "900000"
+      LOGIN_RATE_LIMIT_MAX: "10"
+      REGISTER_RATE_LIMIT_WINDOW_MS: "3600000"
+      REGISTER_RATE_LIMIT_MAX: "5"
+      PASSWORD_CHANGE_RATE_LIMIT_WINDOW_MS: "900000"
+      PASSWORD_CHANGE_RATE_LIMIT_MAX: "5"
+    ports:
+      - "${GATEWAY_PUBLIC_PORT:-3000}:3000"
+    expose:
+      - "3000"
+    depends_on:
+      user-service:
+        condition: service_healthy
+      course-service:
+        condition: service_healthy
+      exam-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/auth/login').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - edge-network
+      - application-network
+    restart: unless-stopped
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    environment:
+      PORT: "5001"
+      JWT_SECRET: ${JWT_SECRET:-demo_jwt_secret_change_me_for_local_only}
+      BCRYPT_SALT_ROUNDS: "12"
+      DB_HOST: ${USER_DB_HOST:-user-db-mysql}
+      DB_PORT: ${USER_DB_PORT:-3306}
+      DB_NAME: ${USER_DB_NAME:-lms_user_db}
+      DB_USER: ${USER_DB_USER:-lms_user_admin}
+      DB_PASSWORD: ${USER_DB_PASSWORD:-demo_user_db_password_change_me}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
+    expose:
+      - "5001"
+    depends_on:
+      user-db-mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5001/auth/login').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - application-network
+      - user-data-network
+      - messaging-network
+    restart: unless-stopped
+
+  course-service:
+    build:
+      context: ./course-service
+      dockerfile: Dockerfile
+    container_name: course-service
+    environment:
+      PORT: "5002"
+      JWT_SECRET: ${JWT_SECRET:-demo_jwt_secret_change_me_for_local_only}
+      DB_HOST: ${COURSE_DB_HOST:-course-db-mysql}
+      DB_PORT: ${COURSE_DB_PORT:-3306}
+      DB_NAME: ${COURSE_DB_NAME:-lms_course_db}
+      DB_USER: ${COURSE_DB_USER:-lms_course_admin}
+      DB_PASSWORD: ${COURSE_DB_PASSWORD:-demo_course_db_password_change_me}
+      AMQP_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
+      AI_CHATBOT_URL: ${EXTERNAL_AI_CHATBOT_URL:-http://external-ai-chatbot-mock:5005}
+    expose:
+      - "5002"
+    depends_on:
+      course-db-mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5002/courses').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - application-network
+      - course-data-network
+      - messaging-network
+    restart: unless-stopped
+
+  exam-service:
+    build:
+      context: ./exam-service
+      dockerfile: Dockerfile
+    container_name: exam-service
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-demo_jwt_secret_change_me_for_local_only}
+      COURSE_SERVICE_URL: ${COURSE_SERVICE_URL:-http://course-service:5002}
+      Kestrel__Endpoints__Http__Url: http://0.0.0.0:5003
+      ConnectionStrings__DefaultConnection: Server=${EXAM_DB_HOST:-exam-db-mysql};Port=${EXAM_DB_PORT:-3306};Database=${EXAM_DB_NAME:-lms_exam_db};User=${EXAM_DB_USER:-lms_exam_admin};Password=${EXAM_DB_PASSWORD:-demo_exam_db_password_change_me};
+    expose:
+      - "5003"
+    depends_on:
+      exam-db-mysql:
+        condition: service_healthy
+      course-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/5003'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - application-network
+      - exam-data-network
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: payment-service
+    environment:
+      PORT: "5004"
+      DB_HOST: ${PAYMENT_DB_HOST:-payment-db-mysql}
+      DB_PORT: ${PAYMENT_DB_PORT:-3306}
+      DB_NAME: ${PAYMENT_DB_NAME:-lms_payment_db}
+      DB_USER: ${PAYMENT_DB_USER:-lms_payment_admin}
+      DB_PASSWORD: ${PAYMENT_DB_PASSWORD:-demo_payment_db_password_change_me}
+      AMQP_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
+      PAYMENT_GATEWAY_URL: ${EXTERNAL_PAYMENT_GATEWAY_URL:-http://external-payment-gateway-mock:8080}
+    expose:
+      - "5004"
+    depends_on:
+      payment-db-mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      external-payment-gateway-mock:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5004/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - application-network
+      - payment-data-network
+      - messaging-network
+    restart: unless-stopped
+
+  external-ai-chatbot-mock:
+    build:
+      context: ./external-systems/ai-chatbot-system/mock-provider
+      dockerfile: Dockerfile
+    container_name: external-ai-chatbot-mock
+    environment:
+      PORT: "5005"
+      COURSE_SERVICE_URL: ${COURSE_SERVICE_URL:-http://course-service:5002}
+    expose:
+      - "5005"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5005/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - application-network
+    restart: unless-stopped
+
+  external-payment-gateway-mock:
+    build:
+      context: ./external-systems/payment-gateway-zalopay-momo/mock-provider
+      dockerfile: Dockerfile
+    container_name: external-payment-gateway-mock
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - application-network
+    restart: unless-stopped
+
+  user-db-mysql:
+    image: mysql:8.0
+    container_name: user-db-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${USER_DB_ROOT_PASSWORD:-demo_user_root_password_change_me}
+      MYSQL_DATABASE: ${USER_DB_NAME:-lms_user_db}
+      MYSQL_USER: ${USER_DB_USER:-lms_user_admin}
+      MYSQL_PASSWORD: ${USER_DB_PASSWORD:-demo_user_db_password_change_me}
+    ports:
+      - "${USER_DB_HOST_PORT:-3316}:3306"
+    volumes:
+      - user-db-data:/var/lib/mysql
+      - ./infra/mysql-init/init-user-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - user-data-network
+      - host-access-network
+    restart: unless-stopped
+
+  course-db-mysql:
+    image: mysql:8.0
+    container_name: course-db-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${COURSE_DB_ROOT_PASSWORD:-demo_course_root_password_change_me}
+      MYSQL_DATABASE: ${COURSE_DB_NAME:-lms_course_db}
+      MYSQL_USER: ${COURSE_DB_USER:-lms_course_admin}
+      MYSQL_PASSWORD: ${COURSE_DB_PASSWORD:-demo_course_db_password_change_me}
+    ports:
+      - "${COURSE_DB_HOST_PORT:-3317}:3306"
+    volumes:
+      - course-db-data:/var/lib/mysql
+      - ./infra/mysql-init/init-course-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - course-data-network
+      - host-access-network
+    restart: unless-stopped
+
+  exam-db-mysql:
+    image: mysql:8.0
+    container_name: exam-db-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${EXAM_DB_ROOT_PASSWORD:-demo_exam_root_password_change_me}
+      MYSQL_DATABASE: ${EXAM_DB_NAME:-lms_exam_db}
+      MYSQL_USER: ${EXAM_DB_USER:-lms_exam_admin}
+      MYSQL_PASSWORD: ${EXAM_DB_PASSWORD:-demo_exam_db_password_change_me}
+    ports:
+      - "${EXAM_DB_HOST_PORT:-3308}:3306"
+    volumes:
+      - exam-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - exam-data-network
+      - host-access-network
+    restart: unless-stopped
+
+  payment-db-mysql:
+    image: mysql:8.0
+    container_name: payment-db-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${PAYMENT_DB_ROOT_PASSWORD:-demo_payment_root_password_change_me}
+      MYSQL_DATABASE: ${PAYMENT_DB_NAME:-lms_payment_db}
+      MYSQL_USER: ${PAYMENT_DB_USER:-lms_payment_admin}
+      MYSQL_PASSWORD: ${PAYMENT_DB_PASSWORD:-demo_payment_db_password_change_me}
+    ports:
+      - "${PAYMENT_DB_HOST_PORT:-3309}:3306"
+    volumes:
+      - payment-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - payment-data-network
+      - host-access-network
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: lms-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - messaging-network
+      - host-access-network
+    restart: unless-stopped
+
+  database-backup-server:
+    image: mysql:8.0
+    profiles: ["backup"]
+    entrypoint: ["/bin/sh", "/opt/backup/backup-databases.sh"]
+    environment:
+      USER_DB_HOST: user-db-mysql
+      USER_DB_NAME: ${USER_DB_NAME:-lms_user_db}
+      USER_DB_USER: ${USER_DB_USER:-lms_user_admin}
+      USER_DB_PASSWORD: ${USER_DB_PASSWORD:-demo_user_db_password_change_me}
+      COURSE_DB_HOST: course-db-mysql
+      COURSE_DB_NAME: ${COURSE_DB_NAME:-lms_course_db}
+      COURSE_DB_USER: ${COURSE_DB_USER:-lms_course_admin}
+      COURSE_DB_PASSWORD: ${COURSE_DB_PASSWORD:-demo_course_db_password_change_me}
+      EXAM_DB_HOST: exam-db-mysql
+      EXAM_DB_NAME: ${EXAM_DB_NAME:-lms_exam_db}
+      EXAM_DB_USER: ${EXAM_DB_USER:-lms_exam_admin}
+      EXAM_DB_PASSWORD: ${EXAM_DB_PASSWORD:-demo_exam_db_password_change_me}
+      PAYMENT_DB_HOST: payment-db-mysql
+      PAYMENT_DB_NAME: ${PAYMENT_DB_NAME:-lms_payment_db}
+      PAYMENT_DB_USER: ${PAYMENT_DB_USER:-lms_payment_admin}
+      PAYMENT_DB_PASSWORD: ${PAYMENT_DB_PASSWORD:-demo_payment_db_password_change_me}
+    depends_on:
+      user-db-mysql:
+        condition: service_healthy
+      course-db-mysql:
+        condition: service_healthy
+      exam-db-mysql:
+        condition: service_healthy
+      payment-db-mysql:
+        condition: service_healthy
+    volumes:
+      - ./infra/backup/backup-databases.sh:/opt/backup/backup-databases.sh:ro
+      - db-backup-data:/backups
+    networks:
+      - user-data-network
+      - course-data-network
+      - exam-data-network
+      - payment-data-network
+    restart: "no"
+
+networks:
+  edge-network:
+  application-network:
+  messaging-network:
+    internal: true
+  user-data-network:
+    internal: true
+  course-data-network:
+    internal: true
+  exam-data-network:
+    internal: true
+  payment-data-network:
+    internal: true
+  host-access-network:
+
+volumes:
+  user-db-data:
+    name: ${USER_DB_VOLUME_NAME:-infra_user_db_data}
+  course-db-data:
+    name: ${COURSE_DB_VOLUME_NAME:-infra_course_db_data}
+  exam-db-data:
+    name: ${EXAM_DB_VOLUME_NAME:-infra_exam_db_data}
+  payment-db-data:
+    name: ${PAYMENT_DB_VOLUME_NAME:-infra_payment_db_data}
+  rabbitmq-data:
+    name: ${RABBITMQ_VOLUME_NAME:-infra_rabbitmq_data}
+  db-backup-data:
+    name: ${DB_BACKUP_VOLUME_NAME:-infra_db_backup_data}

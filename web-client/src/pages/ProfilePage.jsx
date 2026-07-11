@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { apiUrl } from '../config/api';
 
 export default function ProfilePage({ accessToken, onProfileUpdated }) {
   const [profile, setProfile] = useState(null);
@@ -14,7 +15,7 @@ export default function ProfilePage({ accessToken, onProfileUpdated }) {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('http://localhost:3000/users/me', { headers: { Authorization: `Bearer ${accessToken}` } });
+      const response = await fetch(apiUrl('/users/me'), { headers: { Authorization: `Bearer ${accessToken}` } });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || 'Profile could not be loaded.');
       setProfile(body.user);
@@ -33,7 +34,7 @@ export default function ProfilePage({ accessToken, onProfileUpdated }) {
     event.preventDefault();
     setSaving(true); setError(''); setMessage('');
     try {
-      const response = await fetch('http://localhost:3000/users/me', {
+      const response = await fetch(apiUrl('/users/me'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ fullName })
@@ -52,7 +53,7 @@ export default function ProfilePage({ accessToken, onProfileUpdated }) {
     if (passwords.newPassword !== passwords.confirmPassword) { setError('New passwords do not match.'); return; }
     setChangingPassword(true);
     try {
-      const response = await fetch('http://localhost:3000/users/me/password', {
+      const response = await fetch(apiUrl('/users/me/password'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ currentPassword: passwords.currentPassword, newPassword: passwords.newPassword })

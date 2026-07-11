@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ArchitectureFlow from '../components/ArchitectureFlow';
 import StatusBadge from '../components/StatusBadge';
+import { apiUrl } from '../config/api';
 
 export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [], accessToken, userProfile, role }) {
   const [drafts, setDrafts] = useState([]);
@@ -50,7 +51,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
   const [quizSuccess, setQuizSuccess] = useState('');
 
   const examRequest = async (path, options = {}) => {
-    const response = await fetch(`http://localhost:3000${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, ...(options.headers || {}) } });
+    const response = await fetch(apiUrl(path), { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, ...(options.headers || {}) } });
     const body = await response.json();
     if (!response.ok) throw new Error(body.message || 'The Exam Service request failed.');
     return body;
@@ -203,7 +204,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setPublishSuccess('');
 
     try {
-      const response = await fetch(`http://localhost:3000/courses/drafts/${draft.id}/publish`, {
+      const response = await fetch(apiUrl(`/courses/drafts/${draft.id}/publish`), {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${accessToken}`
@@ -242,9 +243,9 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setLessonSuccess(null);
 
     try {
-      const response = await fetch(editingLesson
-        ? `http://localhost:3000/courses/drafts/${lessonDraft.id}/lessons/${editingLesson.id}`
-        : `http://localhost:3000/courses/drafts/${lessonDraft.id}/lessons`, {
+      const response = await fetch(apiUrl(editingLesson
+        ? `/courses/drafts/${lessonDraft.id}/lessons/${editingLesson.id}`
+        : `/courses/drafts/${lessonDraft.id}/lessons`), {
         method: editingLesson ? 'PATCH' : 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -287,7 +288,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setIsLoadingLessons(true);
     setLessonLoadError('');
     try {
-      const response = await fetch(`http://localhost:3000/courses/drafts/${courseId}/lessons`, {
+      const response = await fetch(apiUrl(`/courses/drafts/${courseId}/lessons`), {
         method: 'GET',
         headers: {
           Accept: 'application/json',
@@ -327,7 +328,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setLessonError('');
     setLessonSuccess(null);
     try {
-      const response = await fetch(`http://localhost:3000/courses/drafts/${lessonDraft.id}/lessons/${lesson.id}`, {
+      const response = await fetch(apiUrl(`/courses/drafts/${lessonDraft.id}/lessons/${lesson.id}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${accessToken}` }
       });
@@ -353,7 +354,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setIsLoading(true);
     setLoadError('');
     try {
-      const response = await fetch('http://localhost:3000/courses/drafts/mine', {
+      const response = await fetch(apiUrl('/courses/drafts/mine'), {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -430,9 +431,9 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setSaveError('');
 
     try {
-      const url = editingDraft
-        ? `http://localhost:3000/courses/drafts/${editingDraft.id}`
-        : 'http://localhost:3000/courses/draft';
+      const url = apiUrl(editingDraft
+        ? `/courses/drafts/${editingDraft.id}`
+        : '/courses/draft');
       const method = editingDraft ? 'PATCH' : 'POST';
 
       const bodyData = {

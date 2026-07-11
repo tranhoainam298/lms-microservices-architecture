@@ -10,6 +10,7 @@ import authRoutes from './routes/authRoutes.js';
 import courseRoutes from './routes/courseRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import examRoutes from './routes/examRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -35,6 +36,7 @@ app.use(['/quizzes', '/questions'], (req, res) => res.status(410).json({
   message: 'Use the secure /exams endpoints.'
 }));
 app.use('/exams', examRoutes);
+app.use('/payments', paymentRoutes);
 app.use(errorHandler);
 
 app.listen(port, () => {

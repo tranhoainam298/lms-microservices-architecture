@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import ArchitectureFlow from '../components/ArchitectureFlow';
+import { apiUrl } from '../config/api';
 
 export default function QuizPage({ quizId, courseId, accessToken, onBack }) {
   const [summaries, setSummaries] = useState([]);
@@ -11,7 +12,7 @@ export default function QuizPage({ quizId, courseId, accessToken, onBack }) {
   const [error, setError] = useState('');
 
   const request = async (url, options = {}) => {
-    const response = await fetch(`http://localhost:3000${url}`, {
+    const response = await fetch(apiUrl(url), {
       ...options,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, ...(options.headers || {}) }
     });

@@ -11,3 +11,9 @@ Current status of core features across the codebase.
 | **5. Course Payment Webhook** | **Not Achieved** | Webhook exists on Payment Service but the integration linking it to enrollment trigger is missing in API Gateway. |
 | **6. Revenue Report** | **Not Achieved** | Backend aggregation endpoints and Course-Payment cross-service reports are missing. |
 | **7. AI Chatbot Support** | **Not Achieved** | The AI Chatbot is external. Route redirection and context feeding from Course DB are missing. |
+
+## Deployment simulation
+
+| Capability | Status | Detail |
+|---|---|---|
+| Local Docker deployment view | **Implemented** | Browser traffic uses Nginx `/api` before the Gateway; Gateway routes all four core services, and the optional `backup` profile simulates a non-destructive Database Backup Server. Runtime validation is tracked in `docs/deployment/DOCKER_DEPLOYMENT.md`. |
