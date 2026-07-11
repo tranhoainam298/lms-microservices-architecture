@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiUrl } from '../config/api';
 
 const demoRoles = [
   {
@@ -80,7 +81,7 @@ export default function LoginPage({ onLogin }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:3000/auth/${mode === 'register' ? 'register' : 'login'}`, {
+      const response = await fetch(apiUrl(`/auth/${mode === 'register' ? 'register' : 'login'}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(mode === 'register'

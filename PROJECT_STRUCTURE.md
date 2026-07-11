@@ -77,8 +77,9 @@ lms-microservices-architecture/
 │   ├── monitoring/
 │   └── README.md
 ├── external-systems/
-│   ├── ai-chatbot/
-│   ├── payment-gateway/
+│   ├── ai-chatbot-system/
+│   │   └── mock-provider/
+│   ├── payment-gateway-zalopay-momo/
 │   └── README.md
 ├── shared/
 │   ├── api-contracts/

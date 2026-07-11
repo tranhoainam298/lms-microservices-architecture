@@ -1,0 +1,558 @@
+
+DUY TAN UNIVERSITY 
+INTERNATIONAL SCHOOL
+
+
+
+
+
+GROUP PROJECT
+SOFTWARE ARCHITECTURE & DESIGN
+LEARNING MANAGEMENT SYSTEM
+
+INSTRUCTOR: TRAN KIM SANH
+TEAM MEMBER : NGUYEN VAN DUY MANH
+LE MINH TRUONG KHA
+NGUYEN XUAN LOC
+TRAN HOAI NAM
+TRAN VIET LOC
+ 
+Da Nang, July 10, 2026
+
+CONTENTS
+1. Problem Requirements1
+1.1. Problem Description1
+1.1.1. System Context1
+1.1.2. The System's Objectives1
+1.1.3. Scope Of The System2
+1.1.4. Actors Participating in the System3
+1.2. Functional Requirements4
+1.2.1. Actor and Use Case List4
+1.2.2. Detailed Specification of Main Functions5
+1.3. System Constraints11
+1.3.1. Technology Constraints11
+1.3.2. Business Constraints12
+1.4. Quality Attributes12
+1.4.1. Performance12
+1.4.2. Scalability12
+1.4.3. Availability13
+1.4.4. Security13
+1.4.5. Reliability13
+1.4.6. Maintainability / Modifiability14
+2. Architecture Design14
+2.1. Architecture Style Selection14
+2.2. Context Diagram14
+2.3. Module View15
+2.3.1. Module View - Decomposition Style15
+2.3.2. Module View - Users Style16
+2.3.3. Module View - Layer Style17
+2.4. Component and Connector View17
+2.5. Deployment / Allocation View18
+2.6. Responsibilities of Each Component19
+2.7. Sequence Diagrams for Important Use Cases19
+2.8. Advantages and Disadvantages of Microservices Architecture24
+3. Application Development25
+3.1. MVP Scope25
+3.2. Suggested Source Code Organization25
+3.3. Software Design Principles25
+4. System Deployment26
+4.1. Practical Deployment Architecture26
+4.2. Proposed Deployment Environment26
+4.3. Deployment Process26
+4.4. Basic Operation Guide27
+4.5. System Operation Evidence27
+5. Reference Documents27
+
+
+
+
+
+
+
+
+
+1. Problem Requirements
+1.1. Problem Description
+1.1.1. System Context
+In the context of the ongoing digital transformation in education, the shift from traditional training models to an online learning platform (LMS) is not merely a change in tools, but a strategic move to optimize resources and digitize knowledge assets. Currently, traditional practices still face several critical bottlenecks: learning materials are stored in a fragmented manner, tracking learner progress is challenging, and the data reporting processes remain manual and delayed.
+To thoroughly resolve these issues, the Learning Management System (LMS) is proposed to break down geographical barriers and personalize the learning path. The platform will comprehensively digitize the training process through modern modules, including online payments, automated assessments, an administrative reporting system, and most notably, the integration of a 24/7 AI Chatbot for learning support. Ultimately, this system will deliver a superior operational advantage for the entire educational ecosystem.
+1.1.2. The System's Objectives
+The primary objective of the project is to develop a modern online training and management platform (E-Learning/LMS) that centralizes, accelerates, and streamlines the learning, teaching, and administrative processes. Specifically, the system aims to achieve the following core objectives:
+Centralized Online Learning Platform: Create a flexible learning environment where learners can easily register accounts, explore and enroll in courses, and track their personalized development paths anytime, anywhere.
+Standardization and Optimization of Training Processes: Empower instructors to effortlessly manage course content and question banks, while providing administrators with robust tools for user management, role-based access control, and effective system moderation.
+Quality Assessment and Tracking: Build a comprehensive examination system with an automated grading mechanism, delivering intuitive statistical reports on learning progress and academic outcomes.
+Digitization of Financial Transactions: Integrate a secure online payment gateway to automate course registration and streamline the payment processing workflow.
+Pioneering AI Integration: Incorporate an AI Chatbot that serves as a virtual assistant, providing 24/7 support to answer queries, guide learning journeys, and recommend tailored content to users.
+Sustainable and Robust Architecture (NFRs): Design a highly reliable system that ensures scalability, stringent data security, and seamless maintainability for future expansions.
+1.1.3. Scope Of The System
+The system is limited to the following core business and technical areas:
+1.1.3.1. Scope for Students
+Account management (Registration, login, password recovery).
+Search, browse, and filter course listings.
+Register and pay for online courses.
+View course details, access lectures (videos, documents), and track progress.
+Take quizzes/essays and view your learning results.
+Interact, discuss, and use AI chatbots to answer questions.
+1.1.3.2. Scope for Teachers
+Create, edit, update, and delete courses.
+Manage the lecture resource library (upload videos, documents).
+Build a question bank and set up exams/tests.
+Monitor student progress and view test results.
+Participate in discussions and directly answer student questions.
+1.1.3.3. Scope for Admin
+Comprehensive user profile management (account locking/unlocking, system permissions).
+Manage and categorize course catalogs.
+Review course content before publication.
+Extract in-depth statistical reports on user traffic, course coverage, and revenue.
+Set up and manage system notification flows.
+1.1.3.4. Architectural and engineering scope
+Web/Mobile Client: Modern user interface with integrated glassmorphism UI/UX effects, developed on the React platform.
+API Gateway & Backend Services: Business modules handling core logic, robust and synchronized operation on Node.js and C# platforms.
+Database: Database management system for storing system information.
+Peripheral Integration System: Payment gateway (ZaloPay/Momo) for transaction processing and AI Chatbot system to support learning.
+Storage Infrastructure: Dedicated multimedia resource storage system for documents and lecture videos.
+1.1.4. Actors Participating in the System
+Actor
+Role / Main Interaction
+Student
+Registers/logs in, views courses, studies lessons, takes quizzes, makes payments, tracks personal progress, and asks learning questions through AI support.
+Instructor / Teacher
+Creates courses, manages lessons, adds questions, monitors students, and views learning results.
+Admin
+Manages users, permissions, course categories, system reports, and platform configuration.
+Payment Gateway ZaloPay/Momo
+External system that processes course payments and returns transaction results.
+AI Chatbot System
+External support system that answers learning questions based on the learning context.
+
+1.2. Functional Requirements
+1.2.1. Actor and Use Case List
+The following table is taken from the original Actor and Use Case list to preserve the existing functional structure of the LMS system.
+Actor
+General Use Case
+Decomposed Use Cases
+Student
+Account Management
+Login, Register, Forgot Password, View Personal Information, Update Profile
+
+Course Management
+View course list, Search/Filter courses, View course details, Enroll in courses, Payment
+
+Learning Management
+View lessons, Mark as completed, Take quizzes, View results
+
+Support Chatbot
+Discussion, Chat with AI
+Instructor / Teacher
+Question Bank and Exam Management
+Create courses, Update courses, Manage lesson content, Save draft, Publish
+
+
+Create questions, Manage answer keys, Create quizzes/tests, View student results
+Admin
+User Management
+Monitor student progress, View class statistics
+
+
+Manage accounts, lock/unlock accounts, assign permissions
+
+Course Moderation
+Review course content, manage course categories
+
+Reporting and Statistics
+View revenue reports, course reports, user reports, export reports
+External Systems
+Payment and AI Support
+Process course payments, return chatbot responses
+
+Figure 1. UML Use Case Diagram of the LMS system
+1.2.2. Detailed Specification of Main Functions
+The specification tables below follow the main use cases from the original report. The business flows are preserved and placed into the required Software Architecture assignment format.
+1.2.2.1. Course Management Activity
+Use Case Name
+Course Management
+Description
+The instructor creates a new course, updates course information, and authors lecture content including videos, documents, and quiz questions.
+Actors
+Instructor / Teacher
+Input Data
+Course information including title, description, category, price, cover image; lecture content including videos and documents; optional quiz questions.
+Output Data
+The course is saved into Course DB with a status such as Draft, Pending Review, or Published.
+Main Flow
+1. The instructor logs in to the system.2. The instructor selects Create New Course.3. The instructor enters basic course information such as title, description, category, price, and image.4. The instructor adds lessons by uploading videos or attaching documents.5. The instructor may add quiz questions for lessons or the whole course.6. The instructor clicks Save.7. The system stores the course data in Course DB.8. The system displays a course creation success message.
+Alternative Flow
+1. Save Draft: if the content is incomplete, the instructor saves the course as Draft for later editing.2. Publish Now: if approval is not required, the instructor publishes the course immediately.3. Edit Course: the instructor selects an existing course, updates information or lessons, and saves again.
+Exception Flow
+1. Missing required fields: the system displays an error and asks the instructor to complete the information.2. Invalid video/document format or size: the system rejects the upload and displays an error.3. Duplicate course name: the system informs that the course name already exists.
+1.2.2.2. Learning Management Activity
+Use Case Name
+Learning Management
+Description
+The student accesses lecture content such as videos and documents. The system records learning progress and supports questions through AI.
+Actors
+Student, AI Chatbot System as supporting actor
+Input Data
+Lesson request with lesson ID, completion confirmation, and student learning questions.
+Output Data
+Lesson content from Course DB, updated learning progress, and AI support response.
+Main Flow
+1. The student selects a lesson in an enrolled course.2. Course Service receives the lesson request through API Gateway and retrieves content from Course DB.3. Course DB returns the lecture content such as video/document information.4. The system displays the video/document for the student.5. After studying, the student confirms lesson completion.6. The system records and updates learning progress.7. The system displays an update success message.8. If the student has a question, the question is sent to the AI Chatbot System.9. The AI Chatbot processes the question and returns a support answer.
+Alternative Flow
+1. The student revisits a completed lesson: the system allows viewing without duplicating progress.2. Automatic completion: the system marks the lesson complete when the video reaches the end.3. AI cannot understand the question: the system returns a default message and suggests contacting the instructor.
+Exception Flow
+1. Student is not enrolled: the system denies access.2. Lesson content is unavailable: the system displays a try-again-later message.3. Connection is lost: the system saves temporary progress and asks whether to continue after reconnection.
+1.2.2.3. Question Bank and Exam Management Activity
+Use Case Name
+Question Bank and Exam Management
+Description
+The instructor authors questions and answer keys. Students retrieve quizzes, submit answers, and the system automatically grades and stores results.
+Actors
+Instructor / Teacher for question authoring; Student for quiz taking
+Input Data
+From instructor: question content, options, correct answer, difficulty, topic. From student: quiz request and answers.
+Output Data
+Questions and answer keys are saved in Exam DB. Quiz scores and attempt results are saved and displayed to students.
+Main Flow
+1. The instructor opens Question Bank Management.
+2. The instructor enters question content and question type.
+3. The instructor enters options and correct answers if applicable.4. The instructor assigns questions to a topic, course, or lesson.5. Exam & Quiz Service saves the question to Exam DB.
+6. The student opens a quiz in an enrolled course.
+S 7. Exam & Quiz Service loads questions from Exam DB.8. The student submits answers.9. Exam & Quiz Service compares submitted answers with the answer key.10. Exam & Quiz Service calculates score and saves the quiz result.11. The system displays score and result to the student.
+Alternative Flow
+1. The instructor edits or deletes unused questions.2. The instructor imports questions in bulk.3. The student retakes the quiz if allowed.4. The system automatically submits the quiz when time runs out.
+Exception Flow
+1. Missing question or answer data: the system asks for required data.2. Duplicate question: the system informs that the question already exists.3. Invalid import file: the system displays an import error.4. Quiz has no questions: the system displays an unavailable quiz message.
+1.2.2.4. Payment Management Activity
+Use Case Name
+Course Payment
+Description
+The student pays for a course. The system sends the transaction to the external payment gateway, verifies the result, records the payment, and activates course access after success.
+Actors
+Student, External Payment Gateway
+Input Data
+Payment method, card/e-wallet information, course ID, and amount.
+Output Data
+Payment transaction status saved in Payment DB, course access saved in Course DB, and payment result notification shown to the student.
+Main Flow
+1. The student selects a paid course and proceeds to payment.2. The student selects a payment method and confirms payment.3. Payment Service creates a pending payment in Payment DB.4. Payment Service sends the request to Payment Gateway ZaloPay/Momo.5. The gateway returns the transaction result.6. If successful, Payment Service updates the status as Paid.7. Payment Service requests Course Service to activate course access.8. Course Service saves enrollment/access in Course DB.9. The system shows a payment success message.
+Alternative Flow
+1. Payment failed: the system shows an error and allows trying another method.2. Free course: payment processing is skipped and access is activated directly.3. Student cancels payment: the use case ends without saving a completed transaction.
+Exception Flow
+1. Payment gateway connection fails: the system displays a gateway connection error.2. Invalid payment information: the system rejects the request.3. Transaction timeout: the system cancels the request and asks the student to try again.
+1.2.2.5. Reporting and Statistics Activity
+Use Case Name
+Reporting and Statistics
+Description
+The system provides reports for different actors: students view personal learning outcomes, instructors monitor class progress, and admins view overall system reports.
+Actors
+Student, Instructor / Teacher, Admin
+Input Data
+Student report requests, instructor class progress requests, and admin management report requests.
+Output Data
+Student grade/history view, instructor teaching report, and admin revenue/user/course reports.
+Main Flow
+1. Student opens personal statistics to view grades and progress.2. Teacher opens class statistics to monitor completion rate and average scores.3. Admin opens system reports and selects a reporting period or course scope.4. Payment Service queries paid transactions from Payment DB.5. Course Service provides course information from Course DB.6. The system calculates statistics and displays report charts or tables.7. Admin may export the report if required.
+Alternative Flow
+1. Student filters results by course or term.2. Teacher exports class progress as Excel.3. Admin schedules periodic report generation.
+Exception Flow
+1. No data: the system shows an empty report message.2. Report scope is too large: the system asks the user to narrow the filter.3. Export error: the system displays an error and allows retrying.
+1.3. System Constraints
+1.3.1. Technology Constraints
+Code
+Constraint
+Description
+TC01
+Microservices
+The system must separate business domains into independent services: User, Course, Exam & Quiz, and Payment.
+TC02
+API Gateway
+All requests from Web/Mobile Client must go through the API Gateway for routing, JWT authentication, and rate limiting.
+TC03
+Database per Service
+Only the databases in the selected architecture are used: User DB, Course DB, Exam DB, and Payment DB. No extra database is created outside the architecture.
+TC04
+REST + Event-driven
+REST is used for immediate responses; Message Broker is used for publish/subscribe events such as login, payment, and course events.
+TC05
+External Integrations
+Payments go through Payment Gateway ZaloPay/Momo; learning questions go through the AI Chatbot System.
+TC06
+Deployment
+Services should be packaged with Docker and deployed using Docker Compose or Cloud; database backup is required for each service database.
+1.3.2. Business Constraints
+Code
+Constraint
+Description
+BC01
+Role-based Access Control
+Students, instructors, and admins can only access functions that match their roles.
+BC02
+Lesson Access
+Students must log in and enroll in a course before viewing lesson content.
+BC03
+Course Creation
+Instructors must provide required information before saving a draft or publishing a course.
+BC04
+Quiz
+A quiz must have valid questions and answer keys before students can take it.
+BC05
+Payment
+Course Service only activates course access when payment succeeds. Failed payments must not create learning access.
+BC06
+Reporting
+Admin can view system-wide reports; instructors can view only data related to their courses when the function is available.
+BC07
+AI Support
+AI Chatbot is a support tool only and does not replace official responses from instructors or admins.
+1.4. Quality Attributes
+Each quality attribute is described using a Quality Attribute Scenario including Source, Stimulus, Environment, Artifact, Response, and Response Measure.
+1.4.1. Performance
+Source
+Student
+Stimulus
+Opens a lesson or quiz during peak hours
+Environment
+Normal / peak traffic
+Artifact
+API Gateway, Course Service, Exam Service
+Response
+Requests are routed quickly, database queries are optimized, and content is returned stably.
+Response Measure
+Lesson/quiz pages respond within about 2-3 seconds under normal load.
+1.4.2. Scalability
+Source
+Admin / traffic growth
+Stimulus
+The number of students increases significantly when a new course is opened
+Environment
+Peak enrollment period
+Artifact
+Course Service, Payment Service
+Response
+Scale only the high-load service without scaling the whole system.
+Response Measure
+Course/Payment Service instances can be increased independently.
+1.4.3. Availability
+Source
+Payment Gateway / Service failure
+Stimulus
+A service or external gateway is temporarily unavailable
+Environment
+Runtime
+Artifact
+LMS microservices
+Response
+A failed service does not crash the entire system; unrelated functions continue working.
+Response Measure
+Students can still view enrolled lessons when the payment gateway fails.
+1.4.4. Security
+Source
+Unauthorized user
+Stimulus
+Sends a request without a token or with insufficient permissions
+Environment
+Normal operation
+Artifact
+API Gateway, User Service
+Response
+API Gateway/User Service rejects the request and returns an appropriate error.
+Response Measure
+100% of sensitive requests require a valid JWT/role.
+1.4.5. Reliability
+Source
+Network/database issue
+Stimulus
+Connection is lost when submitting a quiz or updating payment
+Environment
+Runtime with partial failure
+Artifact
+Exam Service, Payment Service, DB
+Response
+State remains consistent; quiz results or payment records are not lost or incorrectly recorded.
+Response Measure
+No course access is created if payment fails; quiz result is saved exactly once.
+1.4.6. Maintainability / Modifiability
+Source
+Developer
+Stimulus
+Payment or Exam logic must be changed
+Environment
+Maintenance time
+Artifact
+Microservices codebase
+Response
+Only the related service is modified, with minimal impact on other services.
+Response Measure
+Changing Payment Service does not require changing Course/Exam if the API contract is unchanged.
+2. Architecture Design
+2.1. Architecture Style Selection
+The system adopts Microservices Architecture combined with an API Gateway and event-driven communication. This architecture is suitable for the LMS because its business domains can be separated independently: User, Course, Exam & Quiz, Payment, and AI Support. Each service has a clear responsibility and owns its data, improving scalability, maintainability, and fault isolation.
+Code
+Architectural Decision
+Explanation
+AD01
+Microservices Architecture
+Separates business domains by service, suitable for an LMS with multiple independent functional groups.
+AD02
+API Gateway
+Acts as the single entry point for Web/Mobile Client; handles routing, JWT authentication, and rate limiting.
+AD03
+Database per Service
+User DB, Course DB, Exam DB, and Payment DB are managed by their corresponding services.
+AD04
+Message Broker
+Supports publish/subscribe for events that do not require direct synchronous communication.
+AD05
+External Services
+Payment Gateway ZaloPay/Momo and AI Chatbot System are placed outside the core system.
+2.2. Context Diagram
+The Context Diagram describes the LMS as a central system interacting with Student, Teacher, Admin, and external systems such as the Payment Gateway and AI Chatbot. This diagram defines the system boundary and the main data flows between external actors and the LMS.
+
+Figure 2. Context Diagram of the LMS system
+2.3. Module View
+The Module View decomposes the LMS into microservice-based business modules: User Service Module, Course Service Module, Exam & Quiz Module, Payment Service Module, Analytics Service Module, and cross-cutting modules such as API Gateway, Event Bus, AI Chatbot, and Logging/Monitoring.
+2.3.1. Module View - Decomposition Style
+
+Figure 3.1. Module View - Decomposition Style
+2.3.2. Module View - Users Style
+
+Figure 3.2. Module View - Users Style
+
+2.3.3. Module View - Layer Style
+
+Figure 3.3. Module View - Layer Style
+2.4. Component and Connector View
+The C&C View shows runtime components and communication relationships: Web/Mobile Client calls the API Gateway through HTTPS/REST; the API Gateway routes requests to services; services communicate with their own databases and external systems such as Payment Gateway or AI Chatbot System.
+
+Figure 4. Component and Connector View of the LMS system
+2.5. Deployment / Allocation View
+The Deployment/Allocation View shows how software components are mapped to the client layer, business processing layer, storage layer, backup layer, and external services. Services can be deployed as Docker containers; each database has its own backup to improve reliability.
+
+Figure 5. Deployment / Allocation View based on Microservices Architecture
+2.6. Responsibilities of Each Component
+Component
+Responsibility
+Web/Mobile Client
+User interface for students, instructors, and admins; sends requests to the API Gateway.
+API Gateway
+Routes requests, checks JWT, applies rate limiting, and hides internal service details.
+User Service / User DB
+Authentication, user profile, roles, and permissions.
+Course Service / Course DB
+Courses, lessons, enrollment, learning progress, and context for AI.
+Exam & Quiz Service / Exam DB
+Question bank, quizzes, answer keys, automated grading, and result storage.
+Payment Service / Payment DB
+Payment transaction creation, payment status update, reconciliation, and revenue data.
+Message Broker
+Transfers asynchronous events between services.
+Payment Gateway ZaloPay/Momo
+Processes external payment transactions.
+AI Chatbot System
+Answers learning questions based on context provided by Course Service.
+2.7. Sequence Diagrams for Important Use Cases
+The following sequence diagrams follow the main use cases and use only the components defined in the selected microservices architecture.
+
+Figure 6. Sequence Diagram - Account Management: Login
+
+
+Figure 7. Sequence Diagram - Course Management: Save Draft Course
+
+
+Figure 8. Sequence Diagram - Learning Management: View Lesson
+
+Figure 9. Sequence Diagram - Exam Management: Take Quiz
+
+Figure 10. Sequence Diagram - Payment Management: Pay for Course
+
+
+Figure 11. Sequence Diagram - Reporting Management: View Revenue Report
+
+Figure 12. Sequence Diagram - AI Support: Ask Learning Question
+2.8. Advantages and Disadvantages of Microservices Architecture
+Type
+Analysis
+Advantages
+Independent scalability; good fault isolation; easier change per business domain; suitable for Payment Gateway, AI Chatbot, and Message Broker integration.
+Disadvantages
+More complex operation than monolithic architecture; requires API contract management, logging, monitoring, distributed data handling, and control of network latency between services.
+
+
+3. Application Development
+The MVP/Prototype should implement the specified core functions and clearly reflect the microservices architecture. Each service should have its own source folder, API, and database.
+3.1. MVP Scope
+User login and authorization.
+Instructor creates and saves draft courses.
+Student views lessons, takes quizzes, and views results.
+Student pays for a course and gains access after successful payment.
+Admin views revenue reports.
+Student sends questions to the AI Chatbot System.
+3.2. Suggested Source Code Organization
+Folder / Service
+Content
+api-gateway
+Routing, JWT validation, rate limiting, reverse proxy to services.
+user-service
+Auth, profile, role/permission, User DB.
+course-service
+Course, lesson, enrollment/progress, Course DB.
+exam-service
+Question bank, quiz, grading, Exam DB.
+payment-service
+Payment transaction, gateway integration, Payment DB.
+web-client / mobile-client
+ReactJS/Flutter client applications.
+infra
+Docker Compose, environment variables, database init scripts, monitoring/logging configuration.
+3.3. Software Design Principles
+Separation of Concerns: each service handles only one clear business domain.
+Single Responsibility: User Service does not handle courses, and Payment Service does not handle quizzes.
+DRY: shared API response formats, error formats, and configurations can be reused through internal utilities when needed.
+API Contract: services communicate through clear API and event contracts.
+Database Ownership: a service must not directly access a database owned by another service.
+4. System Deployment
+4.1. Practical Deployment Architecture
+The system can be deployed in a simulated environment using Docker Compose or on the cloud. The API Gateway is the single entry point. Each service runs in its own container and connects to its corresponding database. Database backup is performed per database: User DB Backup, Course DB Backup, Exam DB Backup, and Payment DB Backup.
+4.2. Proposed Deployment Environment
+Item
+Technology / Environment
+Frontend
+ReactJS Web App, Flutter Mobile App
+Backend
+Node.js/Express microservices
+Gateway
+Node.js/Nginx API Gateway
+Database
+MySQL: User DB, Course DB, Exam DB, Payment DB
+Message Broker
+Kafka or RabbitMQ
+External APIs
+ZaloPay/Momo, AI Chatbot System
+Deployment
+Docker, Docker Compose, or Cloud VM/Container Platform
+4.3. Deployment Process
+1. Prepare source code and environment configuration files (.env) for each service.
+2. Initialize databases: User DB, Course DB, Exam DB, and Payment DB.
+3. Start the Message Broker.
+4. Build Docker images for the API Gateway and microservices.
+5. Run the whole system with Docker Compose or deploy it to the cloud.
+6. Check each service health endpoint and test the main flows: login, save draft course, view lesson, take quiz, payment, report, and AI question.
+4.4. Basic Operation Guide
+Task
+Command / Note
+Start system
+docker compose up -d
+Stop system
+docker compose down
+View logs
+docker compose logs -f <service-name>
+Check API Gateway
+GET /health or /api/health
+Backup DB
+Run backup per database or scheduled volume backup.
+
+4.5. System Operation Evidence
+Evidence may include screenshots or demo videos for the flows: login, save draft course, view lesson, take quiz, payment, view report, and ask AI. The sequence diagrams in Section 2.7 can be used as the basis for testing these functional flows.
+5. Reference Documents
+Software Architecture group assignment: requirements for report structure, functions, constraints, quality attributes, architecture, and deployment.

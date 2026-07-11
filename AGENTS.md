@@ -1,5 +1,16 @@
 # Project Agent Instructions
 
+## AI Context Bootstrap
+
+> [!IMPORTANT]
+> Future AI agents must read these persistent context files to understand the project architecture, implementation status, sequence status, known gaps, and agent rules before making any changes:
+> - [docs/ai-context/AI_CONTEXT_INDEX.md](file:///d:/github%20tool/lms-microservices-architecture/docs/ai-context/AI_CONTEXT_INDEX.md)
+> - [docs/ai-context/ARCHITECTURE_CONTRACT.md](file:///d:/github%20tool/lms-microservices-architecture/docs/ai-context/ARCHITECTURE_CONTRACT.md)
+> - [docs/ai-context/IMPLEMENTATION_STATUS.md](file:///d:/github%20tool/lms-microservices-architecture/docs/ai-context/IMPLEMENTATION_STATUS.md)
+> - [docs/ai-context/SEQUENCE_STATUS.md](file:///d:/github%20tool/lms-microservices-architecture/docs/ai-context/SEQUENCE_STATUS.md)
+> - [docs/ai-context/KNOWN_GAPS.md](file:///d:/github%20tool/lms-microservices-architecture/docs/ai-context/KNOWN_GAPS.md)
+> - [docs/ai-context/AGENT_WORK_RULES.md](file:///d:/github%20tool/lms-microservices-architecture/docs/ai-context/AGENT_WORK_RULES.md)
+
 This project is the Learning Management System based on Microservices Architecture.
 
 Before doing any task, the agent must first check whether a relevant project skill exists in:

@@ -41,7 +41,7 @@ export async function checkStudentExamAccess({ courseId, studentId }) {
   }
 }
 
-export async function createDraftCourse({ title, description, category, price, cover_image, instructorId }) {
+export async function createDraftCourse({ title, description, category, price, cover_image, instructorId, lessons }) {
   if (typeof title !== 'string' || !title.trim()) {
     return { status: 400, body: { code: 'VALIDATION_ERROR', message: 'Title is required.' } };
   }
@@ -85,29 +85,107 @@ export async function createDraftCourse({ title, description, category, price, c
     }
   }
 
+  // Validate lessons if provided
+  const validatedLessons = [];
+  if (lessons !== undefined && lessons !== null) {
+    if (!Array.isArray(lessons)) {
+      return { status: 400, body: { code: 'VALIDATION_ERROR', message: 'Lessons must be an array.' } };
+    }
+    const orderIndices = new Set();
+    for (let i = 0; i < lessons.length; i++) {
+      const lesson = lessons[i];
+      if (!lesson || typeof lesson !== 'object') {
+        return { status: 400, body: { code: 'VALIDATION_ERROR', message: `Lesson at index ${i} is invalid.` } };
+      }
+      if (typeof lesson.title !== 'string' || !lesson.title.trim()) {
+        return { status: 400, body: { code: 'VALIDATION_ERROR', message: `Lesson at index ${i} requires a title.` } };
+      }
+      const cleanTitle = lesson.title.trim();
+      if (cleanTitle.length > 255) {
+        return { status: 400, body: { code: 'VALIDATION_ERROR', message: `Lesson title at index ${i} cannot exceed 255 characters.` } };
+      }
+
+      // Check URLs
+      const videoUrlVal = validateLessonUrl(lesson.videoUrl || lesson.video_url, `Lesson ${i} Video URL`);
+      if (videoUrlVal.error) {
+        return { status: 400, body: { code: 'VALIDATION_ERROR', message: videoUrlVal.error } };
+      }
+      const docUrlVal = validateLessonUrl(lesson.documentUrl || lesson.document_url, `Lesson ${i} Document URL`);
+      if (docUrlVal.error) {
+        return { status: 400, body: { code: 'VALIDATION_ERROR', message: docUrlVal.error } };
+      }
+
+      // Validate orderIndex (order_index)
+      let rawOrderIndex = lesson.orderIndex !== undefined ? lesson.orderIndex : lesson.order_index;
+      if (rawOrderIndex === undefined || rawOrderIndex === null) {
+        rawOrderIndex = i + 1;
+      }
+      const numOrderIndex = Number(rawOrderIndex);
+      if (!Number.isInteger(numOrderIndex) || numOrderIndex < 0) {
+        return { status: 400, body: { code: 'VALIDATION_ERROR', message: `Lesson order index at index ${i} must be a valid non-negative integer.` } };
+      }
+      if (orderIndices.has(numOrderIndex)) {
+        return { status: 400, body: { code: 'VALIDATION_ERROR', message: `Duplicate lesson order index ${numOrderIndex} is not allowed.` } };
+      }
+      orderIndices.add(numOrderIndex);
+
+      validatedLessons.push({
+        title: cleanTitle,
+        videoUrl: videoUrlVal.value,
+        documentUrl: docUrlVal.value,
+        orderIndex: numOrderIndex
+      });
+    }
+  }
+
+  let connection;
   try {
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
     try {
       const [result] = await connection.query(
         'INSERT INTO courses (title, description, category, price, cover_image, instructor_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [title.trim(), description.trim(), courseCategory, numericPrice, courseCoverImage, instructorId, 'draft']
       );
+      const courseId = result.insertId;
+
+      const savedLessons = [];
+      for (const lesson of validatedLessons) {
+        const [lessonResult] = await connection.query(
+          'INSERT INTO lessons (course_id, title, video_url, document_url, order_index) VALUES (?, ?, ?, ?, ?)',
+          [courseId, lesson.title, lesson.videoUrl, lesson.documentUrl, lesson.orderIndex]
+        );
+        savedLessons.push({
+          id: lessonResult.insertId,
+          courseId,
+          title: lesson.title,
+          videoUrl: lesson.videoUrl,
+          documentUrl: lesson.documentUrl,
+          orderIndex: lesson.orderIndex
+        });
+      }
+
+      await connection.commit();
       
       return {
         status: 201,
         body: { 
           course: {
-            id: result.insertId,
+            id: courseId,
             title: title.trim(),
             description: description.trim(),
             category: courseCategory,
             price: numericPrice,
             cover_image: courseCoverImage,
             instructorId,
-            status: 'draft'
+            status: 'draft',
+            lessons: savedLessons
           }
         }
       };
+    } catch (txError) {
+      await connection.rollback();
+      throw txError;
     } finally {
       connection.release();
     }

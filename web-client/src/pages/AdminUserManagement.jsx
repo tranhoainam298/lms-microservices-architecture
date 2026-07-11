@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { apiUrl } from '../config/api';
 
 export default function AdminUserManagement({ accessToken, currentUserId }) {
   const [data, setData] = useState({ items: [], total: 0, page: 1, pageSize: 20 });
@@ -14,7 +15,7 @@ export default function AdminUserManagement({ accessToken, currentUserId }) {
     if (filters.role) params.set('role', filters.role);
     if (filters.status) params.set('status', filters.status);
     try {
-      const response = await fetch(`http://localhost:3000/users/admin/users?${params}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const response = await fetch(apiUrl(`/users/admin/users?${params}`), { headers: { Authorization: `Bearer ${accessToken}` } });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || 'User accounts could not be loaded.');
       setData(body);
@@ -30,7 +31,7 @@ export default function AdminUserManagement({ accessToken, currentUserId }) {
     if (!window.confirm(`${nextStatus === 'inactive' ? 'Deactivate' : 'Activate'} ${user.email}?`)) return;
     setChangingId(user.id); setError('');
     try {
-      const response = await fetch(`http://localhost:3000/users/admin/users/${user.id}/status`, {
+      const response = await fetch(apiUrl(`/users/admin/users/${user.id}/status`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ status: nextStatus })

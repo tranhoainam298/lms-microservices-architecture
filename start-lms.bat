@@ -182,42 +182,17 @@ REM ============================================================
 REM 8. VERIFY NPM SCRIPTS
 REM ============================================================
 
-pushd "%ROOT%user-service" >nul
-node -e "const p=require('./package.json');process.exit(p.scripts&&p.scripts.dev?0:1)"
-if errorlevel 1 (
-    popd >nul
-    echo [FAILED] user-service package.json has no dev script.
-    goto :FAIL
-)
-popd >nul
+call :VERIFY_NPM_SCRIPT "user-service" "User Service"
+if errorlevel 1 goto :FAIL
 
-pushd "%ROOT%course-service" >nul
-node -e "const p=require('./package.json');process.exit(p.scripts&&p.scripts.dev?0:1)"
-if errorlevel 1 (
-    popd >nul
-    echo [FAILED] course-service package.json has no dev script.
-    goto :FAIL
-)
-popd >nul
+call :VERIFY_NPM_SCRIPT "course-service" "Course Service"
+if errorlevel 1 goto :FAIL
 
-pushd "%ROOT%api-gateway" >nul
-node -e "const p=require('./package.json');process.exit(p.scripts&&p.scripts.dev?0:1)"
-if errorlevel 1 (
-    popd >nul
-    echo [FAILED] api-gateway package.json has no dev script.
-    goto :FAIL
-)
-popd >nul
+call :VERIFY_NPM_SCRIPT "api-gateway" "API Gateway"
+if errorlevel 1 goto :FAIL
 
-pushd "%ROOT%web-client" >nul
-node -e "const p=require('./package.json');process.exit(p.scripts&&p.scripts.dev?0:1)"
-if errorlevel 1 (
-    popd >nul
-    echo [FAILED] web-client package.json has no dev script.
-    echo Run npm run inside web-client to inspect available scripts.
-    goto :FAIL
-)
-popd >nul
+call :VERIFY_NPM_SCRIPT "web-client" "Web Client"
+if errorlevel 1 goto :FAIL
 
 REM ============================================================
 REM 9. RUN USER SERVICE MIGRATIONS
@@ -257,8 +232,10 @@ REM 10. BUILD EXAM SERVICE WHEN NEEDED
 REM ============================================================
 
 call :IS_PORT_OPEN 5003
+set "EXAM_PORT_RESULT=%errorlevel%"
+cmd /c "exit /b 0"
 
-if errorlevel 1 (
+if %EXAM_PORT_RESULT% NEQ 0 (
     echo.
     echo Restoring and building Exam Service...
 
@@ -288,16 +265,16 @@ REM ============================================================
 echo.
 echo Starting backend services...
 
-call :START_SERVICE 5001 "LMS User Service" "user-service" "call npm run dev"
+call :START_SERVICE 5001 "LMS User Service" "user-service" "npm run dev"
 if errorlevel 1 goto :FAIL
 
-call :START_SERVICE 5002 "LMS Course Service" "course-service" "call npm run dev"
+call :START_SERVICE 5002 "LMS Course Service" "course-service" "npm run dev"
 if errorlevel 1 goto :FAIL
 
 call :START_SERVICE 5003 "LMS Exam Service" "exam-service" "dotnet run --no-build"
 if errorlevel 1 goto :FAIL
 
-call :START_SERVICE 3000 "LMS API Gateway" "api-gateway" "call npm run dev"
+call :START_SERVICE 3000 "LMS API Gateway" "api-gateway" "npm run dev"
 if errorlevel 1 goto :FAIL
 
 REM ============================================================
@@ -307,16 +284,16 @@ REM ============================================================
 echo.
 echo Waiting for backend services...
 
-call :WAIT_PORT 5001 60 "User Service"
+call :WAIT_PORT 5001 120 "User Service"
 if errorlevel 1 goto :FAIL
 
-call :WAIT_PORT 5002 60 "Course Service"
+call :WAIT_PORT 5002 120 "Course Service"
 if errorlevel 1 goto :FAIL
 
-call :WAIT_PORT 5003 60 "Exam Service"
+call :WAIT_PORT 5003 120 "Exam Service"
 if errorlevel 1 goto :FAIL
 
-call :WAIT_PORT 3000 60 "API Gateway"
+call :WAIT_PORT 3000 120 "API Gateway"
 if errorlevel 1 goto :FAIL
 
 REM ============================================================
@@ -330,15 +307,17 @@ call :IS_WEB_HEALTHY
 
 if not errorlevel 1 (
     echo [READY] Web Client is already responding at:
-    echo         http://127.0.0.1:5173
+    echo         http://localhost:5173
     goto :WEB_READY
 )
 
 echo Web Client is not responding correctly.
 
 call :IS_PORT_OPEN 5173
+set "WEB_PORT_RESULT=%errorlevel%"
+cmd /c "exit /b 0"
 
-if not errorlevel 1 (
+if %WEB_PORT_RESULT% EQU 0 (
     echo Stopping stale process on port 5173...
     call :KILL_PORT 5173
 
@@ -348,7 +327,10 @@ if not errorlevel 1 (
 echo Starting Web Client from:
 echo %ROOT%web-client
 
-start "LMS Web Client - http://127.0.0.1:5173" /D "%ROOT%web-client" cmd.exe /k "call npm run dev -- --host 127.0.0.1 --port 5173 --strictPort"
+set "WEB_DIR=%ROOT%web-client"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$process = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', 'title LMS Web Client - http://localhost:5173 && npm run dev -- --host 127.0.0.1 --port 5173 --strictPort' -WorkingDirectory '%WEB_DIR%' -PassThru;" ^
+    "if ($process) { exit 0 } else { exit 1 }"
 
 if errorlevel 1 (
     echo [FAILED] Could not open the Web Client command window.
@@ -357,12 +339,12 @@ if errorlevel 1 (
 
 echo Waiting for the Web Client HTTP server...
 
-call :WAIT_WEB_HTTP 90
+call :WAIT_WEB_HTTP 180
 
 if errorlevel 1 (
     echo.
     echo [FAILED] Web Client did not respond at:
-    echo http://127.0.0.1:5173
+    echo http://localhost:5173
     echo.
     echo Read the error inside the LMS Web Client command window.
     goto :FAIL
@@ -379,7 +361,7 @@ echo ==========================================
 echo   LMS IS READY
 echo ==========================================
 echo.
-echo Web Client:     http://127.0.0.1:5173
+echo Web Client:     http://localhost:5173
 echo API Gateway:    http://127.0.0.1:3000
 echo User Service:   http://127.0.0.1:5001
 echo Course Service: http://127.0.0.1:5002
@@ -387,13 +369,12 @@ echo Exam Service:   http://127.0.0.1:5003
 echo.
 echo Opening LMS in the default browser...
 
-start "" "http://127.0.0.1:5173/"
+start "" "http://localhost:5173/"
 
 echo.
 echo Keep the backend and Web Client windows open while using LMS.
 echo.
 
-pause
 exit /b 0
 
 REM ============================================================
@@ -480,6 +461,32 @@ popd >nul
 exit /b 0
 
 
+:VERIFY_NPM_SCRIPT
+REM Verify that a "dev" or "start" npm script exists
+pushd "%ROOT%%~1" >nul
+node -e "const p=require('./package.json');process.exit(p.scripts&&(p.scripts.dev||p.scripts.start)?0:1)"
+if errorlevel 1 (
+    popd >nul
+    echo [FAILED] %~2 package.json has no dev or start script.
+    exit /b 1
+)
+popd >nul
+exit /b 0
+
+
+:VERIFY_NPM_SCRIPT
+REM Verify that a "dev" or "start" npm script exists
+pushd "%ROOT%%~1" >nul
+node -e "const p=require('./package.json');process.exit(p.scripts&&(p.scripts.dev||p.scripts.start)?0:1)"
+if errorlevel 1 (
+    popd >nul
+    echo [FAILED] %~2 package.json has no dev or start script.
+    exit /b 1
+)
+popd >nul
+exit /b 0
+
+
 :IS_PORT_OPEN
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$client = New-Object System.Net.Sockets.TcpClient;" ^
@@ -531,8 +538,10 @@ set "SERVICE_DIRECTORY=%~3"
 set "SERVICE_COMMAND=%~4"
 
 call :IS_PORT_OPEN %SERVICE_PORT%
+set "PORT_CHECK=%errorlevel%"
+cmd /c "exit /b 0"
 
-if not errorlevel 1 (
+if %PORT_CHECK% EQU 0 (
     echo [SKIP] %SERVICE_NAME% is already running on port %SERVICE_PORT%.
     exit /b 0
 )
@@ -543,7 +552,10 @@ if not exist "%ROOT%%SERVICE_DIRECTORY%\" (
     exit /b 1
 )
 
-start "%SERVICE_NAME% - http://127.0.0.1:%SERVICE_PORT%" /D "%ROOT%%SERVICE_DIRECTORY%" cmd.exe /k "%SERVICE_COMMAND%"
+set "SVC_WORK_DIR=%ROOT%%SERVICE_DIRECTORY%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$process = Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', 'title %SERVICE_NAME% && %SERVICE_COMMAND%' -WorkingDirectory '%SVC_WORK_DIR%' -PassThru;" ^
+    "if ($process) { exit 0 } else { exit 1 }"
 
 if errorlevel 1 (
     echo [FAILED] Could not start %SERVICE_NAME%.
@@ -557,11 +569,15 @@ exit /b 0
 :IS_WEB_HEALTHY
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "try {" ^
-    "    $response = Invoke-WebRequest -Uri 'http://127.0.0.1:5173/' -UseBasicParsing -TimeoutSec 3;" ^
+    "    $response = Invoke-WebRequest -Uri 'http://localhost:5173/' -UseBasicParsing -TimeoutSec 3;" ^
     "    if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400) {" ^
     "        exit 0" ^
     "    }" ^
-    "} catch {};" ^
+    "} catch {" ^
+    "    if ($_.Exception.Response) {" ^
+    "        exit 0" ^
+    "    }" ^
+    "};" ^
     "exit 1" >nul 2>&1
 
 exit /b %errorlevel%
@@ -574,11 +590,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$deadline = (Get-Date).AddSeconds(%WEB_WAIT_SECONDS%);" ^
     "do {" ^
     "    try {" ^
-    "        $response = Invoke-WebRequest -Uri 'http://127.0.0.1:5173/' -UseBasicParsing -TimeoutSec 3;" ^
+    "        $response = Invoke-WebRequest -Uri 'http://localhost:5173/' -UseBasicParsing -TimeoutSec 3;" ^
     "        if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400) {" ^
     "            exit 0" ^
     "        }" ^
-    "    } catch {};" ^
+    "    } catch {" ^
+    "        if ($_.Exception.Response) {" ^
+    "            exit 0" ^
+    "        }" ^
+    "    };" ^
     "    Start-Sleep -Milliseconds 750" ^
     "} while ((Get-Date) -lt $deadline);" ^
     "exit 1" >nul 2>&1
@@ -610,5 +630,4 @@ echo No database volume or database row was deleted.
 echo Review the error above and any service window that was opened.
 echo.
 
-pause
 exit /b 1

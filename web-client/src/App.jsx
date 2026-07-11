@@ -13,6 +13,7 @@ import AiSupportPage from './pages/AiSupportPage';
 import OverviewPage from './pages/OverviewPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminUserManagement from './pages/AdminUserManagement';
+import { apiUrl } from './config/api';
 
 // Mock Databases
 import { 
@@ -89,7 +90,7 @@ export default function App() {
   React.useEffect(() => {
     async function loadData() {
       try {
-        const res = await fetch('http://localhost:3000/courses', {
+        const res = await fetch(apiUrl('/courses'), {
           headers: authSession ? { 'Authorization': `Bearer ${authSession.accessToken}` } : {}
         });
         if (res.ok) {
@@ -98,7 +99,7 @@ export default function App() {
         }
         
         if (authSession?.role === 'student') {
-          const accessRes = await fetch('http://localhost:3000/courses/enrolled', {
+          const accessRes = await fetch(apiUrl('/courses/enrolled'), {
             headers: { 'Authorization': `Bearer ${authSession.accessToken}` }
           });
           if (accessRes.ok) {
@@ -176,7 +177,7 @@ export default function App() {
     
     // Trigger real backend webhook to test RabbitMQ flow!
     try {
-      await fetch('http://localhost:3000/payments/webhook/zalopay', {
+      await fetch(apiUrl('/payments/webhook/zalopay'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -190,7 +191,7 @@ export default function App() {
       });
       // Give RabbitMQ a second to process and then refresh enrollment
       setTimeout(async () => {
-        const accessRes = await fetch('http://localhost:3000/courses/enrolled', {
+        const accessRes = await fetch(apiUrl('/courses/enrolled'), {
           headers: { 'Authorization': `Bearer ${authSession.accessToken}` }
         });
         if (accessRes.ok) {
