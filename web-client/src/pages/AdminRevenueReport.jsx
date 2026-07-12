@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
-import ArchitectureFlow from '../components/ArchitectureFlow';
 import ProgressBar from '../components/ProgressBar';
 
 export default function AdminRevenueReport({ payments, courses }) {
@@ -45,36 +44,17 @@ export default function AdminRevenueReport({ payments, courses }) {
     <div className="revenue-page">
       <header className="page-intro revenue-intro">
         <div>
-          <p className="page-kicker">Administration / Payment and course data</p>
+          <p className="page-kicker">Administration</p>
           <h2 className="page-title">Revenue performance</h2>
           <p className="page-description">
-            Review payment health, course contribution, and every transaction currently held in the demo state.
+            Review payment health, course contribution, and recent transaction activity.
           </p>
         </div>
         <div className="revenue-intro__status">
           <StatusBadge status="ready" />
-          <span>Local aggregate</span>
+          <span>Updated overview</span>
         </div>
       </header>
-
-      <div className="architecture-alert">
-        <span className="service-badge">Payment Service + Course Service</span>
-        <span>Revenue data is aggregated through Payment Service and Course Service.</span>
-        <span className="architecture-alert__detail">No Reporting Service or Reporting DB exists.</span>
-      </div>
-
-      <div className="revenue-flows">
-        <ArchitectureFlow
-          label="Payment data"
-          steps={['Payment DB', 'Payment Service', 'API Gateway', 'Web Client']}
-          compact
-        />
-        <ArchitectureFlow
-          label="Course context"
-          steps={['Course DB', 'Course Service', 'API Gateway', 'Web Client']}
-          compact
-        />
-      </div>
 
       <div className="metrics-grid mb-6">
         <StatCard
@@ -179,7 +159,7 @@ export default function AdminRevenueReport({ payments, courses }) {
       <section className="card transaction-ledger" aria-labelledby="transaction-ledger-title">
         <div className="section-heading">
           <div>
-            <p className="section-label">Payment DB records</p>
+            <p className="section-label">Payment history</p>
             <h2 id="transaction-ledger-title">Transaction ledger</h2>
           </div>
           <span className="service-badge">{filteredPayments.length} shown</span>
@@ -213,7 +193,7 @@ export default function AdminRevenueReport({ payments, courses }) {
               <option value="momo">Momo</option>
             </select>
           </div>
-          <p className="revenue-toolbar__note">Filters apply to this local table only.</p>
+          <p className="revenue-toolbar__note">Use filters to narrow the transaction list.</p>
         </div>
 
         <div className="table-container">

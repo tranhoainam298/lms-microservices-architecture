@@ -60,15 +60,15 @@ export async function forwardCreateLessonForDraft(courseId, payload, authorizati
   return { status: response.status, body };
 }
 
-export async function forwardGetLesson(lessonId, user) {
+export async function forwardGetLesson(lessonId, authorizationHeader) {
+  const lessonIdNum = parsePositiveInteger(lessonId, 'INVALID_LESSON_ID', 'Lesson ID');
   let response;
   try {
-    response = await fetch(`${courseServiceUrl}/courses/lessons/${lessonId}`, {
+    response = await fetch(`${courseServiceUrl}/courses/lessons/${lessonIdNum}`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        ...(user?.id ? { 'X-User-Id': user.id } : {}),
-        ...(user?.role ? { 'X-User-Role': user.role } : {})
+        'Accept': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
       }
     });
   } catch (cause) {
@@ -105,15 +105,14 @@ export async function forwardGetCourses(user) {
   return { status: response.status, body };
 }
 
-export async function forwardGetEnrolledCourses(user) {
+export async function forwardGetEnrolledCourses(authorizationHeader) {
   let response;
   try {
     response = await fetch(`${courseServiceUrl}/courses/enrolled`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        ...(user?.id ? { 'X-User-Id': user.id } : {}),
-        ...(user?.role ? { 'X-User-Role': user.role } : {})
+        'Accept': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
       }
     });
   } catch (cause) {
@@ -163,6 +162,72 @@ export async function forwardUpdateDraft(courseId, payload, authorizationHeader)
     });
   } catch (cause) {
     const error = new Error('Course Service is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardGetCourseLearning(courseId, authorizationHeader) {
+  const courseIdNum = parsePositiveInteger(courseId, 'INVALID_COURSE_ID', 'Course ID');
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/${courseIdNum}/learning`, {
+      headers: {
+        'Accept': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      }
+    });
+  } catch (cause) {
+    const error = new Error('Course content is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardCompleteLesson(lessonId, authorizationHeader) {
+  const lessonIdNum = parsePositiveInteger(lessonId, 'INVALID_LESSON_ID', 'Lesson ID');
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/lessons/${lessonIdNum}/complete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      }
+    });
+  } catch (cause) {
+    const error = new Error('Learning progress could not be saved.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardAskAiAboutLesson(lessonId, payload, authorizationHeader) {
+  const lessonIdNum = parsePositiveInteger(lessonId, 'INVALID_LESSON_ID', 'Lesson ID');
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/lessons/${lessonIdNum}/ai/ask`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (cause) {
+    const error = new Error('AI support is unavailable right now.');
     error.status = 502;
     error.code = 'COURSE_SERVICE_UNAVAILABLE';
     error.cause = cause;

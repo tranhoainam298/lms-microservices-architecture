@@ -1,7 +1,7 @@
 {
-  "name": "ai-service",
+  "name": "external-ai-chatbot-provider",
   "version": "1.0.0",
-  "description": "",
+  "description": "External LMS learning assistant adapter for a real AI provider.",
   "main": "index.js",
   "type": "module",
   "scripts": {

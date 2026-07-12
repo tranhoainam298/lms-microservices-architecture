@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import ArchitectureFlow from '../components/ArchitectureFlow';
 import StatusBadge from '../components/StatusBadge';
 import { apiUrl } from '../config/api';
 
@@ -53,7 +52,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
   const examRequest = async (path, options = {}) => {
     const response = await fetch(apiUrl(path), { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, ...(options.headers || {}) } });
     const body = await response.json();
-    if (!response.ok) throw new Error(body.message || 'The Exam Service request failed.');
+    if (!response.ok) throw new Error(body.message || 'The quiz request failed.');
     return body;
   };
   const loadQuizzes = async (draft) => {
@@ -225,7 +224,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
       setPublishSuccess(`“${responseBody.course.title}” is now published.`);
     } catch (requestError) {
       setPublishError(requestError instanceof TypeError
-        ? 'Course publishing service is unavailable. Start the API Gateway and Course Service, then try again.'
+        ? 'Publishing is temporarily unavailable. Please try again shortly.'
         : requestError.message);
     } finally {
       setPublishingDraftId(null);
@@ -277,7 +276,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
       setLessonDocumentUrl('');
     } catch (requestError) {
       setLessonError(requestError instanceof TypeError
-        ? 'Lesson service is unavailable. Start the API Gateway and Course Service, then try again.'
+        ? 'Lessons are temporarily unavailable. Please try again shortly.'
         : requestError.message);
     } finally {
       setIsSavingLesson(false);
@@ -302,7 +301,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
       setLessons(responseBody.items || []);
     } catch (requestError) {
       setLessonLoadError(requestError instanceof TypeError
-        ? 'Lesson service is unavailable. Start the API Gateway and Course Service, then try again.'
+        ? 'Lessons are temporarily unavailable. Please try again shortly.'
         : requestError.message);
     } finally {
       setIsLoadingLessons(false);
@@ -343,7 +342,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
       setLessonSuccess({ id: lesson.id, title: lesson.title, action: 'deleted' });
     } catch (requestError) {
       setLessonError(requestError instanceof TypeError
-        ? 'Lesson service is unavailable. Start the API Gateway and Course Service, then try again.'
+        ? 'Lessons are temporarily unavailable. Please try again shortly.'
         : requestError.message);
     } finally {
       setDeletingLessonId(null);
@@ -472,7 +471,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
       setFieldErrors({});
     } catch (requestError) {
       const message = requestError instanceof TypeError
-        ? 'Course draft service is unavailable. Start the API Gateway and Course Service, then try again.'
+        ? 'Course drafts are temporarily unavailable. Please try again shortly.'
         : requestError.message;
       setSaveError(message);
     } finally {
@@ -495,18 +494,6 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
           <span>Private workspace</span>
         </div>
       </header>
-
-      <div className="architecture-alert">
-        <span>Course authoring boundary</span>
-        <span className="service-badge">Course Service / Course DB</span>
-        <span className="architecture-alert__detail">Drafts are stored in Course Service memory for this demo.</span>
-      </div>
-
-      <ArchitectureFlow
-        label="Course draft request"
-        steps={['Web Client', 'API Gateway', 'Course Service', 'Course DB']}
-        compact
-      />
 
       {role !== 'instructor' ? (
         <section className="card draft-access-state" role="alert" aria-labelledby="draft-access-title">
@@ -531,12 +518,12 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
               {quizError && <div className="form-alert form-alert--error" role="alert">{quizError}</div>}
               {isSaving && (
                 <div className="form-alert form-alert--loading" role="status">
-                  Saving the draft through the API Gateway...
+                  Saving your draft...
                 </div>
               )}
               {saveSuccess && (
                 <div className="form-alert form-alert--success" role="status">
-                  Draft saved through the API Gateway.
+                  Draft saved successfully.
                 </div>
               )}
               {saveError && (
@@ -568,7 +555,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                     id="draft-title"
                     type="text"
                     className="form-control"
-                    placeholder="e.g., Building SQL Server Microservices"
+                    placeholder="e.g., Practical Data Analysis"
                     value={title}
                     onChange={(e) => {
                       setTitle(e.target.value);
@@ -678,7 +665,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                       id="temp-lesson-title"
                       type="text"
                       className="form-control"
-                      placeholder="e.g., Intro to Microservices"
+                      placeholder="e.g., Course introduction"
                       value={tempLessonTitle}
                       onChange={(e) => setTempLessonTitle(e.target.value)}
                     />
@@ -737,7 +724,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
             <div className="draft-feedback" aria-live="polite" aria-atomic="true">
               {lessonSuccess && (
                 <div className="form-alert form-alert--success" role="status">
-                  Lesson #{lessonSuccess.id} “{lessonSuccess.title}” was {lessonSuccess.action} through the API Gateway.
+                  Lesson #{lessonSuccess.id} “{lessonSuccess.title}” was {lessonSuccess.action} successfully.
                 </div>
               )}
               {lessonError && (
@@ -824,7 +811,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                 </div>
 
                 {isLoadingLessons ? (
-                  <p className="lesson-authoring-state" role="status">Loading lessons from Course Service...</p>
+                  <p className="lesson-authoring-state" role="status">Loading lessons...</p>
                 ) : lessonLoadError ? (
                   <p className="lesson-authoring-state form-alert form-alert--error" role="alert">{lessonLoadError}</p>
                 ) : lessons.length === 0 ? (
@@ -902,14 +889,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                   <dt>Visibility</dt>
                   <dd>Private draft</dd>
                 </div>
-                <div>
-                  <dt>Service owner</dt>
-                  <dd>Course Service</dd>
-                </div>
-                <div>
-                  <dt>Storage</dt>
-                  <dd>Course DB</dd>
-                </div>
+                <div><dt>Course status</dt><dd>Saved draft</dd></div>
               </dl>
             </section>
 
@@ -943,7 +923,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                     <li className="draft-list__item" key={draft.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div className="draft-list__copy">
                         <strong>{draft.title}</strong>
-                        <span>${Number(draft.price).toFixed(2)} / Course Service</span>
+                        <span>${Number(draft.price).toFixed(2)} / Draft</span>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <StatusBadge status={draft.status} />

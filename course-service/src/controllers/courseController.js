@@ -1,4 +1,4 @@
-import { checkStudentExamAccess, createDraftCourse, createLessonForInstructorDraft, deleteLessonForInstructorDraft, getLesson, getLessonsForInstructorDraft, getCourses, getEnrolledCourses, getInstructorDrafts, publishInstructorDraft, updateInstructorDraft, updateLessonForInstructorDraft } from '../services/courseService.js';
+import { activateEnrollment, askAiAboutLesson, checkStudentExamAccess, completeStudentLesson, createDraftCourse, createLessonForInstructorDraft, deleteLessonForInstructorDraft, getLesson, getLessonsForInstructorDraft, getCourses, getEnrolledCourses, getInstructorDrafts, getPurchasableCourse, getStudentCourseLearning, publishInstructorDraft, updateInstructorDraft, updateLessonForInstructorDraft } from '../services/courseService.js';
 
 export async function createDraft(req, res) {
   const payload = req.body || {};
@@ -41,6 +41,22 @@ export async function checkStudentExamAccessHandler(req, res) {
   if (courseId === null) return;
 
   const result = await checkStudentExamAccess({ courseId, studentId: req.user.id });
+  res.status(result.status).json(result.body);
+}
+
+export async function getPurchasableCourseHandler(req, res) {
+  const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+  const result = await getPurchasableCourse(courseId);
+  res.status(result.status).json(result.body);
+}
+
+export async function activateEnrollmentHandler(req, res) {
+  const studentId = parsePositiveRouteId(res, req.body?.studentId, 'INVALID_STUDENT_ID', 'Student ID');
+  if (studentId === null) return;
+  const courseId = parsePositiveRouteId(res, req.body?.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+  const result = await activateEnrollment({ studentId, courseId });
   res.status(result.status).json(result.body);
 }
 
@@ -99,10 +115,34 @@ export async function deleteLessonForInstructorDraftHandler(req, res) {
 }
 
 export async function getLessonHandler(req, res) {
-  const { lessonId } = req.params;
-  const studentId = req.get('x-user-id'); // assuming API Gateway passes student ID here
-  
-  const result = await getLesson(lessonId, studentId);
+  const lessonId = parsePositiveRouteId(res, req.params.lessonId, 'INVALID_LESSON_ID', 'Lesson ID');
+  if (lessonId === null) return;
+  const result = await getLesson(lessonId, req.user.id);
+  res.status(result.status).json(result.body);
+}
+
+export async function getStudentCourseLearningHandler(req, res) {
+  const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+  const result = await getStudentCourseLearning({ courseId, studentId: req.user.id });
+  res.status(result.status).json(result.body);
+}
+
+export async function completeStudentLessonHandler(req, res) {
+  const lessonId = parsePositiveRouteId(res, req.params.lessonId, 'INVALID_LESSON_ID', 'Lesson ID');
+  if (lessonId === null) return;
+  const result = await completeStudentLesson({ lessonId, studentId: req.user.id });
+  res.status(result.status).json(result.body);
+}
+
+export async function askAiAboutLessonHandler(req, res) {
+  const lessonId = parsePositiveRouteId(res, req.params.lessonId, 'INVALID_LESSON_ID', 'Lesson ID');
+  if (lessonId === null) return;
+  const result = await askAiAboutLesson({
+    lessonId,
+    studentId: req.user.id,
+    question: req.body?.question
+  });
   res.status(result.status).json(result.body);
 }
 
@@ -112,8 +152,7 @@ export async function getCoursesHandler(req, res) {
 }
 
 export async function getEnrolledCoursesHandler(req, res) {
-  const studentId = req.get('x-user-id');
-  const result = await getEnrolledCourses(studentId);
+  const result = await getEnrolledCourses(req.user.id);
   res.status(result.status).json(result.body);
 }
 

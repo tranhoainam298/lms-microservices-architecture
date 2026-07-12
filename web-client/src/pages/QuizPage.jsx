@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import ArchitectureFlow from '../components/ArchitectureFlow';
 import { apiUrl } from '../config/api';
+import ProgressBar from '../components/ProgressBar';
 
 export default function QuizPage({ quizId, courseId, accessToken, onBack }) {
   const [summaries, setSummaries] = useState([]);
@@ -17,7 +17,7 @@ export default function QuizPage({ quizId, courseId, accessToken, onBack }) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, ...(options.headers || {}) }
     });
     const body = await response.json();
-    if (!response.ok) throw new Error(body.message || 'The Exam Service request failed.');
+    if (!response.ok) throw new Error(body.message || 'The quiz request failed.');
     return body;
   };
 
@@ -50,16 +50,19 @@ export default function QuizPage({ quizId, courseId, accessToken, onBack }) {
     finally { setSubmitting(false); }
   };
 
+  const answeredCount = quiz ? quiz.questions.filter(question => answers[question.id] !== undefined).length : 0;
+  const answerProgress = quiz?.questions.length ? Math.round((answeredCount / quiz.questions.length) * 100) : 0;
+
   return (
     <section className="quiz-page page-stack" aria-labelledby="quiz-page-title">
-      <header className="quiz-page__header"><div><button className="btn btn-ghost" type="button" onClick={onBack}>← Back</button><span className="page-kicker">Secure assessment</span><h2 id="quiz-page-title">{quiz?.title || 'Published quizzes'}</h2><p>Answers are graded only by Exam Service.</p></div><span className="service-badge">Exam Service / MySQL</span></header>
-      <ArchitectureFlow steps={['Web Client', 'API Gateway', 'Exam Service', 'Exam DB']} compact />
+      <header className="quiz-page__header"><div><button className="btn btn-ghost" type="button" onClick={onBack}>← Back</button><span className="page-kicker">Assessment</span><h2 id="quiz-page-title">{quiz?.title || 'Published quizzes'}</h2><p>Answer each question, then submit when you are ready.</p></div><span className="status-badge status-badge--active">Ready</span></header>
       {loading && <div className="card" role="status">Loading quizzes...</div>}
       {error && <div className="form-alert form-alert--error" role="alert">{error}</div>}
       {!loading && !quiz && summaries.length === 0 && !error && <div className="card empty-state">No published quizzes are available.</div>}
       {!quiz && summaries.length > 0 && <div className="grid gap-4">{summaries.map(item => <article className="card" key={item.id}><h3>{item.title}</h3><p>{item.description}</p><p>{item.questionCount} questions · {item.durationMinutes} minutes · Pass {item.passingScore}%</p><button className="btn btn-primary" type="button" onClick={() => openQuiz(item.id)}>Open quiz</button></article>)}</div>}
+      {quiz && !result && <section className="card quiz-progress" aria-label="Quiz progress"><ProgressBar value={answerProgress} label="Answered questions" /><p>{answeredCount} of {quiz.questions.length} questions answered</p></section>}
       {quiz && <form className="page-stack" onSubmit={submit}>{quiz.questions.map((question, index) => <fieldset className="card quiz-question-card" key={question.id} disabled={Boolean(result)}><legend><strong>{index + 1}. {question.questionText}</strong></legend><p>{question.points} point(s)</p>{question.options.map((option, optionIndex) => <label className="quiz-option" key={`${question.id}-${optionIndex}`}><input type="radio" name={`question-${question.id}`} checked={answers[question.id] === optionIndex} onChange={() => setAnswers(current => ({ ...current, [question.id]: optionIndex }))} /> <span>{option}</span></label>)}</fieldset>)}{!result && <button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Submitting...' : 'Submit answers'}</button>}</form>}
-      {result && <section className={`card quiz-result ${result.passed ? 'is-passed' : 'is-failed'}`}><h3>{result.passed ? 'Passed' : 'Not passed'}</h3><p>{result.score} / {result.maximumScore} points · {result.percentage}%</p><p>Result #{result.id} was stored in Exam DB.</p></section>}
+      {result && <section className={`card quiz-result ${result.passed ? 'is-passed' : 'is-failed'}`}><span className="page-kicker">Your score</span><h3>{result.passed ? 'Passed' : 'Not passed'}</h3><p>{result.score} / {result.maximumScore} points · {result.percentage}%</p><p>Your result has been saved.</p></section>}
     </section>
   );
 }

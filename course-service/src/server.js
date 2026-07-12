@@ -8,7 +8,7 @@ import cors from 'cors';
 import express from 'express';
 import courseRoutes from './routes/courseRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { initializeDatabase } from './data/initDb.js';
+import { migrateLessonProgress } from './data/migrateLessonProgress.js';
 import { startRabbitMQListener } from './rabbitmq-listener.js';
 
 const app = express();
@@ -19,7 +19,13 @@ app.use(express.json());
 app.use('/courses', courseRoutes);
 app.use(errorHandler);
 
-app.listen(port, () => {
-  console.log(`Course Service listening on http://localhost:${port}`);
-  startRabbitMQListener();
-});
+try {
+  await migrateLessonProgress();
+  app.listen(port, () => {
+    console.log(`Course Service listening on http://localhost:${port}`);
+    startRabbitMQListener();
+  });
+} catch (error) {
+  console.error('FATAL ERROR: Course database migration failed:', error.message);
+  process.exit(1);
+}

@@ -28,9 +28,9 @@ This document outlines the authoritative design system boundaries, core componen
 *   **Docker / Docker Compose**: Standard database and message broker orchestrator.
 *   **Monitoring & Backup**: Database backup configs and health check scripts.
 
-### External Systems (Mocked/Isolated)
+### External Systems (Isolated)
 *   **ZaloPay/Momo Payment Gateway**: External webhook source.
-*   **AI Chatbot System**: Target for course queries. Located under `external-systems/ai-chatbot-system/mock-provider`.
+*   **AI Chatbot System**: External real-provider adapter for enrolled lesson questions. Its compatibility path remains `external-systems/ai-chatbot-system/mock-provider`; runtime answers are not mocked.
 
 ## Forbidden Systems (DO NOT CREATE)
 *   *Services:* `ai-service` (internal), `chatbot-service`, `reporting-service`, `analytics-service`, `notification-service`, `email-service`, `enrollment-service`, `learning-progress-service`.

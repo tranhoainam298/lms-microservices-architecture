@@ -24,14 +24,14 @@ export default function Header({ user, pageMeta, onMenuToggle }) {
           <i aria-hidden="true">/</i>
           <span>{pageMeta?.context || 'Workspace'}</span>
         </div>
-        <h1>{pageMeta?.title || 'System overview'}</h1>
+        <h1>{pageMeta?.title || 'My learning'}</h1>
         <p>{pageMeta?.subtitle}</p>
       </div>
 
       <div className="top-header__account">
         <span className="gateway-status">
           <span className="status-dot" aria-hidden="true" />
-          API Gateway configured
+          Connected
         </span>
         <span className="role-badge">{user.role} role</span>
         <div className="top-header__identity">

@@ -2,10 +2,10 @@ import React from 'react';
 
 const navigationGroups = [
   {
-    label: 'Platform',
+    label: 'Account',
     role: 'all',
     items: [
-      { id: 'overview', label: 'Overview', short: 'O' },
+      { id: 'home', label: 'Home', short: 'H' },
       { id: 'profile', label: 'My profile', short: 'ME' }
     ]
   },
@@ -17,7 +17,6 @@ const navigationGroups = [
       { id: 'lesson', label: 'Lesson viewer', short: 'L' },
       { id: 'quiz', label: 'Quiz module', short: 'Q' },
       { id: 'payment', label: 'Payment', short: 'P' },
-      { id: 'ai-support', label: 'AI study support', short: 'AI' }
     ]
   },
   {
@@ -45,7 +44,7 @@ export default function Sidebar({ currentTab, onTabChange, user, onLogout, isOpe
     <aside className={`sidebar${isOpen ? ' sidebar--open' : ''}`} aria-label="Primary navigation">
       <div className="sidebar__top">
         <div className="sidebar__brand-row">
-          <button className="sidebar__brand" type="button" onClick={() => handleNavigate('overview')}>
+          <button className="sidebar__brand" type="button" onClick={() => handleNavigate('home')}>
             <span className="sidebar__mark" aria-hidden="true">M</span>
             <span className="sidebar__brand-copy">
               <strong>Meridian LMS</strong>
@@ -91,14 +90,6 @@ export default function Sidebar({ currentTab, onTabChange, user, onLogout, isOpe
       </div>
 
       <div className="sidebar__bottom">
-        <aside className="architecture-summary" aria-label="Architecture summary">
-          <div className="architecture-summary__heading">
-            <span className="status-dot status-dot--active" aria-hidden="true" />
-            <strong>Architecture demo</strong>
-          </div>
-          <p>5 service boundaries, 4 owned databases, and RabbitMQ event flow.</p>
-          <span>Frontend ready / local services optional</span>
-        </aside>
         <div className="sidebar__user">
           <div className="sidebar__avatar" aria-hidden="true">
             {(user.full_name || user.email || 'U').charAt(0).toUpperCase()}
