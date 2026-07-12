@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { forwardCreateDraft, forwardCreateLessonForDraft, forwardDeleteLessonForDraft, forwardGetLesson, forwardGetLessonsForDraft, forwardGetCourses, forwardGetEnrolledCourses, forwardGetDrafts, forwardPublishDraft, forwardUpdateDraft, forwardUpdateLessonForDraft } from '../proxy/courseServiceProxy.js';
+import { forwardAskAiAboutLesson, forwardCompleteLesson, forwardCreateDraft, forwardCreateLessonForDraft, forwardDeleteLessonForDraft, forwardGetCourseLearning, forwardGetLesson, forwardGetLessonsForDraft, forwardGetCourses, forwardGetEnrolledCourses, forwardGetDrafts, forwardPublishDraft, forwardUpdateDraft, forwardUpdateLessonForDraft } from '../proxy/courseServiceProxy.js';
 import { jwtAuth } from '../middleware/jwtAuth.js';
 
 const router = Router();
@@ -28,7 +28,10 @@ router.get('/', async (req, res, next) => {
 
 router.get('/enrolled', jwtAuth, async (req, res, next) => {
   try {
-    const upstreamResponse = await forwardGetEnrolledCourses(req.user);
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only students can view enrolled courses.' });
+    }
+    const upstreamResponse = await forwardGetEnrolledCourses(req.headers.authorization);
     res.status(upstreamResponse.status).json(upstreamResponse.body);
   } catch (error) {
     next(error);
@@ -75,6 +78,20 @@ router.post('/draft', jwtAuth, async (req, res, next) => {
       });
     }
     const upstreamResponse = await forwardCreateDraft(req.body, req.headers.authorization);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:courseId/learning', jwtAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only students can access course lessons.' });
+    }
+    const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+    if (courseId === null) return;
+    const upstreamResponse = await forwardGetCourseLearning(courseId, req.headers.authorization);
     res.status(upstreamResponse.status).json(upstreamResponse.body);
   } catch (error) {
     next(error);
@@ -189,7 +206,40 @@ router.post('/lessons', (req, res) => {
 
 router.get('/lessons/:lessonId', jwtAuth, async (req, res, next) => {
   try {
-    const upstreamResponse = await forwardGetLesson(req.params.lessonId, req.user);
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only students can access course lessons.' });
+    }
+    const lessonId = parsePositiveRouteId(res, req.params.lessonId, 'INVALID_LESSON_ID', 'Lesson ID');
+    if (lessonId === null) return;
+    const upstreamResponse = await forwardGetLesson(lessonId, req.headers.authorization);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/lessons/:lessonId/complete', jwtAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only students can update learning progress.' });
+    }
+    const lessonId = parsePositiveRouteId(res, req.params.lessonId, 'INVALID_LESSON_ID', 'Lesson ID');
+    if (lessonId === null) return;
+    const upstreamResponse = await forwardCompleteLesson(lessonId, req.headers.authorization);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/lessons/:lessonId/ai/ask', jwtAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only students can use AI learning support.' });
+    }
+    const lessonId = parsePositiveRouteId(res, req.params.lessonId, 'INVALID_LESSON_ID', 'Lesson ID');
+    if (lessonId === null) return;
+    const upstreamResponse = await forwardAskAiAboutLesson(lessonId, req.body, req.headers.authorization);
     res.status(upstreamResponse.status).json(upstreamResponse.body);
   } catch (error) {
     next(error);

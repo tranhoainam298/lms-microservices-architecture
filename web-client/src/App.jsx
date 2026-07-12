@@ -9,26 +9,16 @@ import LessonPage from './pages/LessonPage';
 import QuizPage from './pages/QuizPage';
 import PaymentPage from './pages/PaymentPage';
 import AdminRevenueReport from './pages/AdminRevenueReport';
-import AiSupportPage from './pages/AiSupportPage';
-import OverviewPage from './pages/OverviewPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminUserManagement from './pages/AdminUserManagement';
 import { apiUrl } from './config/api';
 
 // Mock Databases
-import { 
-  mockCourses, 
-  mockCourseAccess, 
-  mockPayments, 
-  mockLearningProgress,
-  mockLessons,
-} from './data/mockData';
-
 const pageMeta = {
-  overview: {
-    title: 'System overview',
-    subtitle: 'Trace learning journeys across every service boundary.',
-    context: 'Platform architecture'
+  home: {
+    title: 'Welcome to Meridian',
+    subtitle: 'Choose where you want to continue today.',
+    context: 'Home'
   },
   dashboard: {
     title: 'Student dashboard',
@@ -46,31 +36,26 @@ const pageMeta = {
     context: 'Assessment'
   },
   payment: {
-    title: 'Payment simulator',
-    subtitle: 'Review a mock checkout and trace course access activation.',
+    title: 'Checkout',
+    subtitle: 'Complete your payment and unlock the course.',
     context: 'Enrollment checkout'
-  },
-  'ai-support': {
-    title: 'AI study support',
-    subtitle: 'Ask an external assistant using the current lesson context.',
-    context: 'Learning assistance'
   },
   'course-draft': {
     title: 'Course drafts',
-    subtitle: 'Structure and save course metadata through the Course Service.',
+    subtitle: 'Create, organize, and publish engaging course content.',
     context: 'Instructor workspace'
   },
   'revenue-report': {
     title: 'Revenue and sales',
-    subtitle: 'Review payment activity and course contribution without a reporting service.',
+    subtitle: 'Review payment activity and course performance.',
     context: 'Administration'
   },
   profile: { title: 'Your profile', subtitle: 'Manage your account details and password.', context: 'User account' },
   'user-management': { title: 'User management', subtitle: 'Review and activate platform accounts.', context: 'Administration' }
 };
 
-const tabPages = new Set(['overview', 'dashboard', 'ai-support', 'course-draft', 'revenue-report', 'profile', 'user-management']);
-const studentOnlyPages = new Set(['dashboard', 'lesson', 'quiz', 'payment', 'ai-support']);
+const tabPages = new Set(['home', 'dashboard', 'course-draft', 'revenue-report', 'profile', 'user-management']);
+const studentOnlyPages = new Set(['dashboard', 'lesson', 'quiz', 'payment']);
 
 export default function App() {
   const [authSession, setAuthSession] = useState(null);
@@ -84,8 +69,26 @@ export default function App() {
   // Real Database states
   const [courses, setCourses] = useState([]);
   const [courseAccess, setCourseAccess] = useState([]);
-  const [payments, setPayments] = useState(mockPayments);
-  const [progress, setProgress] = useState(mockLearningProgress);
+  const [payments, setPayments] = useState([]);
+
+  const refreshEnrolledCourses = async () => {
+    if (authSession?.role !== 'student') return;
+    const accessRes = await fetch(apiUrl('/courses/enrolled'), {
+      headers: { 'Authorization': `Bearer ${authSession.accessToken}` }
+    });
+    if (!accessRes.ok) throw new Error('Enrolled courses could not be refreshed.');
+    const enrolled = await accessRes.json();
+    setCourses(current => current.map(course => {
+      const enrolledCourse = enrolled.find(item => item.id === course.id);
+      return enrolledCourse ? { ...course, progress_percent: Number(enrolledCourse.progress_percent || 0) } : course;
+    }));
+    setCourseAccess(enrolled.map(course => ({
+      id: course.id,
+      user_id: authSession.userProfile.id,
+      course_id: course.id,
+      access_status: 'active'
+    })));
+  };
 
   React.useEffect(() => {
     async function loadData() {
@@ -99,23 +102,11 @@ export default function App() {
         }
         
         if (authSession?.role === 'student') {
-          const accessRes = await fetch(apiUrl('/courses/enrolled'), {
-            headers: { 'Authorization': `Bearer ${authSession.accessToken}` }
-          });
-          if (accessRes.ok) {
-            const enrolled = await accessRes.json();
-            // Map enrolled courses to access array format expected by UI
-            setCourseAccess(enrolled.map(c => ({
-              id: c.id,
-              user_id: user.id,
-              course_id: c.id,
-              access_status: 'active'
-            })));
-          }
+          await refreshEnrolledCourses();
         }
       } catch (err) {
         console.error('Failed to load courses', err);
-        setCourses(mockCourses); // fallback
+        setCourses([]);
       }
     }
     loadData();
@@ -171,63 +162,9 @@ export default function App() {
     setCourses(prev => [{ ...newDraft, instructor_id: newDraft.instructorId }, ...prev]);
   };
 
-  const handlePaymentSuccess = async (newPayment) => {
-    // Save locally
-    setPayments(prev => [newPayment, ...prev]);
-    
-    // Trigger real backend webhook to test RabbitMQ flow!
-    try {
-      await fetch(apiUrl('/payments/webhook/zalopay'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authSession.accessToken}`
-        },
-        body: JSON.stringify({
-          studentId: user.id,
-          courseId: newPayment.course_id,
-          transactionId: `MOCK_TXN_${Date.now()}`
-        })
-      });
-      // Give RabbitMQ a second to process and then refresh enrollment
-      setTimeout(async () => {
-        const accessRes = await fetch(apiUrl('/courses/enrolled'), {
-          headers: { 'Authorization': `Bearer ${authSession.accessToken}` }
-        });
-        if (accessRes.ok) {
-          const enrolled = await accessRes.json();
-          setCourseAccess(enrolled.map(c => ({
-            id: c.id,
-            user_id: user.id,
-            course_id: c.id,
-            access_status: 'active'
-          })));
-        }
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to process mock payment via backend', err);
-    }
-  };
-
-  const handleUpdateProgress = (lessonId, status) => {
-    const existing = progress.find(p => p.lesson_id === lessonId && p.user_id === user.id);
-    if (existing) {
-      setProgress(prev => prev.map(p => 
-        (p.lesson_id === lessonId && p.user_id === user.id) 
-          ? { ...p, progress_status: status, completed_at: new Date().toISOString() } 
-          : p
-      ));
-    } else {
-      const newProgress = {
-        id: Date.now(),
-        user_id: user.id,
-        course_id: pageParams?.courseId,
-        lesson_id: lessonId,
-        progress_status: status,
-        completed_at: new Date().toISOString()
-      };
-      setProgress(prev => [...prev, newProgress]);
-    }
+  const handlePaymentSuccess = async (payment) => {
+    setPayments(prev => [payment, ...prev.filter(item => item.id !== payment.id)]);
+    await refreshEnrolledCourses();
   };
 
   // Render Login if no authenticated session
@@ -255,10 +192,11 @@ export default function App() {
       return (
         <LessonPage 
           courseId={pageParams?.courseId} 
-          lessons={mockLessons} 
-          courseAccess={courseAccess}
-          progress={progress}
-          onUpdateProgress={handleUpdateProgress}
+          course={courses.find(course => course.id === pageParams?.courseId)}
+          accessToken={authSession.accessToken}
+          isEnrolled={courseAccess.some(access => access.course_id === pageParams?.courseId && access.access_status === 'active')}
+          onBuyCourse={(courseId) => handleNavigate('payment', { courseId })}
+          onOpenQuiz={(courseId) => handleNavigate('quiz', { courseId })}
           onBack={handleBackToDashboard}
         />
       );
@@ -278,6 +216,7 @@ export default function App() {
       return (
         <PaymentPage 
           course={selectedCourse} 
+          accessToken={authSession.accessToken}
           onPaymentSuccess={handlePaymentSuccess}
           onBack={handleBackToDashboard}
         />
@@ -286,8 +225,19 @@ export default function App() {
 
     // Render Tabbed Pages
     switch (currentTab) {
-      case 'overview':
-        return <OverviewPage onNavigate={handleNavigate} role={authSession.role} />;
+      case 'home':
+        return (
+          <section className="card overview-action" aria-labelledby="home-title">
+            <div>
+              <span className="page-kicker">Meridian LMS</span>
+              <h2 id="home-title">Ready to keep moving forward?</h2>
+              <p>Open your workspace to continue courses, manage content, or review account activity.</p>
+            </div>
+            <button className="btn btn-primary" type="button" onClick={() => setCurrentTab(authSession.role === 'student' ? 'dashboard' : authSession.role === 'instructor' ? 'course-draft' : 'user-management')}>
+              Open my workspace
+            </button>
+          </section>
+        );
       case 'dashboard':
         return (
           <StudentDashboard 
@@ -295,7 +245,7 @@ export default function App() {
             courseAccess={courseAccess}
             payments={payments}
             quizAttempts={[]}
-            progress={progress}
+            progress={[]}
             quizzes={[]}
             user={user}
             onNavigate={handleNavigate}
@@ -304,11 +254,12 @@ export default function App() {
       case 'lesson':
         return (
           <LessonPage
-            courseId={201}
-            lessons={mockLessons}
-            courseAccess={courseAccess}
-            progress={progress}
-            onUpdateProgress={handleUpdateProgress}
+            courseId={courseAccess[0]?.course_id || courses[0]?.id}
+            course={courses.find(course => course.id === (courseAccess[0]?.course_id || courses[0]?.id))}
+            accessToken={authSession.accessToken}
+            isEnrolled={Boolean(courseAccess[0])}
+            onBuyCourse={(courseId) => handleNavigate('payment', { courseId })}
+            onOpenQuiz={(courseId) => handleNavigate('quiz', { courseId })}
             onBack={handleBackToDashboard}
           />
         );
@@ -318,12 +269,11 @@ export default function App() {
         return (
           <PaymentPage
             course={courses.find(course => course.id === 201)}
+            accessToken={authSession.accessToken}
             onPaymentSuccess={handlePaymentSuccess}
             onBack={handleBackToDashboard}
           />
         );
-      case 'ai-support':
-        return <AiSupportPage />;
       case 'course-draft':
         return (
           <InstructorCourseDraft 

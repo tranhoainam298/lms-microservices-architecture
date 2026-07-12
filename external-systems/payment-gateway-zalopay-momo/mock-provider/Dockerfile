@@ -1,5 +1,6 @@
-FROM nginx:1.27-alpine
-
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+FROM node:20-alpine
+WORKDIR /app
+COPY index.js ./
+ENV PORT=8080
 EXPOSE 8080
-
+CMD ["node", "index.js"]

@@ -1,37 +1,19 @@
 import React, { useState } from 'react';
-import { mockAiBotResponses, mockAiLearningContexts, mockAiSuggestions } from '../data/mockData';
-import ArchitectureFlow from '../components/ArchitectureFlow';
 
 export default function AiSupportPage() {
   const [query, setQuery] = useState('');
-  const [messages, setMessages] = useState([
-    { sender: 'bot', text: "Welcome. Ask a study question about API gateways, data isolation, or RabbitMQ." }
-  ]);
-  const [isTyping, setIsTyping] = useState(false);
-  const activeContext = mockAiLearningContexts[0];
+  const [messages] = useState([]);
+  const [isTyping] = useState(false);
+  const [notice, setNotice] = useState('');
+  const activeContext = null;
+  const suggestions = [];
 
   const handleSend = (e) => {
     e.preventDefault();
     if (!query.trim()) return;
 
-    const userMessage = { sender: 'user', text: query };
-    setMessages(prev => [...prev, userMessage]);
+    setNotice('Open an enrolled lesson to ask AI about its learning content.');
     setQuery('');
-    setIsTyping(true);
-
-    // Simulate calling the External AI Chatbot System
-    setTimeout(() => {
-      const lowerQuery = query.toLowerCase();
-      let matchedResponse = "I'm sorry, I don't have simulated replies for that keyword. Try asking about 'gateway', 'isolation', or 'rabbitmq'.";
-      
-      const foundMatch = mockAiBotResponses.find(r => lowerQuery.includes(r.keyword));
-      if (foundMatch) {
-        matchedResponse = foundMatch.reply;
-      }
-
-      setMessages(prev => [...prev, { sender: 'bot', text: matchedResponse }]);
-      setIsTyping(false);
-    }, 1000);
   };
 
   return (
@@ -39,30 +21,17 @@ export default function AiSupportPage() {
       <header className="ai-identity">
         <div className="ai-identity__mark" aria-hidden="true">AI</div>
         <div className="ai-identity__copy">
-          <p className="page-kicker">External learning assistance</p>
-          <h2 className="page-title">Architecture study assistant</h2>
+          <p className="page-kicker">Learning assistance</p>
+          <h2 className="page-title">Study assistant</h2>
           <p className="page-description">
-            Ask a focused question using the context from your current microservices lesson.
+            Ask a focused question using the context from your current lesson.
           </p>
         </div>
         <div className="ai-identity__status">
           <span className="status-badge status-badge--success"><i aria-hidden="true" />Available</span>
-          <span>Mock response mode</span>
+          <span>Study support</span>
         </div>
       </header>
-
-      <div className="architecture-alert">
-        <span className="service-badge">External AI Chatbot System</span>
-        <span>Course Service shares learning context with this external system.</span>
-        <span className="architecture-alert__detail">No Chatbot Service or Chatbot DB exists.</span>
-      </div>
-
-      <ArchitectureFlow
-        label="Context handoff"
-        ariaLabel="Study context flows from Web Client through API Gateway and Course Service to the External AI Chatbot System"
-        steps={['Web Client', 'API Gateway', 'Course Service', 'External AI Chatbot System']}
-        compact
-      />
 
       <section className="ai-suggestions" aria-labelledby="suggested-prompts-title">
         <div className="ai-suggestions__heading">
@@ -70,7 +39,7 @@ export default function AiSupportPage() {
           <span>Use the current lesson context</span>
         </div>
         <div className="suggestion-row">
-          {mockAiSuggestions.map(suggestion => (
+          {suggestions.map(suggestion => (
             <button
               type="button"
               className="suggestion-chip"
@@ -100,7 +69,7 @@ export default function AiSupportPage() {
             aria-live="polite"
             aria-relevant="additions text"
             aria-busy={isTyping}
-            aria-label="Conversation with the architecture study assistant"
+            aria-label="Conversation with the study assistant"
           >
             {messages.length === 0 ? (
               <div className="chat-empty-state" role="status">
@@ -142,7 +111,7 @@ export default function AiSupportPage() {
                 id="study-question"
                 type="text"
                 className="form-control"
-                placeholder="Ask about gateway, isolation, or RabbitMQ..."
+                placeholder="Ask about this lesson or a difficult concept..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 disabled={isTyping}
@@ -157,45 +126,36 @@ export default function AiSupportPage() {
               </button>
             </div>
             <p className="field-helper" id="study-question-helper">
-              Responses are selected from local mock topics and do not call a live AI model.
+              AI questions are available from an unlocked lesson.
             </p>
+            {notice && <p className="form-alert form-alert--warning" role="status">{notice}</p>}
           </form>
         </section>
 
-        <aside className="ai-context-sidebar" aria-label="Study source and system context">
+        <aside className="ai-context-sidebar" aria-label="Current study context">
           <section className="card ai-context-card" aria-labelledby="source-context-title">
             <div className="ai-context-card__heading">
               <span className="service-badge">Source context</span>
-              <span>Course Service</span>
+              <span>Current lesson</span>
             </div>
             <h3 id="source-context-title">Current lesson context</h3>
             <p>{activeContext?.context_text || 'No lesson context is currently available.'}</p>
             <dl className="ai-context-list">
               <div>
                 <dt>Course</dt>
-                <dd>Introduction to Microservices / #{activeContext?.course_id || 201}</dd>
+                <dd>Current course / #{activeContext?.course_id || 201}</dd>
               </div>
               <div>
                 <dt>Lesson</dt>
-                <dd>Implementing API Gateways / #{activeContext?.lesson_id || 302}</dd>
+                <dd>Current lesson / #{activeContext?.lesson_id || 302}</dd>
               </div>
               <div>
                 <dt>Source</dt>
-                <dd>Course DB learning context</dd>
+                <dd>Your learning activity</dd>
               </div>
             </dl>
           </section>
 
-          <section className="card ai-boundary-card" aria-labelledby="ai-boundary-title">
-            <span className="status-badge status-badge--neutral"><i aria-hidden="true" />External</span>
-            <h3 id="ai-boundary-title">System boundary</h3>
-            <p>The assistant shown here represents an External AI Chatbot System.</p>
-            <ul className="ai-boundary-list">
-              <li>No Chatbot Service</li>
-              <li>No Chatbot DB</li>
-              <li>No persistent conversation storage</li>
-            </ul>
-          </section>
         </aside>
       </div>
     </div>

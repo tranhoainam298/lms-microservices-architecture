@@ -12,15 +12,15 @@ Reference mapping of the 7 sequence diagrams from the authoritative design:
 
 ### Sequence 3: View Lesson Content
 *   *Flow:* Student $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Course Service $\rightarrow$ Course DB.
-*   *Status:* **Not Achieved** (Stubs exist, missing student-enrollment validations).
+*   *Status:* **Achieved** (JWT student access, active enrollment, real resources, and persisted completion are implemented).
 
 ### Sequence 4: Take Quiz
 *   *Flow:* Student $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Exam Service $\rightarrow$ Exam DB.
-*   *Status:* **Core source aligned; E2E success path blocked by missing safe course enrollment fixture**.
+*   *Status:* **Achieved**. Enrolled student load/submit passed through the Gateway, questions excluded answer keys, server grading persisted the result, and role/access/duplicate protections passed.
 
 ### Sequence 5: Course Payment
 *   *Flow:* Student $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Payment Service $\rightarrow$ Payment DB $\rightarrow$ Webhook callback.
-*   *Status:* **Not Achieved** (Stubs exist, RabbitMQ trigger enrollment is set up but API Gateway payment route is not configured).
+*   *Status:* **ZaloPay Sandbox source flow aligned; live provider create requires sandbox credentials**. Browser uses Nginx/Gateway, Payment Service owns signed create/query/callback and Payment DB state, then calls Course Service after paid confirmation.
 
 ### Sequence 6: Revenue Report
 *   *Flow:* Instructor $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Payment Service $\rightarrow$ Payment DB.
@@ -28,4 +28,4 @@ Reference mapping of the 7 sequence diagrams from the authoritative design:
 
 ### Sequence 7: Ask Learning Question (AI Support)
 *   *Flow:* Student $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Course Service $\rightarrow$ Course DB $\rightarrow$ External AI Chatbot System.
-*   *Status:* **Not Achieved** (AI Service was relocated to external mock provider area; integration is pending).
+*   *Status:* **Real provider integration implemented; live provider call requires `AI_API_KEY`**. Course Service supplies enrolled lesson context to the external provider adapter; no frontend/provider shortcut or canned fallback is active.

@@ -528,24 +528,33 @@ export async function getLesson(lessonId, studentId) {
     const connection = await pool.getConnection();
     try {
       // 1. Get the lesson to find the courseId
-      const [lessons] = await connection.query('SELECT * FROM lessons WHERE id = ?', [lessonId]);
+      const [lessons] = await connection.query(
+        `SELECT l.id, l.course_id, l.title, l.video_url, l.document_url, l.order_index, l.created_at
+         FROM lessons l
+         INNER JOIN courses c ON c.id = l.course_id
+         WHERE l.id = ? AND c.status = 'published'
+         LIMIT 1`,
+        [lessonId]
+      );
       if (lessons.length === 0) {
-        return { status: 404, body: { code: 'NOT_FOUND', message: 'Lesson not found.' } };
+        return { status: 404, body: { code: 'LESSON_NOT_FOUND', message: 'The lesson was not found.' } };
       }
       
       const lesson = lessons[0];
       
       // 2. Check enrollment
       const [enrollments] = await connection.query(
-        'SELECT status FROM enrollments WHERE student_id = ? AND course_id = ?',
+        `SELECT status FROM enrollments
+         WHERE student_id = ? AND course_id = ? AND status = 'active'
+         ORDER BY id ASC LIMIT 1`,
         [studentId, lesson.course_id]
       );
       
       if (enrollments.length === 0 || enrollments[0].status !== 'active') {
-        return { status: 403, body: { code: 'FORBIDDEN', message: 'You are not actively enrolled in this course.' } };
+        return { status: 403, body: { code: 'COURSE_ACCESS_REQUIRED', message: 'Enroll to unlock this lesson.' } };
       }
-      
-      return { status: 200, body: lesson };
+
+      return { status: 200, body: { lesson: toLessonResponse(lesson) } };
     } finally {
       connection.release();
     }
@@ -596,7 +605,7 @@ export async function getEnrolledCourses(studentId) {
     const connection = await pool.getConnection();
     try {
       const [courses] = await connection.query(
-        `SELECT c.* FROM courses c 
+        `SELECT c.*, e.progress_percent FROM courses c
          JOIN enrollments e ON c.id = e.course_id 
          WHERE e.student_id = ? AND e.status = 'active'`,
         [studentId]
@@ -750,6 +759,293 @@ export async function updateInstructorDraft({
         message: 'The draft course could not be updated.'
       }
     };
+  }
+}
+
+export async function getStudentCourseLearning({ courseId, studentId }) {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [courseRows] = await connection.query(
+      `SELECT c.id, c.title, c.description, c.price, c.status, e.progress_percent
+       FROM courses c
+       INNER JOIN enrollments e ON e.course_id = c.id
+       WHERE c.id = ? AND c.status = 'published' AND e.student_id = ? AND e.status = 'active'
+       ORDER BY e.id ASC LIMIT 1`,
+      [courseId, studentId]
+    );
+    if (courseRows.length === 0) {
+      return { status: 403, body: { code: 'COURSE_ACCESS_REQUIRED', message: 'Enroll to unlock this lesson.' } };
+    }
+
+    const [lessonRows] = await connection.query(
+      `SELECT id, course_id, title, video_url, document_url, order_index, created_at
+       FROM lessons WHERE course_id = ? ORDER BY order_index ASC, id ASC`,
+      [courseId]
+    );
+    const [progressRows] = await connection.query(
+      `SELECT lesson_id, status, completed_at
+       FROM lesson_progress
+       WHERE student_id = ? AND course_id = ? AND status = 'completed'
+       ORDER BY lesson_id ASC`,
+      [studentId, courseId]
+    );
+    const completedLessonIds = progressRows.map(row => row.lesson_id);
+    const totalLessons = lessonRows.length;
+    const completedLessons = completedLessonIds.length;
+    const progressPercent = totalLessons === 0 ? 0 : Math.round((completedLessons / totalLessons) * 100);
+
+    return {
+      status: 200,
+      body: {
+        course: {
+          id: courseRows[0].id,
+          title: courseRows[0].title,
+          description: courseRows[0].description,
+          price: Number(courseRows[0].price),
+          status: courseRows[0].status
+        },
+        items: lessonRows.map(toLessonResponse),
+        completedLessonIds,
+        progress: { completedLessons, totalLessons, percent: progressPercent }
+      }
+    };
+  } catch (error) {
+    console.error('Failed to load course learning data:', error.message);
+    return { status: 500, body: { code: 'LEARNING_LOAD_FAILED', message: 'Course content could not be loaded.' } };
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
+export async function completeStudentLesson({ lessonId, studentId }) {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    const [lessonRows] = await connection.query(
+      `SELECT l.id, l.course_id
+       FROM lessons l
+       INNER JOIN courses c ON c.id = l.course_id
+       INNER JOIN enrollments e ON e.course_id = c.id
+       WHERE l.id = ? AND c.status = 'published' AND e.student_id = ? AND e.status = 'active'
+       ORDER BY e.id ASC LIMIT 1 FOR UPDATE`,
+      [lessonId, studentId]
+    );
+    if (lessonRows.length === 0) {
+      await connection.rollback();
+      return { status: 403, body: { code: 'COURSE_ACCESS_REQUIRED', message: 'Enroll to unlock this lesson.' } };
+    }
+
+    const courseId = lessonRows[0].course_id;
+    await connection.query(
+      `INSERT INTO lesson_progress (student_id, course_id, lesson_id, status, completed_at)
+       VALUES (?, ?, ?, 'completed', CURRENT_TIMESTAMP)
+       ON DUPLICATE KEY UPDATE status = 'completed', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)`,
+      [studentId, courseId, lessonId]
+    );
+    const [[counts]] = await connection.query(
+      `SELECT
+         (SELECT COUNT(*) FROM lessons WHERE course_id = ?) AS total_lessons,
+         (SELECT COUNT(*) FROM lesson_progress WHERE student_id = ? AND course_id = ? AND status = 'completed') AS completed_lessons`,
+      [courseId, studentId, courseId]
+    );
+    const totalLessons = Number(counts.total_lessons);
+    const completedLessons = Number(counts.completed_lessons);
+    const progressPercent = totalLessons === 0 ? 0 : Math.round((completedLessons / totalLessons) * 100);
+    await connection.query(
+      `UPDATE enrollments SET progress_percent = ?
+       WHERE student_id = ? AND course_id = ? AND status = 'active'`,
+      [progressPercent, studentId, courseId]
+    );
+    const [completedRows] = await connection.query(
+      `SELECT lesson_id FROM lesson_progress
+       WHERE student_id = ? AND course_id = ? AND status = 'completed'
+       ORDER BY lesson_id ASC`,
+      [studentId, courseId]
+    );
+    await connection.commit();
+    return {
+      status: 200,
+      body: {
+        completed: true,
+        lessonId,
+        courseId,
+        completedLessonIds: completedRows.map(row => row.lesson_id),
+        progress: { completedLessons, totalLessons, percent: progressPercent }
+      }
+    };
+  } catch (error) {
+    if (connection) await connection.rollback();
+    console.error('Failed to complete lesson:', error.message);
+    return { status: 500, body: { code: 'LESSON_COMPLETE_FAILED', message: 'Learning progress could not be saved.' } };
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
+export async function askAiAboutLesson({ lessonId, studentId, question }) {
+  const cleanQuestion = typeof question === 'string' ? question.trim() : '';
+  if (!cleanQuestion || cleanQuestion.length > 1000) {
+    return { status: 400, body: { code: 'VALIDATION_ERROR', message: 'Question must contain between 1 and 1000 characters.' } };
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [lessonRows] = await connection.query(
+      `SELECT l.id, l.course_id, l.title, l.video_url, l.document_url,
+              c.title AS course_title, c.description AS course_description, c.status AS course_status
+       FROM lessons l
+       INNER JOIN courses c ON c.id = l.course_id
+       WHERE l.id = ?
+       LIMIT 1`,
+      [lessonId]
+    );
+    if (lessonRows.length === 0) {
+      return { status: 404, body: { code: 'LESSON_NOT_FOUND', message: 'The lesson was not found.' } };
+    }
+
+    const lesson = lessonRows[0];
+    const [enrollmentRows] = await connection.query(
+      `SELECT progress_percent
+       FROM enrollments
+       WHERE student_id = ? AND course_id = ? AND status = 'active'
+       ORDER BY id ASC LIMIT 1`,
+      [studentId, lesson.course_id]
+    );
+    if (lesson.course_status !== 'published' || enrollmentRows.length === 0) {
+      return { status: 403, body: { code: 'COURSE_ACCESS_REQUIRED', message: 'Enroll to unlock AI support.' } };
+    }
+
+    const resources = [];
+    if (lesson.video_url) resources.push({ type: 'video', url: lesson.video_url });
+    if (lesson.document_url) resources.push({ type: 'document', url: lesson.document_url });
+    const context = {
+      courseTitle: lesson.course_title,
+      courseDescription: lesson.course_description || '',
+      lessonTitle: lesson.title,
+      lessonContent: resources.length > 0 ? 'Use the lesson title, course description, and attached resources as the available learning context.' : '',
+      lessonResources: resources,
+      progressPercent: Number(enrollmentRows[0].progress_percent || 0)
+    };
+
+    const aiChatbotUrl = (process.env.AI_CHATBOT_URL || process.env.EXTERNAL_AI_CHATBOT_URL || '').replace(/\/+$/, '');
+    if (!aiChatbotUrl) {
+      return { status: 502, body: { code: 'AI_SUPPORT_UNAVAILABLE', message: 'AI support is unavailable right now.' } };
+    }
+
+    let response;
+    try {
+      response = await fetch(`${aiChatbotUrl}/chat`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(20000),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: cleanQuestion, context })
+      });
+    } catch (error) {
+      return { status: 502, body: { code: 'AI_SUPPORT_UNAVAILABLE', message: 'AI support is unavailable right now.' } };
+    }
+
+    const responseBody = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (responseBody?.code === 'AI_PROVIDER_NOT_CONFIGURED') {
+        return { status: 503, body: { code: responseBody.code, message: responseBody.message } };
+      }
+      if (responseBody?.code === 'AI_PROVIDER_UNAVAILABLE' || responseBody?.code === 'AI_PROVIDER_RESPONSE_INVALID') {
+        return { status: 502, body: { code: responseBody.code, message: responseBody.message } };
+      }
+      return { status: 502, body: { code: 'AI_SUPPORT_UNAVAILABLE', message: 'AI support is unavailable right now.' } };
+    }
+    if (typeof responseBody?.answer !== 'string' || !responseBody.answer.trim()) {
+      return { status: 502, body: { code: 'AI_RESPONSE_INVALID', message: 'AI support returned an invalid response.' } };
+    }
+
+    return {
+      status: 200,
+      body: {
+        answer: responseBody.answer.trim(),
+        model: responseBody.model || null,
+        provider: responseBody.provider || null,
+        usage: responseBody.usage || { inputTokens: null, outputTokens: null }
+      }
+    };
+  } catch (error) {
+    console.error('Failed to prepare AI lesson context:', error.message);
+    return { status: 500, body: { code: 'AI_CONTEXT_LOAD_FAILED', message: 'Lesson context could not be loaded.' } };
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
+export async function getPurchasableCourse(courseId) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, title, price, status
+       FROM courses
+       WHERE id = ? AND status = 'published'
+       LIMIT 1`,
+      [courseId]
+    );
+    if (rows.length === 0) {
+      return { status: 404, body: { code: 'COURSE_NOT_AVAILABLE', message: 'The course is not available for purchase.' } };
+    }
+    const course = rows[0];
+    return {
+      status: 200,
+      body: { course: { id: course.id, title: course.title, price: Number(course.price), status: course.status } }
+    };
+  } catch (error) {
+    console.error('Failed to load purchasable course:', error.message);
+    return { status: 500, body: { code: 'COURSE_LOOKUP_FAILED', message: 'The course could not be verified.' } };
+  }
+}
+
+export async function activateEnrollment({ studentId, courseId }) {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    const [courses] = await connection.query(
+      `SELECT id FROM courses WHERE id = ? AND status = 'published' FOR UPDATE`,
+      [courseId]
+    );
+    if (courses.length === 0) {
+      await connection.rollback();
+      return { status: 404, body: { code: 'COURSE_NOT_AVAILABLE', message: 'The course is not available for enrollment.' } };
+    }
+
+    const [existing] = await connection.query(
+      `SELECT id FROM enrollments
+       WHERE student_id = ? AND course_id = ?
+       ORDER BY id ASC LIMIT 1 FOR UPDATE`,
+      [studentId, courseId]
+    );
+    let enrollmentId;
+    if (existing.length > 0) {
+      enrollmentId = existing[0].id;
+      await connection.query(
+        `UPDATE enrollments SET status = 'active' WHERE student_id = ? AND course_id = ?`,
+        [studentId, courseId]
+      );
+    } else {
+      const [insertResult] = await connection.query(
+        `INSERT INTO enrollments (student_id, course_id, status) VALUES (?, ?, 'active')`,
+        [studentId, courseId]
+      );
+      enrollmentId = insertResult.insertId;
+    }
+    await connection.commit();
+    return {
+      status: 200,
+      body: { enrollment: { id: enrollmentId, studentId, courseId, status: 'active' } }
+    };
+  } catch (error) {
+    if (connection) await connection.rollback();
+    console.error('Failed to activate enrollment:', error.message);
+    return { status: 500, body: { code: 'ENROLLMENT_ACTIVATION_FAILED', message: 'Course access could not be activated.' } };
+  } finally {
+    if (connection) connection.release();
   }
 }
 

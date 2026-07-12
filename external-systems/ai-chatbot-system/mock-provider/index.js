@@ -1,53 +1,123 @@
 import express from 'express';
-import fetch from 'node-fetch'; // Polyfill if node version < 18
 import 'dotenv/config';
 
 const app = express();
-app.use(express.json());
+const port = Number(process.env.PORT) || 5005;
+const provider = (process.env.AI_PROVIDER || 'openai').trim().toLowerCase();
+const model = (process.env.AI_MODEL || 'gpt-4o-mini').trim();
+const baseUrl = (process.env.AI_BASE_URL || 'https://api.openai.com').replace(/\/+$/, '');
+const timeoutMs = Math.min(60000, Math.max(1000, Number(process.env.AI_REQUEST_TIMEOUT_MS) || 15000));
+const temperature = Math.min(2, Math.max(0, Number(process.env.AI_TEMPERATURE) || 0.3));
+const maxOutputTokens = Math.min(4000, Math.max(1, Number(process.env.AI_MAX_OUTPUT_TOKENS) || 600));
 
-const PORT = process.env.PORT || 5005;
-const COURSE_SERVICE_URL = process.env.COURSE_SERVICE_URL || 'http://localhost:5002';
+app.use(express.json({ limit: '64kb' }));
 
-app.post('/ai/chat', async (req, res) => {
-  const { question, courseId } = req.body;
-  const studentId = req.get('x-user-id'); // Passed from API Gateway
+function providerConfigured() {
+  const apiKey = process.env.AI_API_KEY?.trim();
+  return provider === 'openai' && Boolean(apiKey) && !apiKey.startsWith('your_');
+}
 
-  if (!question || !courseId) {
-    return res.status(400).json({ error: 'question and courseId are required.' });
-  }
+function buildUserInput(question, context) {
+  return [
+    `Course title: ${context.courseTitle || 'Not provided'}`,
+    `Course description: ${context.courseDescription || 'Not provided'}`,
+    `Lesson title: ${context.lessonTitle || 'Not provided'}`,
+    `Lesson content: ${context.lessonContent || 'Not provided'}`,
+    `Lesson resources: ${JSON.stringify(Array.isArray(context.lessonResources) ? context.lessonResources : [])}`,
+    `Course progress: ${Number.isFinite(Number(context.progressPercent)) ? Number(context.progressPercent) : 0}%`,
+    '',
+    `Student question: ${question}`
+  ].join('\n');
+}
 
-  console.log(`[AI Service] Received question from student ${studentId} for course ${courseId}: "${question}"`);
-
+export async function callRealAiProvider({ question, context }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    // 1. Fetch course context from Course Service (Internal API call)
-    // Note: We might need an internal endpoint in course-service to fetch all lessons for a course without enrollment check (for internal use)
-    // For now, let's mock the fetch call
-    console.log(`[AI Service] Fetching context from ${COURSE_SERVICE_URL}/internal/courses/${courseId}/context...`);
-    
-    // Simulate internal API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const mockCourseContext = "This course teaches Node.js and Event-Driven Architecture using RabbitMQ.";
-
-    // 2. Mock AI Response generation
-    console.log(`[AI Service] Generating AI response using context: "${mockCourseContext}"`);
-    
-    // Simulate LLM processing delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    const mockAiResponse = `Hello! Based on the course context (${mockCourseContext}), here is the answer to your question: "${question}". RabbitMQ is indeed a great choice for decoupling microservices!`;
-
-    res.status(200).json({
-      role: 'assistant',
-      content: mockAiResponse
+    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${process.env.AI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        temperature,
+        max_tokens: maxOutputTokens,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an LMS learning assistant. Answer only using the provided course and lesson context. If the context is insufficient, say what information is missing. Keep answers clear and helpful for students.'
+          },
+          { role: 'user', content: buildUserInput(question, context) }
+        ]
+      })
     });
 
+    if (!response.ok) {
+      console.error(`AI provider request failed with HTTP ${response.status}.`);
+      const error = new Error('AI provider request failed.');
+      error.code = 'AI_PROVIDER_UNAVAILABLE';
+      throw error;
+    }
+
+    const body = await response.json().catch(() => null);
+    const answer = body?.choices?.[0]?.message?.content;
+    if (typeof answer !== 'string' || !answer.trim()) {
+      const error = new Error('AI provider returned an invalid response.');
+      error.code = 'AI_PROVIDER_RESPONSE_INVALID';
+      throw error;
+    }
+
+    return {
+      answer: answer.trim(),
+      model,
+      provider,
+      usage: {
+        inputTokens: body?.usage?.prompt_tokens ?? null,
+        outputTokens: body?.usage?.completion_tokens ?? null
+      }
+    };
   } catch (error) {
-    console.error('[AI Service] Error processing chat:', error);
-    res.status(500).json({ error: 'Failed to process AI chat request.' });
+    if (error.code) throw error;
+    const providerError = new Error('AI provider request failed.');
+    providerError.code = 'AI_PROVIDER_UNAVAILABLE';
+    throw providerError;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+app.get('/', (req, res) => res.json({ status: providerConfigured() ? 'healthy' : 'degraded' }));
+app.get('/health', (req, res) => res.json({
+  status: providerConfigured() ? 'healthy' : 'degraded',
+  configured: providerConfigured(),
+  provider,
+  model
+}));
+
+app.post('/chat', async (req, res) => {
+  const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+  const context = req.body?.context;
+  if (!question || question.length > 1000 || !context || typeof context !== 'object' || Array.isArray(context)) {
+    return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'A valid question and lesson context are required.' });
+  }
+  if (!providerConfigured()) {
+    return res.status(503).json({ code: 'AI_PROVIDER_NOT_CONFIGURED', message: 'AI support is not configured.' });
+  }
+
+  try {
+    const result = await callRealAiProvider({ question, context });
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.code === 'AI_PROVIDER_RESPONSE_INVALID') {
+      return res.status(502).json({ code: error.code, message: 'AI support returned an invalid response.' });
+    }
+    return res.status(502).json({ code: 'AI_PROVIDER_UNAVAILABLE', message: 'AI support is unavailable right now.' });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`AI Chatbot Service listening on http://localhost:${PORT}`);
+app.listen(port, () => {
+  console.log(`External AI chatbot system listening on port ${port}.`);
 });

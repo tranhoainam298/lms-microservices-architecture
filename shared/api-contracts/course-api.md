@@ -5,6 +5,46 @@
 
 Course Service handles courses, lessons, enrollment/access, progress, and learning context for AI.
 
+## POST /courses/lessons/{lessonId}/ai/ask
+
+Asks for learning help about one unlocked lesson.
+
+```http
+POST /courses/lessons/{lessonId}/ai/ask
+Authorization: Bearer {studentAccessToken}
+Content-Type: application/json
+
+{ "question": "Explain this lesson in simple words" }
+```
+
+- Requires a verified student JWT and active enrollment in the lesson's published course.
+- `studentId` comes only from the verified JWT and is never accepted from the request body.
+- Course Service loads the course title, description, lesson title, resource metadata, and saved course progress from Course DB.
+- Course Service sends only the question and learning context to the External AI Chatbot System.
+- The external system calls the configured real AI provider with a server-side key. The key is never returned to Course Service or the browser.
+
+Success response:
+
+```json
+{
+  "answer": "...",
+  "model": "gpt-4o-mini",
+  "provider": "openai",
+  "usage": { "inputTokens": null, "outputTokens": null }
+}
+```
+
+Errors include `VALIDATION_ERROR` (400), `COURSE_ACCESS_REQUIRED` (403), `LESSON_NOT_FOUND` (404), `AI_PROVIDER_NOT_CONFIGURED` (503), and safe 502 AI availability/response errors.
+
+## Internal payment integration
+
+Payment Service uses two server-to-server endpoints protected by `X-Internal-Service-Secret`:
+
+- `GET /courses/internal/purchasable/{courseId}` returns only a published course's trusted ID, title, price, and status.
+- `POST /courses/internal/enrollments/activate` accepts `{ studentId, courseId }`, verifies the course is published, and transactionally activates or creates the Course DB enrollment.
+
+These endpoints are not browser enrollment shortcuts. Activation is idempotent and Course Service never accesses Payment DB.
+
 ---
 
 ## POST /courses/draft

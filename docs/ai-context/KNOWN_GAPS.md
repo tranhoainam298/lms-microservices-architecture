@@ -4,19 +4,14 @@ This document tracks known deviations between the current codebase and the autho
 
 ## Architectural Gaps
 
-1.  **Missing API Gateway Routing:**
-    *   `/payments` proxy mapping to `payment-service` is missing.
-    *   `/ai` proxy mapping to `course-service` is missing.
-2.  **Payment Access Activation Link:**
-    *   The Payment Service should emit a `PaymentCompletedEvent` via RabbitMQ, which the Course Service consumes to create an active enrollment in `lms_course_db`. This connection is stubbed but not fully wired.
-3.  **Missing Revenue Report Endpoint:**
+1.  **Missing Revenue Report Endpoint:**
     *   No backend service contains reporting aggregations for course revenues.
-4.  **Missing Course Service AI Integration:**
-    *   Course Service does not feed course context to the external AI Chatbot System.
-5.  **View Lesson Validations:**
-    *   Course Service lacks active enrollment verification checks before returning lesson data.
+2.  **Live AI provider credential:**
+    *   Source integration is complete, but a real provider call cannot be verified until `AI_API_KEY` is supplied outside Git.
 
 ## Codebase and Test Gaps
 
-1.  **Cross-Service Database Access in Tests:**
-    *   `tests/test-payment-flow.js` makes direct connections to `lms_course_db` on port 3317. In production runtime code, services must adhere strictly to database-per-service isolation rules.
+1.  **Legacy Payment Test:**
+    *   `tests/test-payment-flow.js` is retained as historical scaffolding. `tests/test-payment-course-flow.js` delegates to the active ZaloPay Sandbox focused test unless explicitly put in legacy mode.
+2.  **Local callback reachability:**
+    *   ZaloPay cannot normally call a localhost callback. The Web Client therefore polls the signed query endpoint; public callback deployment requires a reachable HTTPS URL.

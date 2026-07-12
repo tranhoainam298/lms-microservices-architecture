@@ -111,7 +111,7 @@ export default function LoginPage({ onLogin }) {
       }
     } catch (requestError) {
       const message = requestError instanceof TypeError
-        ? 'Login service is unavailable. Start the API Gateway and User Service, then try again.'
+        ? 'Sign in is temporarily unavailable. Please try again shortly.'
         : requestError.message;
       setError(message);
     } finally {
@@ -127,38 +127,31 @@ export default function LoginPage({ onLogin }) {
             <span className="login-brand__mark" aria-hidden="true">M</span>
             <span className="login-brand__name">Meridian LMS</span>
           </div>
-          <span className="login-thesis__label">LMS architecture demo</span>
-          <h1>Learning, with the system in full view.</h1>
+          <span className="login-thesis__label">Learn without limits</span>
+          <h1>Your next learning milestone starts here.</h1>
           <p>
-            A focused university workspace where every learning action maps to a clear
-            microservice boundary.
+            A focused learning workspace for courses, lessons, assessments, and progress.
           </p>
 
           <dl className="login-value-list">
             <div>
-              <dt>One entry point</dt>
-              <dd>Authenticated through the API Gateway.</dd>
+              <dt>Secure access</dt>
+              <dd>Protected sign-in for every account.</dd>
             </div>
             <div>
               <dt>Role-aware</dt>
-              <dd>Purpose-built workspaces for every demo account.</dd>
+              <dd>Purpose-built workspaces for every learner and educator.</dd>
             </div>
           </dl>
         </div>
 
-        <div className="login-topology" aria-label="Login request architecture">
-          <span>Web Client</span><i aria-hidden="true" />
-          <span>API Gateway</span><i aria-hidden="true" />
-          <span>User Service</span><i aria-hidden="true" />
-          <span>User DB</span>
-        </div>
       </aside>
 
       <main className="login-panel">
         <div className="login-panel__heading">
           <span className="page-kicker">{mode === 'register' ? 'Student registration' : 'Welcome back'}</span>
           <h2>{mode === 'register' ? 'Create your student account' : 'Sign in to your workspace'}</h2>
-          <p>{mode === 'register' ? 'Register securely through the User Service.' : 'Select a role to load its demo account, then authenticate through the live gateway.'}</p>
+          <p>{mode === 'register' ? 'Create your student account to start learning.' : 'Sign in to continue to your workspace.'}</p>
         </div>
 
         <div className="login-mode-switch" role="group" aria-label="Authentication mode">
@@ -166,11 +159,11 @@ export default function LoginPage({ onLogin }) {
           <button type="button" className={`btn ${mode === 'register' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setMode('register'); setRole('student'); setEmail(''); setPassword(''); setError(''); setSuccess(''); }}>Register</button>
         </div>
 
-        <div className="login-route-summary" aria-label="Authentication service route">
+        <div className="login-route-summary" aria-label="Secure sign-in status">
           <span className="login-route-summary__status" aria-hidden="true" />
           <div>
-            <strong>API Gateway route configured</strong>
-            <span>User Service authentication route</span>
+            <strong>Secure sign-in</strong>
+            <span>Your account information is protected.</span>
           </div>
         </div>
 
@@ -277,7 +270,7 @@ export default function LoginPage({ onLogin }) {
           <div className="login-form__feedback" aria-live="polite" aria-atomic="true">
             {error && <div className="form-alert form-alert--error" id="login-error" role="alert">{error}</div>}
             {success && <div className="form-alert form-alert--success" role="status">{success}</div>}
-            {isLoading && !error && <p className="form-status" role="status">Authenticating with the API Gateway...</p>}
+            {isLoading && !error && <p className="form-status" role="status">Signing you in...</p>}
           </div>
 
           <button

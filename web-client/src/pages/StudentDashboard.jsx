@@ -2,7 +2,6 @@ import React from 'react';
 import StatCard from '../components/StatCard';
 import CourseCard from '../components/CourseCard';
 import StatusBadge from '../components/StatusBadge';
-import ArchitectureFlow from '../components/ArchitectureFlow';
 import ProgressBar from '../components/ProgressBar';
 
 export default function StudentDashboard({
@@ -15,14 +14,25 @@ export default function StudentDashboard({
   user,
   onNavigate
 }) {
+  const [freeEnrollmentNotice, setFreeEnrollmentNotice] = React.useState('');
   const enrolledCount = courseAccess.length;
   const totalCourses = courses.filter(c => c.status === 'published');
   const paymentTotal = payments.reduce((acc, curr) => acc + Number(curr.amount), 0);
+  const formatPaymentAmount = (amount) => new Intl.NumberFormat('vi-VN', {
+    style: 'currency', currency: 'VND', maximumFractionDigits: 0
+  }).format(Number(amount));
   const nextQuiz = quizzes[0];
   const latestPayment = payments[payments.length - 1];
 
   const checkAccess = (courseId) => {
     return courseAccess.some(a => a.course_id === courseId && a.access_status === 'active');
+  };
+
+  const openCourse = (course, enrolled) => {
+    setFreeEnrollmentNotice('');
+    if (enrolled) return onNavigate('lesson', { courseId: course.id });
+    if (Number(course.price) > 0) return onNavigate('payment', { courseId: course.id });
+    setFreeEnrollmentNotice('Free-course enrollment is not available yet. Please check back soon.');
   };
 
   const enrolledCourses = totalCourses.filter(course => checkAccess(course.id));
@@ -37,15 +47,15 @@ export default function StudentDashboard({
     ...payments.map(payment => ({
       id: `payment-${payment.id}`,
       label: 'Payment completed',
-      detail: `${payment.payment_method.toUpperCase()} / $${Number(payment.amount).toFixed(2)}`,
-      service: 'Payment Service',
+      detail: `${payment.payment_method.toUpperCase()} / ${formatPaymentAmount(payment.amount)}`,
+      service: 'Payment history',
       timestamp: payment.created_at
     })),
     ...quizAttempts.map(attempt => ({
       id: `quiz-${attempt.id}`,
       label: 'Quiz attempt graded',
       detail: `Attempt #${attempt.id}`,
-      service: 'Exam & Quiz Service',
+      service: 'Quiz results',
       timestamp: attempt.submitted_at || attempt.started_at
     })),
     ...progress
@@ -56,7 +66,7 @@ export default function StudentDashboard({
           id: `progress-${item.id}`,
           label: 'Lesson completed',
           detail: relatedCourse?.title || 'Course lesson',
-          service: 'Course Service',
+          service: 'Learning progress',
           timestamp: item.completed_at
         };
       })
@@ -88,32 +98,27 @@ export default function StudentDashboard({
         </div>
       </header>
 
-      <ArchitectureFlow
-        label="Learning request"
-        ariaLabel="Learning request flows from Web Client through API Gateway and Course Service to Course DB"
-        steps={['Web Client', 'API Gateway', 'Course Service', 'Course DB']}
-        compact
-      />
+      {freeEnrollmentNotice && <div className="form-alert form-alert--warning" role="status">{freeEnrollmentNotice}</div>}
 
       <div className="metrics-grid mb-6">
         <StatCard
           eyebrow="Course access"
           title="Enrolled Courses"
           value={enrolledCount}
-          description="Active learning modules in Course DB"
+          description="Courses ready to continue"
           tone="primary"
         />
         <StatCard
           eyebrow="Assessment"
           title="Quiz Attempts"
           value={quizAttempts.length}
-          description="Grading records in Exam DB"
+          description="Completed assessment attempts"
         />
         <StatCard
           eyebrow="Payments"
           title="Payment Activity"
-          value={`$${paymentTotal.toFixed(2)}`}
-          description="Payments processed in Payment DB"
+          value={formatPaymentAmount(paymentTotal)}
+          description="Your completed payments"
           tone="success"
         />
       </div>
@@ -122,7 +127,7 @@ export default function StudentDashboard({
         <section className="card continue-learning-card" aria-labelledby="continue-learning-title">
           <div className="continue-learning-card__content">
             <div className="continue-learning-card__topline">
-              <span className="service-badge">Course Service</span>
+              <span className="service-badge">My learning</span>
               <span>{continueIsEnrolled ? 'Resume course' : 'Recommended course'}</span>
             </div>
             <p className="section-kicker">Continue learning</p>
@@ -137,12 +142,9 @@ export default function StudentDashboard({
               <button
                 className="btn btn-primary"
                 type="button"
-                onClick={() => onNavigate(
-                  continueIsEnrolled ? 'lesson' : 'payment',
-                  { courseId: continueCourse.id }
-                )}
+                onClick={() => openCourse(continueCourse, continueIsEnrolled)}
               >
-                {continueIsEnrolled ? 'Continue course' : 'Enroll and checkout'}
+                {continueIsEnrolled ? 'Continue Learning' : Number(continueCourse.price) > 0 ? 'Buy Course' : 'Enroll to continue'}
               </button>
               <span>{continueIsEnrolled ? `${continueCourse.progress_percent || 0}% complete` : `$${Number(continueCourse.price).toFixed(2)}`}</span>
             </div>
@@ -174,14 +176,8 @@ export default function StudentDashboard({
                     key={course.id}
                     course={course}
                     isEnrolled={isEnrolled}
-                    actionLabel={isEnrolled ? 'Study syllabus' : 'Enroll and checkout'}
-                    onAction={() => {
-                      if (isEnrolled) {
-                        onNavigate('lesson', { courseId: course.id });
-                      } else {
-                        onNavigate('payment', { courseId: course.id });
-                      }
-                    }}
+                    actionLabel={isEnrolled ? 'Continue Learning' : Number(course.price) > 0 ? 'Buy Course' : 'Enroll to continue'}
+                    onAction={() => openCourse(course, isEnrolled)}
                   />
                 );
               })}
@@ -194,7 +190,7 @@ export default function StudentDashboard({
                 <p className="section-label">Across your workspace</p>
                 <h2 id="recent-activity-title">Recent activity</h2>
               </div>
-              <span className="service-badge">Live local state</span>
+              <span className="service-badge">Latest updates</span>
             </div>
 
             {recentActivity.length === 0 ? (
@@ -225,7 +221,7 @@ export default function StudentDashboard({
         <aside className="dashboard-sidebar" aria-label="Upcoming learning and account status">
           <section className="card dashboard-highlight" aria-labelledby="upcoming-quiz-title">
             <div className="dashboard-highlight__topline">
-              <span className="service-badge">Exam & Quiz Service</span>
+              <span className="service-badge">Assessment</span>
               <StatusBadge status={nextQuiz?.status || 'pending'} />
             </div>
             <p className="section-kicker">Next assessment</p>
@@ -239,7 +235,7 @@ export default function StudentDashboard({
 
           <section className="card dashboard-highlight" aria-labelledby="payment-status-title">
             <div className="dashboard-highlight__topline">
-              <span className="service-badge">Payment Service</span>
+              <span className="service-badge">Payment history</span>
               <StatusBadge status={latestPayment?.payment_status || 'pending'} />
             </div>
             <p className="section-kicker">Account activity</p>
@@ -254,11 +250,11 @@ export default function StudentDashboard({
 
           <section className="card dashboard-panel recommended-action" aria-labelledby="recommended-action-title">
             <span className="service-badge">Recommended next action</span>
-            <h3 id="recommended-action-title">Strengthen the architecture concepts</h3>
-            <p>Ask the study assistant about the current API Gateway lesson before your next quiz.</p>
+            <h3 id="recommended-action-title">Review today’s lesson</h3>
+            <p>Ask the study assistant about a difficult concept before your next quiz.</p>
             <div className="recommended-action__buttons">
-              <button className="btn btn-secondary w-full" type="button" onClick={() => onNavigate('ai-support')}>
-                Ask the study assistant
+              <button className="btn btn-secondary w-full" type="button" onClick={() => continueCourse && openCourse(continueCourse, continueIsEnrolled)}>
+                Review current lesson
               </button>
               <button className="btn btn-ghost w-full" type="button" onClick={() => onNavigate('quiz', { quizId: 801 })}>
                 Open quiz module
