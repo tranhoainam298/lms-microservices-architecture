@@ -1,4 +1,4 @@
-import { activateEnrollment, askAiAboutLesson, checkStudentExamAccess, completeStudentLesson, createDraftCourse, createLessonForInstructorDraft, deleteLessonForInstructorDraft, getLesson, getLessonsForInstructorDraft, getCourses, getEnrolledCourses, getInstructorDrafts, getPurchasableCourse, getStudentCourseLearning, publishInstructorDraft, updateInstructorDraft, updateLessonForInstructorDraft } from '../services/courseService.js';
+import { activateEnrollment, askAiAboutLesson, checkStudentExamAccess, completeStudentLesson, createDraftCourse, createLessonForInstructorDraft, deleteLessonForInstructorDraft, getCourseTitlesInternal, getLesson, getLessonsForInstructorDraft, getCourses, getEnrolledCourses, getInstructorDrafts, getPurchasableCourse, getStudentCourseLearning, publishInstructorDraft, updateInstructorDraft, updateLessonForInstructorDraft } from '../services/courseService.js';
 
 export async function createDraft(req, res) {
   const payload = req.body || {};
@@ -189,5 +189,10 @@ export async function publishDraftHandler(req, res) {
     instructorId: req.user.id
   });
 
+  res.status(result.status).json(result.body);
+}
+
+export async function getCourseTitlesInternalHandler(req, res) {
+  const result = await getCourseTitlesInternal();
   res.status(result.status).json(result.body);
 }

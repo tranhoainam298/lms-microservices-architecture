@@ -23,8 +23,8 @@ Reference mapping of the 7 sequence diagrams from the authoritative design:
 *   *Status:* **ZaloPay Sandbox source flow aligned; live provider create requires sandbox credentials**. Browser uses Nginx/Gateway, Payment Service owns signed create/query/callback and Payment DB state, then calls Course Service after paid confirmation.
 
 ### Sequence 6: Revenue Report
-*   *Flow:* Instructor $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Payment Service $\rightarrow$ Payment DB.
-*   *Status:* **Not Achieved**.
+*   *Flow:* Admin $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Payment Service $\rightarrow$ Payment DB + Course Service (internal titles) $\rightarrow$ Aggregated response.
+*   *Status:* **Achieved**. Admin-authenticated `GET /payments/reports/revenue` queries Payment DB transactions, cross-calls Course Service `GET /courses/internal/titles` for course enrichment, and returns summary statistics, course revenue breakdown, and a filterable transaction ledger. Web Client fetches and renders real data.
 
 ### Sequence 7: Ask Learning Question (AI Support)
 *   *Flow:* Student $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Course Service $\rightarrow$ Course DB $\rightarrow$ External AI Chatbot System.

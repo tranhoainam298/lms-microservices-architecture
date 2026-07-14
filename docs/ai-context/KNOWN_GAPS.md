@@ -4,9 +4,7 @@ This document tracks known deviations between the current codebase and the autho
 
 ## Architectural Gaps
 
-1.  **Missing Revenue Report Endpoint:**
-    *   No backend service contains reporting aggregations for course revenues.
-2.  **Live AI provider credential:**
+1.  **Live AI provider credential:**
     *   Source integration is complete, but a real provider call cannot be verified until `AI_API_KEY` is supplied outside Git.
 
 ## Codebase and Test Gaps

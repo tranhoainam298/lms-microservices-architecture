@@ -11,6 +11,8 @@ import PaymentPage from './pages/PaymentPage';
 import AdminRevenueReport from './pages/AdminRevenueReport';
 import ProfilePage from './pages/ProfilePage';
 import AdminUserManagement from './pages/AdminUserManagement';
+import AiSupportPage from './pages/AiSupportPage';
+import OverviewPage from './pages/OverviewPage';
 import { apiUrl } from './config/api';
 
 // Mock Databases
@@ -51,10 +53,12 @@ const pageMeta = {
     context: 'Administration'
   },
   profile: { title: 'Your profile', subtitle: 'Manage your account details and password.', context: 'User account' },
-  'user-management': { title: 'User management', subtitle: 'Review and activate platform accounts.', context: 'Administration' }
+  'user-management': { title: 'User management', subtitle: 'Review and activate platform accounts.', context: 'Administration' },
+  'ai-support': { title: 'AI Learning Assistant', subtitle: 'Ask questions about your course content.', context: 'AI Support' },
+  'overview': { title: 'System Overview', subtitle: 'Architecture and service status.', context: 'Platform' }
 };
 
-const tabPages = new Set(['home', 'dashboard', 'course-draft', 'revenue-report', 'profile', 'user-management']);
+const tabPages = new Set(['home', 'dashboard', 'course-draft', 'revenue-report', 'profile', 'user-management', 'ai-support', 'overview']);
 const studentOnlyPages = new Set(['dashboard', 'lesson', 'quiz', 'payment']);
 
 export default function App() {
@@ -287,14 +291,17 @@ export default function App() {
       case 'revenue-report':
         return (
           <AdminRevenueReport 
-            payments={payments} 
-            courses={courses} 
+            accessToken={authSession.accessToken}
           />
         );
       case 'profile':
         return <ProfilePage accessToken={authSession.accessToken} onProfileUpdated={handleProfileUpdated} />;
       case 'user-management':
         return <AdminUserManagement accessToken={authSession.accessToken} currentUserId={user.id} />;
+      case 'ai-support':
+        return <AiSupportPage />;
+      case 'overview':
+        return <OverviewPage />;
       default:
         return <div>Tab not found</div>;
     }

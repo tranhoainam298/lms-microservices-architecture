@@ -9,7 +9,7 @@ Current status of core features across the codebase.
 | **3. View Lesson Content** | **Achieved** | Student JWT, published-course enrollment checks, real lesson resources, idempotent per-lesson completion, and persisted Course DB progress are active. |
 | **4. Take Quiz** | **Achieved** | Enrolled E2E load/submit passed through Nginx and Gateway; answer keys stayed private, grading ignored forged client scores, the result persisted in Exam DB, and duplicate submission returned a safe conflict. |
 | **5. Pay for Course** | **ZaloPay Sandbox implementation complete; live create blocked without credentials** | Checkout signs Sandbox v2 create requests, Web Client opens `order_url` and polls signed v2 query status, callbacks require Key2 MAC, and paid confirmation activates Course DB enrollment through Course Service. |
-| **6. Revenue Report** | **Not Achieved** | Backend aggregation endpoints and Course-Payment cross-service reports are missing. |
+| **6. Revenue Report** | **Achieved** | Admin-only `GET /payments/reports/revenue` endpoint queries Payment DB for all transactions, cross-service calls Course Service `GET /courses/internal/titles` for course title enrichment, aggregates revenue statistics, and returns summary, course breakdown, and full transaction ledger. Web Client fetches real data with admin JWT. |
 | **7. AI Chatbot Support** | **Real provider integration implemented; live provider call blocked without `AI_API_KEY`** | Lesson Viewer asks through Gateway and Course Service; Course Service verifies enrollment and supplies Course DB context to the external provider adapter. No canned fallback is active. |
 
 ## Deployment simulation

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { timingSafeEqual } from 'node:crypto';
-import { activateEnrollmentHandler, askAiAboutLessonHandler, checkStudentExamAccessHandler, completeStudentLessonHandler, createDraft, createLessonForInstructorDraftHandler, deleteLessonForInstructorDraftHandler, getLessonHandler, getLessonsForInstructorDraftHandler, getCoursesHandler, getEnrolledCoursesHandler, getInstructorDraftsHandler, getPurchasableCourseHandler, getStudentCourseLearningHandler, legacyLessonCreationDeprecatedHandler, publishDraftHandler, updateDraftHandler, updateLessonForInstructorDraftHandler } from '../controllers/courseController.js';
+import { activateEnrollmentHandler, askAiAboutLessonHandler, checkStudentExamAccessHandler, completeStudentLessonHandler, createDraft, createLessonForInstructorDraftHandler, deleteLessonForInstructorDraftHandler, getCourseTitlesInternalHandler, getLessonHandler, getLessonsForInstructorDraftHandler, getCoursesHandler, getEnrolledCoursesHandler, getInstructorDraftsHandler, getPurchasableCourseHandler, getStudentCourseLearningHandler, legacyLessonCreationDeprecatedHandler, publishDraftHandler, updateDraftHandler, updateLessonForInstructorDraftHandler } from '../controllers/courseController.js';
 import { jwtAuth } from '../middleware/jwtAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
 
@@ -33,6 +33,7 @@ router.get('/', getCoursesHandler);
 router.get('/enrolled', jwtAuth, requireRole('student'), getEnrolledCoursesHandler);
 router.get('/internal/purchasable/:courseId', internalServiceAuth, getPurchasableCourseHandler);
 router.post('/internal/enrollments/activate', internalServiceAuth, activateEnrollmentHandler);
+router.get('/internal/titles', internalServiceAuth, getCourseTitlesInternalHandler);
 router.get('/drafts/mine', jwtAuth, requireRole('instructor'), getInstructorDraftsHandler);
 router.get('/:courseId/student-exam-access', jwtAuth, requireRole('student'), checkStudentExamAccessHandler);
 router.get('/:courseId/learning', jwtAuth, requireRole('student'), getStudentCourseLearningHandler);

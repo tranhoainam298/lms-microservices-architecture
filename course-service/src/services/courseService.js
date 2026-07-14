@@ -582,6 +582,32 @@ export async function enrollStudent(studentId, courseId) {
   }
 }
 
+export async function getCourseTitlesInternal() {
+  try {
+    const connection = await pool.getConnection();
+    try {
+      const [courses] = await connection.query(
+        'SELECT id, title, price, status, instructor_id FROM courses'
+      );
+      const courseMap = {};
+      for (const course of courses) {
+        courseMap[course.id] = {
+          title: course.title,
+          price: Number(course.price),
+          status: course.status,
+          instructorId: course.instructor_id
+        };
+      }
+      return { status: 200, body: { courses: courseMap } };
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error getting course titles:', error);
+    return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Failed to get course titles.' } };
+  }
+}
+
 export async function getCourses() {
   try {
     const connection = await pool.getConnection();

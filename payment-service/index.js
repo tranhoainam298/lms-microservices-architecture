@@ -450,6 +450,121 @@ app.post('/payments/callback/zalopay', async (req, res) => {
   }
 });
 
+function authenticateAdmin(req, res, next) {
+  const authorization = req.get('authorization') || '';
+  if (!authorization.startsWith('Bearer ')) {
+    return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Authorization token is required.' });
+  }
+  try {
+    const token = authorization.slice(7);
+    const parts = token.split('.');
+    if (parts.length !== 3) throw new Error('Malformed token');
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    if (header.alg !== 'HS256') throw new Error('Unsupported algorithm');
+    const expectedSignature = createHmac('sha256', process.env.JWT_SECRET)
+      .update(`${parts[0]}.${parts[1]}`)
+      .digest();
+    const actualSignature = Buffer.from(parts[2], 'base64url');
+    if (expectedSignature.length !== actualSignature.length || !timingSafeEqual(expectedSignature, actualSignature)) {
+      throw new Error('Invalid signature');
+    }
+    if (!Number.isFinite(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) {
+      throw new Error('Expired token');
+    }
+    const userId = parsePositiveInteger(payload.id ?? payload.sub);
+    const role = String(payload.role || '').trim().toLowerCase();
+    if (!userId || !role) throw new Error('Missing claims');
+    if (role !== 'admin') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only administrators can access revenue reports.' });
+    }
+    req.user = { id: userId, role };
+    next();
+  } catch {
+    return res.status(401).json({ code: 'INVALID_TOKEN', message: 'The access token is invalid or expired.' });
+  }
+}
+
+async function fetchCourseTitles() {
+  let response;
+  try {
+    response = await fetch(`${COURSE_SERVICE_URL}/courses/internal/titles`, {
+      headers: { 'x-internal-service-secret': process.env.INTERNAL_SERVICE_SECRET }
+    });
+  } catch {
+    return {};
+  }
+  if (!response.ok) return {};
+  const body = await readJson(response);
+  return body.courses || {};
+}
+
+app.get('/payments/reports/revenue', authenticateAdmin, async (req, res, next) => {
+  try {
+    // 1. Query all transactions from Payment DB
+    const [transactions] = await pool.execute(
+      `SELECT id, student_id, course_id, amount, status, gateway, gateway_transaction_id, created_at
+       FROM transactions
+       ORDER BY created_at DESC`
+    );
+
+    // 2. Cross-service call: fetch course titles from Course Service
+    const courseMap = await fetchCourseTitles();
+
+    // 3. Aggregate statistics
+    const totalTransactions = transactions.length;
+    const successTransactions = transactions.filter(t => t.status === 'success');
+    const totalRevenue = successTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+    const successRate = totalTransactions > 0 ? (successTransactions.length / totalTransactions) * 100 : 0;
+    const averageOrderValue = successTransactions.length > 0 ? totalRevenue / successTransactions.length : 0;
+
+    // 4. Revenue breakdown by course
+    const courseRevenueMap = {};
+    for (const t of successTransactions) {
+      if (!courseRevenueMap[t.course_id]) {
+        const courseInfo = courseMap[t.course_id];
+        courseRevenueMap[t.course_id] = {
+          courseId: t.course_id,
+          title: courseInfo?.title || `Course #${t.course_id}`,
+          price: courseInfo?.price || 0,
+          totalRevenue: 0,
+          transactionCount: 0
+        };
+      }
+      courseRevenueMap[t.course_id].totalRevenue += Number(t.amount);
+      courseRevenueMap[t.course_id].transactionCount += 1;
+    }
+    const courseBreakdown = Object.values(courseRevenueMap).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    // 5. Normalize transactions for response
+    const transactionList = transactions.map(t => ({
+      id: t.id,
+      studentId: t.student_id,
+      courseId: t.course_id,
+      courseTitle: courseMap[t.course_id]?.title || `Course #${t.course_id}`,
+      amount: Number(t.amount),
+      currency: 'VND',
+      status: t.status,
+      provider: t.gateway,
+      appTransId: t.gateway_transaction_id,
+      createdAt: t.created_at
+    }));
+
+    return res.status(200).json({
+      summary: {
+        totalRevenue,
+        totalTransactions,
+        successfulTransactions: successTransactions.length,
+        successRate: Math.round(successRate * 100) / 100,
+        averageOrderValue: Math.round(averageOrderValue * 100) / 100,
+        currency: 'VND'
+      },
+      courseBreakdown,
+      transactions: transactionList
+    });
+  } catch (error) { next(error); }
+});
+
 app.post('/payments/mock/complete', (req, res) => {
   res.status(410).json({
     code: 'ENDPOINT_DEPRECATED',
