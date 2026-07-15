@@ -1161,6 +1161,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                       </div>
                     </li>
                   ))}
+
                 </ul>
               )}
             </section>

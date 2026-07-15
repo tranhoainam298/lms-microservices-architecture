@@ -2573,6 +2573,98 @@ textarea.form-control {
   gap: var(--space-4);
 }
 
+/* =============================================
+   Shared Form Components (filter/search forms)
+   ============================================= */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.form-field > span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-14);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
+  outline: none;
+  appearance: none;
+}
+
+.form-field input::placeholder,
+.form-field select::placeholder {
+  color: var(--color-text-muted);
+}
+
+.form-field input:hover,
+.form-field select:hover {
+  border-color: var(--color-border-hover, var(--color-primary-border));
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  border-color: var(--color-primary);
+  background: var(--color-surface-raised);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.form-alert {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-13);
+  font-weight: var(--weight-medium);
+}
+
+.form-alert--error {
+  background: var(--color-error-soft, #fef2f2);
+  border: 1px solid var(--color-error-border, #fecaca);
+  color: var(--color-error, #dc2626);
+}
+
+.form-alert--success {
+  background: var(--color-success-soft);
+  border: 1px solid var(--color-success-border);
+  color: var(--color-success-active, #16a34a);
+}
+
+
+
 .course-card {
   position: relative;
   min-width: 0;
@@ -3107,8 +3199,8 @@ textarea.form-control {
 .draft-list__item {
   min-width: 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--space-3);
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--color-border);
@@ -3139,9 +3231,9 @@ textarea.form-control {
 .draft-list__actions {
   min-width: 0;
   display: flex;
-  flex: 1 1 420px;
+  flex: 1 1 auto;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: var(--space-2);
 }

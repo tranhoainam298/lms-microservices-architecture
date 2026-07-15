@@ -36,6 +36,10 @@ async function init() {
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || 'root',
     database: process.env.DB_NAME || 'lms_payment_db',
+    charset: 'utf8mb4',
+    waitForConnections: true,
+    connectionLimit: 50,
+    queueLimit: 0,
   });
   await pool.query('SELECT 1');
   console.log('Connected to Payment DB');

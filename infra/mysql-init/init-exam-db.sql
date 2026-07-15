@@ -1,6 +1,7 @@
 -- =============================================
 -- LMS Exam Database - Schema & Seed Data
 -- =============================================
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS quizzes (
   Id INT AUTO_INCREMENT PRIMARY KEY,
