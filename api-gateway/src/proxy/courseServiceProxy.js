@@ -83,15 +83,13 @@ export async function forwardGetLesson(lessonId, authorizationHeader) {
   return { status: response.status, body };
 }
 
-export async function forwardGetCourses(user) {
+export async function forwardGetCourses() {
   let response;
   try {
     response = await fetch(`${courseServiceUrl}/courses`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        ...(user?.id ? { 'X-User-Id': user.id } : {}),
-        ...(user?.role ? { 'X-User-Role': user.role } : {})
+        'Accept': 'application/json'
       }
     });
   } catch (cause) {

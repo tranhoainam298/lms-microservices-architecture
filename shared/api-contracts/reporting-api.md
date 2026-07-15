@@ -1,56 +1,62 @@
-# Reporting API Contract
+# Revenue Reporting API Contract
 
-**Entry point:** API Gateway
-**Data source:** Payment Service + Payment DB, Course Service + Course DB
+**Public entry point:** API Gateway
+**Data ownership:** Payment Service / Payment DB and Course Service / Course DB
 
-> **Note:** There is no separate Reporting Service or Reporting DB. Revenue reporting aggregates data from existing services (Payment Service and Course Service) through the API Gateway.
+There is no Reporting Service or Reporting DB. The API Gateway only forwards the request. Payment Service reads its own transaction records, requests minimal course metadata from Course Service, and performs the aggregation.
 
----
+## GET /payments/reports/revenue
 
-## GET /reports/revenue
+Returns the current revenue summary, course breakdown, and transaction ledger.
 
-### Description
+### Authorization
 
-Retrieves a revenue report for a specified date range. The API Gateway coordinates data retrieval from Payment Service (transaction data from Payment DB) and Course Service (course metadata from Course DB) to assemble the report.
+- A valid administrator JWT is required.
+- Missing or invalid tokens return HTTP 401.
+- Student and instructor tokens return HTTP 403.
 
 ### Request
 
-```
-GET /reports/revenue?fromDate={fromDate}&toDate={toDate}&courseId={courseId}
+```http
+GET /payments/reports/revenue
 Authorization: Bearer {accessToken}
 ```
 
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| fromDate | string (query) | Yes | Start date for the report period (ISO 8601) |
-| toDate | string (query) | Yes | End date for the report period (ISO 8601) |
-| courseId | string (query) | No | Filter by specific course ID (optional) |
+### Success response (200)
 
-### Success Response (200 OK)
+```json
+{
+  "summary": {
+    "totalRevenue": 0,
+    "totalTransactions": 0,
+    "successfulTransactions": 0,
+    "successRate": 0,
+    "averageOrderValue": 0,
+    "currency": "VND"
+  },
+  "courseBreakdown": [],
+  "transactions": []
+}
+```
 
-| Field | Type | Description |
-|---|---|---|
-| totalRevenue | number | Total revenue in the specified period |
-| transactions | array | List of payment transactions (paymentId, userId, courseId, amount, status, paidAt) |
-| courseSummary | array | Per-course revenue summary (courseId, courseTitle, totalEnrollments, totalRevenue) |
+`totalTransactions` counts every recorded payment attempt. Revenue, average order value, and each course's revenue count only the canonical successful payment status (`success`); pending and failed attempts never contribute revenue.
 
-### Error Responses
+### Internal course metadata lookup
 
-| Status | Code | Description |
-|---|---|---|
-| 401 | UNAUTHORIZED | Missing or invalid access token |
-| 403 | FORBIDDEN | User does not have admin or instructor role |
-| 400 | INVALID_DATE_RANGE | fromDate is after toDate or dates are invalid |
+Payment Service calls:
 
-### Related Sequence Diagram
+```http
+GET /courses/internal/titles?ids=1,2,3
+X-Internal-Service-Secret: {sharedSecret}
+```
 
-**Sequence Diagram — Reporting Management: View Revenue Report**
+Course Service returns only `id`, `title`, `price`, and `status` for the requested course IDs. Calls without the valid internal secret are rejected. Payment Service never connects to Course DB, and Course Service never connects to Payment DB.
 
-### Data Flow
+### Data flow
 
-1. Client sends revenue report request to API Gateway
-2. API Gateway forwards request to Payment Service
-3. Payment Service queries Payment DB for transactions in the date range
-4. API Gateway forwards course ID list to Course Service
-5. Course Service queries Course DB for course metadata
-6. API Gateway aggregates the data and returns the combined report to Client
+1. Admin Web Client sends the request through Nginx and API Gateway.
+2. API Gateway forwards the original authorization header to Payment Service.
+3. Payment Service verifies the administrator JWT and queries Payment DB.
+4. Payment Service calls the protected Course Service metadata endpoint for referenced course IDs.
+5. Course Service queries Course DB and returns minimal metadata.
+6. Payment Service aggregates and returns the report through API Gateway.

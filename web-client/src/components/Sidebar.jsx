@@ -16,7 +16,7 @@ const navigationGroups = [
       { id: 'dashboard', label: 'Student dashboard', short: 'S' },
       { id: 'lesson', label: 'Lesson viewer', short: 'L' },
       { id: 'quiz', label: 'Quiz module', short: 'Q' },
-      { id: 'payment', label: 'Payment', short: 'P' },
+      { id: 'payment', label: 'Payment', short: 'P' }
     ]
   },
   {

@@ -29,7 +29,9 @@ builder.Services.AddAuthorization();
 var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
-    await ExamSchemaMigrator.MigrateAsync(scope.ServiceProvider.GetRequiredService<ExamDbContext>());
+    var db = scope.ServiceProvider.GetRequiredService<ExamDbContext>();
+    await db.Database.EnsureCreatedAsync();
+    await ExamSchemaMigrator.MigrateAsync(db);
 }
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.Use(async (context, next) =>

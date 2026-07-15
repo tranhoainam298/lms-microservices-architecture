@@ -13,7 +13,7 @@ import ProfilePage from './pages/ProfilePage';
 import AdminUserManagement from './pages/AdminUserManagement';
 import { apiUrl } from './config/api';
 
-// Mock Databases
+// Application page metadata
 const pageMeta = {
   home: {
     title: 'Welcome to Meridian',
@@ -287,8 +287,7 @@ export default function App() {
       case 'revenue-report':
         return (
           <AdminRevenueReport 
-            payments={payments} 
-            courses={courses} 
+            accessToken={authSession.accessToken}
           />
         );
       case 'profile':

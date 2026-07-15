@@ -28,7 +28,7 @@ const demoRoles = [
 export default function LoginPage({ onLogin }) {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('student@lms.edu');
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState('password123');
   const [fullName, setFullName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('student');
@@ -263,7 +263,7 @@ export default function LoginPage({ onLogin }) {
                 {showPassword ? 'Hide' : 'Show'}
               </button>
             </div>
-            <p className="field-helper" id="password-helper">Demo credentials are shown below.</p>
+            <p className="field-helper" id="password-helper">Demo password: <code>password123</code></p>
             {fieldErrors.password && <p className="field-error" id="password-error" role="alert">{fieldErrors.password}</p>}
           </div>
 

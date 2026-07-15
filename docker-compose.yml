@@ -321,6 +321,7 @@ services:
       - "${EXAM_DB_HOST_PORT:-3308}:3306"
     volumes:
       - exam-db-data:/var/lib/mysql
+      - ./infra/mysql-init/init-exam-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
@@ -343,6 +344,7 @@ services:
       - "${PAYMENT_DB_HOST_PORT:-3309}:3306"
     volumes:
       - payment-db-data:/var/lib/mysql
+      - ./infra/mysql-init/init-payment-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s

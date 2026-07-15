@@ -33,6 +33,12 @@ for (const relativeFile of activeUiFiles) {
 }
 
 const appSource = fs.readFileSync(path.join(root, 'web-client/src/App.jsx'), 'utf8');
+const sidebarSource = fs.readFileSync(path.join(root, 'web-client/src/components/Sidebar.jsx'), 'utf8');
 assert.equal(appSource.includes("from './pages/OverviewPage'"), false, 'Architecture overview must not be reachable from normal routes');
+assert.equal(appSource.includes("from './pages/AiSupportPage'"), false, 'AI support must stay inside the authenticated lesson flow');
+assert.equal(appSource.includes("case 'overview'"), false, 'Architecture overview route must not be active');
+assert.equal(appSource.includes("case 'ai-support'"), false, 'Standalone AI route must not be active');
+assert.equal(sidebarSource.includes("id: 'overview'"), false, 'Architecture overview must not appear in navigation');
+assert.equal(sidebarSource.includes("id: 'ai-support'"), false, 'Standalone AI page must not appear in navigation');
 assert.equal(appSource.includes('mockLearningProgress'), false, 'App must not use mock lesson progress');
 console.log('NO_ARCHITECTURE_UI_LABELS_PASS');
