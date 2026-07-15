@@ -18,6 +18,9 @@ const validateIds = (req, res, next) => {
   if (req.params.resultId !== undefined && !positiveId(req.params.resultId)) {
     return res.status(400).json({ code: 'INVALID_RESULT_ID', message: 'Result ID must be a positive integer.' });
   }
+  if (req.params.questionId !== undefined && !positiveId(req.params.questionId)) {
+    return res.status(400).json({ code: 'INVALID_QUESTION_ID', message: 'Question ID must be a positive integer.' });
+  }
   next();
 };
 const forward = async (req, res, next) => {
@@ -31,10 +34,15 @@ router.use(jwtAuth);
 router.post('/courses/:courseId/quizzes', requireRole('instructor', 'Only instructors can manage quizzes.'), validateIds, forward);
 router.get('/courses/:courseId/quizzes/mine', requireRole('instructor', 'Only instructors can manage quizzes.'), validateIds, forward);
 router.get('/courses/:courseId/quizzes/:quizId/mine', requireRole('instructor', 'Only instructors can manage quizzes.'), validateIds, forward);
+router.post('/courses/:courseId/quizzes/:quizId/questions', requireRole('instructor', 'Only instructors can manage questions.'), validateIds, forward);
+router.get('/courses/:courseId/quizzes/:quizId/questions/:questionId', requireRole('instructor', 'Only instructors can manage questions.'), validateIds, forward);
+router.patch('/courses/:courseId/quizzes/:quizId/questions/:questionId', requireRole('instructor', 'Only instructors can manage questions.'), validateIds, forward);
+router.delete('/courses/:courseId/quizzes/:quizId/questions/:questionId', requireRole('instructor', 'Only instructors can manage questions.'), validateIds, forward);
 router.patch('/courses/:courseId/quizzes/:quizId', requireRole('instructor', 'Only instructors can manage quizzes.'), validateIds, forward);
 router.delete('/courses/:courseId/quizzes/:quizId', requireRole('instructor', 'Only instructors can manage quizzes.'), validateIds, forward);
 router.patch('/courses/:courseId/quizzes/:quizId/publish', requireRole('instructor', 'Only instructors can manage quizzes.'), validateIds, forward);
 router.get('/courses/:courseId/results/summary', requireRole('instructor', 'Only instructors can view course quiz results.'), validateIds, forward);
+router.get('/instructor/results/summary', requireRole('instructor', 'Only instructors can view quiz results.'), forward);
 router.get('/courses/:courseId/quizzes', requireRole('student', 'Only students can view published quizzes.'), validateIds, forward);
 router.get('/quizzes/:quizId', requireRole('student', 'Only students can take quizzes.'), validateIds, forward);
 router.post('/quizzes/:quizId/submit', requireRole('student', 'Only students can submit quizzes.'), validateIds, forward);

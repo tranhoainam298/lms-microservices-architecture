@@ -1,4 +1,4 @@
-import { changeOwnPassword, getLoginActivityReport, getOwnProfile, listUsers, updateOwnProfile, updateUserRole, updateUserStatus } from '../services/userService.js';
+import { changeOwnPassword, getInternalProfiles, getLoginActivityReport, getOwnProfile, listUsers, updateOwnProfile, updateUserRole, updateUserStatus } from '../services/userService.js';
 
 function parseUserId(res, value) {
   const text = String(value);
@@ -50,5 +50,10 @@ export async function changeUserRole(req, res) {
 
 export async function getAdminLoginActivity(req, res) {
   const result = await getLoginActivityReport(req.query || {});
+  res.status(result.status).json(result.body);
+}
+
+export async function getInternalProfilesHandler(req, res) {
+  const result = await getInternalProfiles(req.query?.ids);
   res.status(result.status).json(result.body);
 }

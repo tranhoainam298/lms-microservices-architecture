@@ -4,10 +4,12 @@ import StatusBadge from './StatusBadge';
 
 export default function CourseCard({ course, isEnrolled, onAction, actionLabel }) {
   const progressValue = isEnrolled ? course.progress_percent || 0 : 0;
+  const coverImage = course.cover_image || course.coverImage;
 
   return (
     <article className={`course-card${isEnrolled ? ' course-card--enrolled' : ''}`}>
       <div className="course-card__visual" aria-hidden="true">
+        {coverImage && <img src={coverImage} alt="" loading="lazy" />}
         <span>{course.id}</span>
         <i />
       </div>
