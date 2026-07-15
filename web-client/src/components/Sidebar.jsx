@@ -13,27 +13,32 @@ const navigationGroups = [
     label: 'Student tools',
     role: 'student',
     items: [
-      { id: 'dashboard', label: 'Student dashboard', short: 'S' },
-      { id: 'lesson', label: 'Lesson viewer', short: 'L' },
-      { id: 'quiz', label: 'Quiz module', short: 'Q' },
-      { id: 'payment', label: 'Payment', short: 'P' }
+      { id: 'dashboard', label: 'Dashboard', short: 'D' },
+      { id: 'catalog', label: 'Course Catalog', short: 'C' },
+      { id: 'my-learning', label: 'My Learning', short: 'L' },
+      { id: 'quiz-results', label: 'Quiz Results', short: 'Q' }
     ]
   },
   {
     label: 'Instructor tools',
     role: 'instructor',
     items: [
-      { id: 'course-draft', label: 'Course drafts', short: 'C' },
-      { id: 'instructor-monitoring', label: 'Student progress', short: 'SP' }
+      { id: 'instructor-dashboard', label: 'Teaching dashboard', short: 'D' },
+      { id: 'instructor-courses', label: 'My Courses', short: 'MC' },
+      { id: 'course-draft', label: 'Create Course', short: 'C' },
+      { id: 'instructor-monitoring', label: 'Students / Progress', short: 'SP' },
+      { id: 'instructor-results', label: 'Quiz Results', short: 'Q' }
     ]
   },
   {
     label: 'Administration',
     role: 'admin',
     items: [
-      { id: 'revenue-report', label: 'Revenue and sales', short: 'R' },
-      { id: 'user-management', label: 'User management', short: 'U' },
-      { id: 'course-operations', label: 'Course operations', short: 'CO' }
+      { id: 'admin-dashboard', label: 'Platform dashboard', short: 'D' },
+      { id: 'user-management', label: 'Users', short: 'U' },
+      { id: 'course-operations', label: 'Courses / Categories', short: 'CO' },
+      { id: 'revenue-report', label: 'Revenue Report', short: 'R' },
+      { id: 'activity-report', label: 'Activity Report', short: 'A' }
     ]
   }
 ];

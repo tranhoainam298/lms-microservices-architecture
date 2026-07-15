@@ -10,6 +10,7 @@ const quizResult = read('exam-service/Models/QuizResult.cs');
 const schemaMigrator = read('exam-service/Data/ExamSchemaMigrator.cs');
 const gatewayRoutes = read('api-gateway/src/routes/examRoutes.js');
 const quizPage = read('web-client/src/pages/QuizPage.jsx');
+const studentResultsPage = read('web-client/src/pages/StudentResultsPage.jsx');
 
 const loadStart = controller.indexOf('public async Task<IActionResult> Load');
 const submitStart = controller.indexOf('public async Task<IActionResult> Submit');
@@ -23,6 +24,12 @@ assert.match(submitHandler, /StudentCourseAccess\(quiz\.CourseId\)/);
 assert.match(controller, /private static int\? CorrectOptionIndex\(Question question\)/);
 assert.match(controller, /question\.CorrectAnswer/);
 assert.match(submitHandler, /CorrectOptionIndex\(map\[a\.QuestionId\]\)/);
+assert.match(submitHandler, /answers\.Count!=map\.Count/);
+assert.match(submitHandler, /answers\.Any\(answer=>!map\.ContainsKey\(answer\.QuestionId\)\)/);
+assert.ok(
+  submitHandler.indexOf('answers.Count!=map.Count') < submitHandler.indexOf('db.QuizResults.AnyAsync'),
+  'A complete answer set must be required before an attempt is checked or persisted'
+);
 assert.match(submitHandler, /StudentId=UserId/);
 assert.match(submitHandler, /db\.QuizResults\.Add\(result\)/);
 assert.match(submitHandler, /QUIZ_ALREADY_SUBMITTED/);
@@ -35,7 +42,11 @@ assert.match(schemaMigrator, /ALTER TABLE questions MODIFY COLUMN QuizId INT NOT
 assert.doesNotMatch(quizPage, /correctAnswer|correctOptionIndex|answerKey|studentId/);
 assert.match(quizPage, /JSON\.stringify\(\{ answers:/);
 assert.match(quizPage, /ProgressBar value=\{answerProgress\}/);
+assert.match(quizPage, /disabled=\{submitting \|\| !allQuestionsAnswered\}/);
+assert.match(quizPage, /Answer \{unansweredCount\} more question/);
 assert.doesNotMatch(quizPage, /API Gateway|Exam Service|Exam DB|Architecture demo/i);
+assert.match(studentResultsPage, /onNavigate\('dashboard'\)/);
+assert.doesNotMatch(studentResultsPage, /onNavigate\('quiz'\)/);
 assert.match(gatewayRoutes, /\/exams\/quizzes|quizzes\/\:quizId|forward/i);
 
 console.log('QUIZ_HARDENING_STATIC_PASS');

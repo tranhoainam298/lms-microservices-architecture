@@ -10,6 +10,12 @@ const gatewayRoutes = readFileSync('api-gateway/src/routes/courseRoutes.js', 'ut
 assert.match(service, /const clauses = \["status = 'published'"\]/, 'Public catalog must be published-only.');
 assert.match(service, /title LIKE \? OR description LIKE \?/, 'Catalog search must use SQL placeholders.');
 assert.match(service, /clauses\.push\('category = \?'\)/, 'Category filter must use a SQL placeholder.');
+assert.match(service, /\['free', 'paid'\]\.includes\(filters\.priceType\.trim\(\)\.toLowerCase\(\)\)/,
+  'Catalog price type must accept only the explicit free/paid allowlist.');
+assert.match(service, /priceType === 'free'\) clauses\.push\('price = 0'\)/,
+  'Free catalog filter must be enforced by Course Service.');
+assert.match(service, /priceType === 'paid'\) clauses\.push\('price > 0'\)/,
+  'Paid catalog filter must be enforced by Course Service.');
 assert.match(service, /clauses\.push\('price >= \?'\)/, 'Minimum price must use a SQL placeholder.');
 assert.match(service, /clauses\.push\('price <= \?'\)/, 'Maximum price must use a SQL placeholder.');
 
@@ -44,6 +50,10 @@ assert.match(gatewayProxy, /export async function forwardUpdateCourseCategory/);
 assert.match(gatewayProxy, /\/courses\/admin\/\$\{courseIdNum\}\/category/);
 assert.match(service, /c\.created_at >= \?/);
 assert.match(service, /c\.created_at < DATE_ADD\(\?, INTERVAL 1 DAY\)/);
+assert.match(service, /clauses\.push\('c\.instructor_id = \?'\)/,
+  'Admin course report instructor filter must use a Course DB parameter.');
+assert.match(service, /instructorId: course\.instructor_id/,
+  'Published course detail must expose its safe Course DB instructor identifier.');
 
 assert.match(serviceRoutes, /router\.get\('\/categories'/);
 assert.match(gatewayRoutes, /router\.get\('\/categories'/);
@@ -57,7 +67,7 @@ assert.ok(
 );
 
 assert.match(controller, /getCourses\(\{[\s\S]*search: req\.query\?\.search[\s\S]*maxPrice: req\.query\?\.maxPrice/);
-assert.match(gatewayProxy, /buildForwardedQuery\(query, \['search', 'category', 'minPrice', 'maxPrice'\]\)/);
+assert.match(gatewayProxy, /buildForwardedQuery\(query, \['search', 'category', 'priceType', 'minPrice', 'maxPrice'\]\)/);
 assert.doesNotMatch(service, /PAYMENT_DB|EXAM_DB|USER_DB|payment-db-mysql|exam-db-mysql|user-db-mysql/i);
 
 console.log('COURSE_DOMAIN_HARDENING_PASS');

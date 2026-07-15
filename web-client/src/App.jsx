@@ -13,7 +13,14 @@ import ProfilePage from './pages/ProfilePage';
 import AdminUserManagement from './pages/AdminUserManagement';
 import InstructorMonitoring from './pages/InstructorMonitoring';
 import AdminCourseOperations from './pages/AdminCourseOperations';
-import { apiUrl } from './config/api';
+import InstructorDashboard from './pages/InstructorDashboard';
+import AdminDashboard from './pages/AdminDashboard';
+import CourseDetailPage from './pages/CourseDetailPage';
+import StudentCatalogPage from './pages/StudentCatalogPage';
+import StudentLearningPage from './pages/StudentLearningPage';
+import StudentResultsPage from './pages/StudentResultsPage';
+import InstructorCoursesPage from './pages/InstructorCoursesPage';
+import { studentApi } from './features/student/api/studentApi';
 
 // Application page metadata
 const pageMeta = {
@@ -26,6 +33,14 @@ const pageMeta = {
     title: 'Student dashboard',
     subtitle: 'Continue coursework, review progress, and plan the next activity.',
     context: 'Learning workspace'
+  },
+  catalog: { title: 'Course catalog', subtitle: 'Search and compare published learning options.', context: 'Student workspace' },
+  'my-learning': { title: 'My learning', subtitle: 'Continue enrolled courses and review saved progress.', context: 'Student workspace' },
+  'quiz-results': { title: 'Quiz results', subtitle: 'Review your saved assessment history.', context: 'Student workspace' },
+  'course-detail': {
+    title: 'Course details',
+    subtitle: 'Review the course outline and choose how to begin.',
+    context: 'Course catalog'
   },
   lesson: {
     title: 'Lesson viewer',
@@ -47,9 +62,16 @@ const pageMeta = {
     subtitle: 'Create, organize, and publish engaging course content.',
     context: 'Instructor workspace'
   },
+  'instructor-dashboard': {
+    title: 'Teaching dashboard',
+    subtitle: 'Track your courses, learners, progress, and assessment activity.',
+    context: 'Instructor workspace'
+  },
+  'instructor-courses': { title: 'My courses', subtitle: 'Review owned courses and open the course studio.', context: 'Instructor workspace' },
+  'instructor-results': { title: 'Quiz results', subtitle: 'Review assessment performance for your courses.', context: 'Instructor workspace' },
   'instructor-monitoring': {
     title: 'Student progress',
-    subtitle: 'Review course enrollment, learning progress, and quiz performance.',
+    subtitle: 'Review course enrollment and saved learning progress.',
     context: 'Instructor workspace'
   },
   'revenue-report': {
@@ -57,26 +79,21 @@ const pageMeta = {
     subtitle: 'Review payment activity and course performance.',
     context: 'Administration'
   },
+  'admin-dashboard': {
+    title: 'Platform dashboard',
+    subtitle: 'Review users, courses, activity, payments, and revenue.',
+    context: 'Administration'
+  },
+  'activity-report': { title: 'Activity report', subtitle: 'Review account sign-ins and access outcomes.', context: 'Administration' },
   profile: { title: 'Your profile', subtitle: 'Manage your account details and password.', context: 'User account' },
   'user-management': { title: 'User management', subtitle: 'Review roles and account availability.', context: 'Administration' },
-  'course-operations': { title: 'Course operations', subtitle: 'Moderate courses and review account activity.', context: 'Administration' }
+  'course-operations': { title: 'Course operations', subtitle: 'Moderate courses and maintain category assignments.', context: 'Administration' }
 };
 
-const tabPages = new Set(['home', 'dashboard', 'course-draft', 'instructor-monitoring', 'revenue-report', 'profile', 'user-management', 'course-operations']);
-const studentOnlyPages = new Set(['dashboard', 'lesson', 'quiz', 'payment']);
-const instructorOnlyPages = new Set(['course-draft', 'instructor-monitoring']);
-const adminOnlyPages = new Set(['revenue-report', 'user-management', 'course-operations']);
-
-async function requestJson(path, accessToken) {
-  const response = await fetch(apiUrl(path), {
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(body.message || 'The requested information could not be loaded.');
-  }
-  return body;
-}
+const tabPages = new Set(['home', 'dashboard', 'catalog', 'my-learning', 'quiz-results', 'instructor-dashboard', 'instructor-courses', 'course-draft', 'instructor-monitoring', 'instructor-results', 'admin-dashboard', 'revenue-report', 'profile', 'user-management', 'course-operations', 'activity-report']);
+const studentOnlyPages = new Set(['dashboard', 'catalog', 'my-learning', 'quiz-results', 'course-detail', 'lesson', 'quiz', 'payment']);
+const instructorOnlyPages = new Set(['instructor-dashboard', 'instructor-courses', 'course-draft', 'instructor-monitoring', 'instructor-results']);
+const adminOnlyPages = new Set(['admin-dashboard', 'revenue-report', 'user-management', 'course-operations', 'activity-report']);
 
 function normalizePayment(payment) {
   return {
@@ -93,6 +110,8 @@ function normalizePayment(payment) {
 
 export default function App() {
   const [authSession, setAuthSession] = useState(null);
+  const [publicPage, setPublicPage] = useState('login');
+  const [publicCourseId, setPublicCourseId] = useState(null);
   const user = authSession
     ? { ...authSession.userProfile, role: authSession.role, full_name: authSession.userProfile.fullName }
     : null;
@@ -134,7 +153,7 @@ export default function App() {
 
   const loadCatalog = React.useCallback(async (filters = {}) => {
     const query = new URLSearchParams();
-    for (const field of ['search', 'category', 'minPrice', 'maxPrice']) {
+    for (const field of ['search', 'category', 'priceType', 'minPrice', 'maxPrice']) {
       const value = filters[field];
       if (value !== undefined && value !== null && String(value).trim() !== '') {
         query.set(field, String(value).trim());
@@ -144,9 +163,7 @@ export default function App() {
     setCatalogLoading(true);
     setCatalogError('');
     try {
-      const queryString = query.toString();
-      const path = `/courses${queryString ? `?${queryString}` : ''}`;
-      const body = await requestJson(path);
+      const body = await studentApi.getCatalog(Object.fromEntries(query));
       setCatalogCourses(Array.isArray(body) ? body : []);
     } catch (error) {
       setCatalogError(error.message || 'The course catalog could not be loaded.');
@@ -163,9 +180,9 @@ export default function App() {
 
     const token = authSession.accessToken;
     const [enrollmentResult, paymentResult, resultResult] = await Promise.allSettled([
-      requestJson('/courses/enrolled', token),
-      requestJson('/payments/mine', token),
-      requestJson('/exams/results/mine', token)
+      studentApi.getEnrolledCourses(token),
+      studentApi.getPaymentHistory(token),
+      studentApi.getQuizResults(token)
     ]);
     if (requestId !== studentRequestId.current) return;
 
@@ -192,7 +209,7 @@ export default function App() {
 
     if (enrollmentResult.status === 'fulfilled') {
       const quizResults = await Promise.allSettled(currentEnrollments.map(async (course) => {
-        const body = await requestJson(`/exams/courses/${course.id}/quizzes`, token);
+        const body = await studentApi.getCourseQuizzes(course.id, token);
         return (body.items || []).map(quiz => ({ ...quiz, courseId: quiz.courseId || course.id }));
       }));
       if (requestId !== studentRequestId.current) return;
@@ -225,14 +242,16 @@ export default function App() {
   const handleLogin = (session) => {
     const authenticatedRole = session.role;
     setAuthSession(session);
+    setPublicPage('login');
+    setPublicCourseId(null);
     setActivePage(null);
     setPageParams(null);
     if (authenticatedRole === 'student') {
       setCurrentTab('dashboard');
     } else if (authenticatedRole === 'instructor') {
-      setCurrentTab('course-draft');
+      setCurrentTab('instructor-dashboard');
     } else if (authenticatedRole === 'admin') {
-      setCurrentTab('revenue-report');
+      setCurrentTab('admin-dashboard');
     }
   };
 
@@ -285,21 +304,47 @@ export default function App() {
   };
 
   const handleEnrollFreeCourse = async (courseId) => {
-    const response = await fetch(apiUrl(`/courses/${courseId}/enroll`), {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${authSession.accessToken}` }
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(body.message || 'The course could not be enrolled.');
-    }
+    const body = await studentApi.enrollFreeCourse(courseId, authSession.accessToken);
     await loadStudentWorkspace();
     return body;
   };
 
-  // Render Login if no authenticated session
+  // Render public catalog or login before an authenticated workspace exists.
   if (!user) {
-    return <LoginPage onLogin={handleLogin} />;
+    if (publicPage === 'catalog' || publicPage === 'course-detail') {
+      return (
+        <div className="public-catalog-shell">
+          <header className="public-catalog-header">
+            <button className="sidebar__brand" type="button" onClick={() => { setPublicPage('catalog'); setPublicCourseId(null); }}>
+              <span className="sidebar__mark" aria-hidden="true">M</span>
+              <span className="sidebar__brand-copy"><strong>Meridian LMS</strong><small>Course catalog</small></span>
+            </button>
+            <button className="btn btn-primary" type="button" onClick={() => { setPublicPage('login'); setPublicCourseId(null); }}>Sign in</button>
+          </header>
+          <main className="public-catalog-content">
+            {publicPage === 'catalog' ? (
+              <StudentCatalogPage
+                courses={catalogCourses}
+                enrolledCourseIds={new Set()}
+                loading={catalogLoading}
+                error={catalogError}
+                onFiltersChange={loadCatalog}
+                onNavigate={(_, params) => { setPublicCourseId(params?.courseId); setPublicPage('course-detail'); }}
+              />
+            ) : (
+              <CourseDetailPage
+                courseId={publicCourseId}
+                isEnrolled={false}
+                onBack={() => setPublicPage('catalog')}
+                requiresSignIn
+                onRequireSignIn={() => { setPublicPage('login'); setPublicCourseId(null); }}
+              />
+            )}
+          </main>
+        </div>
+      );
+    }
+    return <LoginPage onLogin={handleLogin} onBrowseCourses={() => setPublicPage('catalog')} />;
   }
 
   // Render Sub-pages (within Student shell)
@@ -326,6 +371,21 @@ export default function App() {
           onBuyCourse={(courseId) => handleNavigate('payment', { courseId, course: courses.find(item => item.id === courseId) })}
           onOpenQuiz={(courseId) => handleNavigate('quiz', { courseId })}
           onBack={handleBackToDashboard}
+        />
+      );
+    }
+    if (activePage === 'course-detail') {
+      const selectedCourseId = pageParams?.courseId || pageParams?.course?.id;
+      const enrollment = enrolledCourses.find(course => Number(course.id) === Number(selectedCourseId));
+      return (
+        <CourseDetailPage
+          courseId={selectedCourseId}
+          isEnrolled={Boolean(enrollment)}
+          enrollment={enrollment}
+          onBack={handleBackToDashboard}
+          onContinue={(course) => handleNavigate('lesson', { courseId: course.id, course })}
+          onBuy={(course) => handleNavigate('payment', { courseId: course.id, course })}
+          onEnrollFree={handleEnrollFreeCourse}
         />
       );
     }
@@ -361,7 +421,7 @@ export default function App() {
               <h2 id="home-title">Ready to keep moving forward?</h2>
               <p>Open your workspace to continue courses, manage content, or review account activity.</p>
             </div>
-            <button className="btn btn-primary" type="button" onClick={() => setCurrentTab(authSession.role === 'student' ? 'dashboard' : authSession.role === 'instructor' ? 'course-draft' : 'user-management')}>
+            <button className="btn btn-primary" type="button" onClick={() => setCurrentTab(authSession.role === 'student' ? 'dashboard' : authSession.role === 'instructor' ? 'instructor-dashboard' : 'admin-dashboard')}>
               Open my workspace
             </button>
           </section>
@@ -380,10 +440,19 @@ export default function App() {
             catalogLoading={catalogLoading}
             catalogError={catalogError}
             onCatalogFiltersChange={loadCatalog}
-            onEnrollFreeCourse={handleEnrollFreeCourse}
             onNavigate={handleNavigate}
           />
         );
+      case 'catalog':
+        return <StudentCatalogPage courses={catalogCourses.map(course => ({ ...course, ...(enrolledCourses.find(item => Number(item.id) === Number(course.id)) || {}) }))} enrolledCourseIds={new Set(enrolledCourses.map(course => Number(course.id)))} loading={catalogLoading} error={catalogError} onFiltersChange={loadCatalog} onNavigate={handleNavigate} />;
+      case 'my-learning':
+        return <StudentLearningPage courses={enrolledCourses} loading={studentDataLoading} errors={studentDataErrors} onNavigate={handleNavigate} />;
+      case 'quiz-results':
+        return <StudentResultsPage results={quizAttempts} quizzes={quizzes} loading={studentDataLoading} errors={studentDataErrors} onNavigate={handleNavigate} />;
+      case 'instructor-dashboard':
+        return <InstructorDashboard accessToken={authSession.accessToken} onNavigate={handleNavigate} />;
+      case 'instructor-courses':
+        return <InstructorCoursesPage accessToken={authSession.accessToken} onNavigate={handleNavigate} />;
       case 'lesson': {
         const selectedCourse = enrolledCourses[0] || courses[0];
         return (
@@ -424,7 +493,11 @@ export default function App() {
           />
         );
       case 'instructor-monitoring':
-        return <InstructorMonitoring accessToken={authSession.accessToken} />;
+        return <InstructorMonitoring accessToken={authSession.accessToken} mode="progress" />;
+      case 'instructor-results':
+        return <InstructorMonitoring accessToken={authSession.accessToken} mode="results" />;
+      case 'admin-dashboard':
+        return <AdminDashboard accessToken={authSession.accessToken} onNavigate={handleNavigate} />;
       case 'revenue-report':
         return (
           <AdminRevenueReport
@@ -436,7 +509,9 @@ export default function App() {
       case 'user-management':
         return <AdminUserManagement accessToken={authSession.accessToken} currentUserId={user.id} />;
       case 'course-operations':
-        return <AdminCourseOperations accessToken={authSession.accessToken} />;
+        return <AdminCourseOperations accessToken={authSession.accessToken} mode="courses" />;
+      case 'activity-report':
+        return <AdminCourseOperations accessToken={authSession.accessToken} mode="activity" />;
       default:
         return <div>Page not found</div>;
     }

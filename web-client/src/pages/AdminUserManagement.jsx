@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { apiUrl } from '../config/api';
+import StatCard from '../components/StatCard';
+import { adminApi } from '../features/admin/api/adminApi';
 
 export default function AdminUserManagement({ accessToken, currentUserId }) {
-  const [data, setData] = useState({ items: [], total: 0, page: 1, pageSize: 20 });
+  const [data, setData] = useState({ summary: {}, items: [], total: 0, page: 1, pageSize: 20 });
   const [filters, setFilters] = useState({ search: '', role: '', status: '' });
   const [loading, setLoading] = useState(true);
   const [changingAction, setChangingAction] = useState(null);
@@ -15,10 +16,7 @@ export default function AdminUserManagement({ accessToken, currentUserId }) {
     if (filters.role) params.set('role', filters.role);
     if (filters.status) params.set('status', filters.status);
     try {
-      const response = await fetch(apiUrl(`/users/admin/users?${params}`), { headers: { Authorization: `Bearer ${accessToken}` } });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.message || 'User accounts could not be loaded.');
-      setData(body);
+      setData(await adminApi.getUsers(accessToken, Object.fromEntries(params)));
     } catch (requestError) { setError(requestError.message); }
     finally { setLoading(false); }
   };
@@ -31,13 +29,7 @@ export default function AdminUserManagement({ accessToken, currentUserId }) {
     if (!window.confirm(`${nextStatus === 'inactive' ? 'Deactivate' : 'Activate'} ${user.email}?`)) return;
     setChangingAction(`status-${user.id}`); setError('');
     try {
-      const response = await fetch(apiUrl(`/users/admin/users/${user.id}/status`), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ status: nextStatus })
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.message || 'Account status could not be changed.');
+      await adminApi.updateUserStatus(user.id, nextStatus, accessToken);
       await loadUsers(data.page);
     } catch (requestError) { setError(requestError.message); }
     finally { setChangingAction(null); }
@@ -52,13 +44,7 @@ export default function AdminUserManagement({ accessToken, currentUserId }) {
     if (!window.confirm(`Change ${user.email} from ${user.role} to ${nextRole}?`)) return;
     setChangingAction(`role-${user.id}`); setError('');
     try {
-      const response = await fetch(apiUrl(`/users/admin/users/${user.id}/role`), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ role: nextRole })
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.message || 'Account role could not be changed.');
+      await adminApi.updateUserRole(user.id, nextRole, accessToken);
       await loadUsers(data.page);
     } catch (requestError) { setError(requestError.message); }
     finally { setChangingAction(null); }
@@ -66,6 +52,12 @@ export default function AdminUserManagement({ accessToken, currentUserId }) {
 
   return <section className="account-page">
     <header className="section-heading"><div><p className="section-kicker">Administration</p><h2>User management</h2></div></header>
+    {!loading && <div className="metrics-grid">
+      <StatCard eyebrow="Accounts" title="Total users" value={data.summary?.totalUsers || 0} description={`${data.summary?.activeUsers || 0} active`} tone="primary" />
+      <StatCard eyebrow="Learners" title="Students" value={data.summary?.students || 0} description="Student accounts" />
+      <StatCard eyebrow="Educators" title="Instructors" value={data.summary?.instructors || 0} description="Instructor accounts" />
+      <StatCard eyebrow="Availability" title="Inactive users" value={data.summary?.inactiveUsers || 0} description={`${data.summary?.admins || 0} administrators`} />
+    </div>}
     <form className="card admin-user-filters" onSubmit={submitFilters}>
       <input className="form-control" aria-label="Search users" placeholder="Search email or name" value={filters.search} onChange={event => setFilters(value => ({ ...value, search: event.target.value }))} maxLength="100" />
       <select className="form-control" aria-label="Role filter" value={filters.role} onChange={event => setFilters(value => ({ ...value, role: event.target.value }))}><option value="">All roles</option><option value="student">Student</option><option value="instructor">Instructor</option><option value="admin">Admin</option></select>

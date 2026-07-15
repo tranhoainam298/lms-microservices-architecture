@@ -37,6 +37,41 @@ function toPublicUser(row) {
   };
 }
 
+function parseInternalProfileIds(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 1000) return null;
+  const parts = value.split(',');
+  if (parts.length === 0 || parts.length > 100) return null;
+  const ids = [];
+  for (const part of parts) {
+    if (!/^[1-9]\d*$/.test(part)) return null;
+    const id = Number(part);
+    if (!Number.isSafeInteger(id)) return null;
+    ids.push(id);
+  }
+  return [...new Set(ids)];
+}
+
+export async function getInternalProfiles(idsValue) {
+  const ids = parseInternalProfileIds(idsValue);
+  if (!ids) {
+    return { status: 400, body: { code: 'INVALID_USER_IDS', message: 'ids must be a comma-separated list of positive integers.' } };
+  }
+  try {
+    const placeholders = ids.map(() => '?').join(', ');
+    const [rows] = await pool.query(
+      `SELECT id, full_name FROM users WHERE id IN (${placeholders}) ORDER BY id ASC`,
+      ids
+    );
+    return {
+      status: 200,
+      body: { items: rows.map(row => ({ id: row.id, fullName: row.full_name })) }
+    };
+  } catch (error) {
+    console.error('Internal profile lookup failed:', error.message);
+    return { status: 500, body: { code: 'PROFILE_LOOKUP_FAILED', message: 'User profiles could not be loaded.' } };
+  }
+}
+
 async function selectPublicUser(connection, userId) {
   const [rows] = await connection.query(
     `SELECT id, email, full_name, role, status, created_at, updated_at
@@ -150,6 +185,15 @@ export async function listUsers({ page, pageSize, role, status, search }) {
   let connection;
   try {
     connection = await pool.getConnection();
+    const [[summaryRow]] = await connection.query(
+      `SELECT COUNT(*) AS total_users,
+              SUM(CASE WHEN role = 'student' THEN 1 ELSE 0 END) AS students,
+              SUM(CASE WHEN role = 'instructor' THEN 1 ELSE 0 END) AS instructors,
+              SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) AS admins,
+              SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_users,
+              SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive_users
+       FROM users`
+    );
     const [countRows] = await connection.query(`SELECT COUNT(*) AS total FROM users ${where}`, values);
     const offset = (parsedPage - 1) * parsedPageSize;
     const [rows] = await connection.query(
@@ -157,7 +201,23 @@ export async function listUsers({ page, pageSize, role, status, search }) {
        FROM users ${where} ORDER BY id ASC LIMIT ? OFFSET ?`,
       [...values, parsedPageSize, offset]
     );
-    return { status: 200, body: { items: rows.map(toPublicUser), total: countRows[0].total, page: parsedPage, pageSize: parsedPageSize } };
+    return {
+      status: 200,
+      body: {
+        summary: {
+          totalUsers: Number(summaryRow.total_users || 0),
+          students: Number(summaryRow.students || 0),
+          instructors: Number(summaryRow.instructors || 0),
+          admins: Number(summaryRow.admins || 0),
+          activeUsers: Number(summaryRow.active_users || 0),
+          inactiveUsers: Number(summaryRow.inactive_users || 0)
+        },
+        items: rows.map(toPublicUser),
+        total: Number(countRows[0].total || 0),
+        page: parsedPage,
+        pageSize: parsedPageSize
+      }
+    };
   } catch (error) {
     console.error('Admin user listing failed:', error.message);
     return { status: 500, body: { code: 'USER_LIST_FAILED', message: 'User accounts could not be loaded.' } };

@@ -154,6 +154,7 @@ export async function getCoursesHandler(req, res) {
   const result = await getCourses({
     search: req.query?.search,
     category: req.query?.category,
+    priceType: req.query?.priceType,
     minPrice: req.query?.minPrice,
     maxPrice: req.query?.maxPrice
   });
@@ -203,7 +204,8 @@ export async function getAdminCourseReportHandler(req, res) {
     dateFrom: req.query?.dateFrom,
     dateTo: req.query?.dateTo,
     category: req.query?.category,
-    status: req.query?.status
+    status: req.query?.status,
+    instructorId: req.query?.instructorId
   });
   res.status(result.status).json(result.body);
 }

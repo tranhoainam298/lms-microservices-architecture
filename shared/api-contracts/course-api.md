@@ -18,10 +18,11 @@ Returns an array of published courses only. Optional scalar query parameters are
 |---|---|
 | `search` | Maximum 100 characters; matches title or description. |
 | `category` | Exact category, maximum 255 characters. |
+| `priceType` | `free` selects `price = 0`; `paid` selects `price > 0`. |
 | `minPrice` | Non-negative decimal with at most two decimal places. |
 | `maxPrice` | Same format; cannot be below `minPrice`. |
 
-Each item contains `id`, `title`, `description`, `category`, numeric `price`, `cover_image`, `status`, `created_at`, and `updated_at`. Invalid filters return `400 INVALID_COURSE_FILTER` or edge `INVALID_QUERY`.
+Each item contains `id`, `title`, `description`, `category`, numeric `price`, `cover_image`, `status`, `instructor_id`, `created_at`, and `updated_at`. Invalid filters return `400 INVALID_COURSE_FILTER` or edge `INVALID_QUERY`.
 
 ### `GET /api/courses/categories`
 
@@ -29,7 +30,9 @@ Returns `{ "items": ["..."], "total": n }` containing distinct non-empty categor
 
 ### `GET /api/courses/:courseId`
 
-Returns `200 { course }` only for a published course. The course includes public metadata, `lessonCount`, and a lesson outline containing `id`, `title`, `orderIndex`, `type`, and `createdAt`. Public detail intentionally omits protected video/document URLs. Missing/unpublished courses return `404 COURSE_NOT_FOUND`.
+Returns `200 { course }` only for a published course. The course includes public metadata, `instructorId`, a minimal `instructor: { id, fullName }`, `lessonCount`, and a lesson outline containing `id`, `title`, `orderIndex`, `type`, and `createdAt`. Public detail intentionally omits protected video/document URLs.
+
+Course Service obtains `fullName` through the protected User Service endpoint `GET /users/internal/profiles`; it never reads User DB. Instructor-name enrichment is non-critical: if User Service is unavailable, the course remains available and `instructor.fullName` is `null`. Missing/unpublished courses return `404 COURSE_NOT_FOUND`.
 
 ## Student learning
 
@@ -37,7 +40,7 @@ All routes require a valid student JWT. `studentId` is derived exclusively from 
 
 ### `GET /api/courses/enrolled`
 
-Returns the active enrolled courses for the JWT student, including stored `progress_percent`. It accepts no identity query or body field.
+Returns the active enrolled courses for the JWT student, including numeric `progress_percent`, `total_lessons`, and `completed_lessons`. The completion count comes from Course DB `lesson_progress` rows with `status = completed`; it is not calculated in React. The route accepts no identity query or body field.
 
 ### `GET /api/courses/:courseId/learning`
 
@@ -84,7 +87,7 @@ All routes require a valid instructor JWT. Ownership always uses the JWT instruc
 |---|---|
 | `POST /api/courses/draft` | Create draft and optional initial lessons atomically; returns `201 { course }`. |
 | `GET /api/courses/drafts/mine` | Return `{ items, total }` for owned draft courses. |
-| `GET /api/courses/instructor/mine` | Return `{ items, total }` for all owned statuses with lesson/enrollment counts. |
+| `GET /api/courses/instructor/mine` | Return `{ summary, items, total }` for all owned non-deleted statuses with lesson/enrollment/progress aggregates. |
 | `PATCH /api/courses/drafts/:courseId` | Update owned draft `title`, `description`, `category`, `coverImage`, and `price`; returns `{ course }`. |
 | `DELETE /api/courses/drafts/:courseId` | Soft-delete an owned draft with no enrollment history; returns `{ deleted: true, courseId }`. |
 | `PATCH /api/courses/drafts/:courseId/publish` | Publish an owned ready draft; returns `{ course }`. |
@@ -109,6 +112,36 @@ Lesson mutation bodies use `title`, optional `videoUrl`, and optional `documentU
 
 The separate Exam Service endpoint for owned quiz results is documented in [exam-api.md](exam-api.md).
 
+`GET /api/courses/instructor/mine` returns a source-owned Instructor dashboard aggregate:
+
+```json
+{
+  "summary": {
+    "totalCourses": 0,
+    "publishedCourses": 0,
+    "draftCourses": 0,
+    "totalEnrollments": 0,
+    "activeEnrollments": 0,
+    "uniqueStudents": 0,
+    "averageProgress": 0
+  },
+  "items": [
+    {
+      "id": 1,
+      "title": "...",
+      "status": "published",
+      "lessonCount": 5,
+      "enrollmentCount": 8,
+      "activeEnrollmentCount": 8,
+      "averageProgress": 62.5
+    }
+  ],
+  "total": 1
+}
+```
+
+All counts and progress values are queried from Course DB. Exam results remain a separate Exam Service API rather than a cross-database join.
+
 ### `GET /courses/:courseId/instructor-access`
 
 Direct Course Service dependency used by Exam Service. It forwards the instructor JWT and returns `200 { allowed: true, courseId }` only when that instructor owns the course; otherwise `404 COURSE_NOT_FOUND`.
@@ -119,12 +152,12 @@ These public routes require an admin JWT.
 
 ### `GET /api/courses/admin/reports/courses`
 
-Optional filters: `dateFrom=YYYY-MM-DD`, `dateTo=YYYY-MM-DD`, `category`, and `status=draft|pending_review|published|rejected`.
+Optional filters: `dateFrom=YYYY-MM-DD`, `dateTo=YYYY-MM-DD`, `category`, `status=draft|pending_review|published|rejected`, and positive integer `instructorId`.
 
 Returns:
 
 - `summary`: total/published/draft/pending-review/rejected course counts plus total and active enrollments;
-- `items`: course ID/title/category/status/price, enrollment counts, average progress, and timestamps.
+- `items`: course ID/title/category/status/price, `instructorId`, enrollment counts, average progress, and timestamps.
 
 Invalid values return `400 INVALID_REPORT_FILTER`.
 
@@ -137,6 +170,10 @@ Body: `{ "status": "draft|pending_review|published|rejected" }`. Returns `200 { 
 Body: `{ "category": "Development" }`. The category must be a non-empty string of at most 255 characters. Returns `200 { course }`; invalid input returns `400 INVALID_COURSE_CATEGORY` and a missing or deleted course returns `404 COURSE_NOT_FOUND`. Course Service persists the value in its own `courses.category` column.
 
 `GET /api/courses/categories` remains the public published-category data source; categories are values on `courses`, not a separate table or service.
+
+## Internal User Service dependency
+
+For published course detail only, Course Service calls `GET /users/internal/profiles?ids=<instructorId>` with `X-Internal-Service-Secret`. The response is limited to instructor `id` and `fullName`. This is REST enrichment across service boundaries; Course Service does not import User DB configuration or query User DB.
 
 ## Internal Payment Service APIs
 
