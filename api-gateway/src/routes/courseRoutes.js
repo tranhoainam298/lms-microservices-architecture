@@ -19,7 +19,7 @@ function parsePositiveRouteId(res, value, code, label) {
 
 router.get('/', async (req, res, next) => {
   try {
-    const upstreamResponse = await forwardGetCourses(req.user);
+    const upstreamResponse = await forwardGetCourses();
     res.status(upstreamResponse.status).json(upstreamResponse.body);
   } catch (error) {
     next(error);

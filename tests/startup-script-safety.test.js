@@ -6,13 +6,14 @@ const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const launcher = read('start-lms.bat');
+const compatibilityLauncher = read('start-lms-docker.bat');
 const repairBatch = read('repair-db-users.bat');
 const repairHelper = read('scripts/repair-db-users.ps1');
 const repairSource = `${repairBatch}\n${repairHelper}`;
 const emergencyBatch = read('repair-db-users-emergency.bat');
 const emergencyHelper = read('scripts/repair-db-users-emergency.ps1');
 const emergencySource = `${emergencyBatch}\n${emergencyHelper}`;
-const allStartupAndRepairScripts = `${launcher}\n${repairSource}\n${emergencySource}`;
+const allStartupAndRepairScripts = `${launcher}\n${compatibilityLauncher}\n${repairSource}\n${emergencySource}`;
 
 const destructivePatterns = [
   /docker\s+compose\s+down\s+-v/i,
@@ -39,6 +40,11 @@ assert.match(launcher, /http:\/\/localhost:8080/i);
 assert.match(launcher, /\/health/i);
 assert.match(launcher, /pause/i);
 assert.match(launcher, /WAIT_HEALTH/i);
+
+assert.match(compatibilityLauncher, /call\s+"%~dp0start-lms\.bat"/i);
+assert.doesNotMatch(compatibilityLauncher, /docker\s+compose/i);
+assert.doesNotMatch(compatibilityLauncher, /remove-orphans/i);
+assert.doesNotMatch(compatibilityLauncher, /localhost:5173/i);
 
 assert.match(repairBatch, /Continue\? \[Y\/N\]/i);
 assert.match(repairSource, /ALTER USER/i);

@@ -485,17 +485,35 @@ function authenticateAdmin(req, res, next) {
   }
 }
 
-async function fetchCourseTitles() {
+async function fetchCourseTitles(courseIds) {
+  if (courseIds.length === 0) return {};
+
+  const endpoint = new URL('/courses/internal/titles', `${COURSE_SERVICE_URL.replace(/\/$/, '')}/`);
+  endpoint.searchParams.set('ids', courseIds.join(','));
   let response;
   try {
-    response = await fetch(`${COURSE_SERVICE_URL}/courses/internal/titles`, {
+    response = await fetch(endpoint, {
       headers: { 'x-internal-service-secret': process.env.INTERNAL_SERVICE_SECRET }
     });
   } catch {
-    return {};
+    const error = new Error('Course information is unavailable for the revenue report.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    throw error;
   }
-  if (!response.ok) return {};
   const body = await readJson(response);
+  if (!response.ok) {
+    const error = new Error('Course information is unavailable for the revenue report.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    throw error;
+  }
+  if (!body.courses || typeof body.courses !== 'object' || Array.isArray(body.courses)) {
+    const error = new Error('Course information returned an invalid response.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_RESPONSE_INVALID';
+    throw error;
+  }
   return body.courses || {};
 }
 
@@ -508,12 +526,13 @@ app.get('/payments/reports/revenue', authenticateAdmin, async (req, res, next) =
        ORDER BY created_at DESC`
     );
 
-    // 2. Cross-service call: fetch course titles from Course Service
-    const courseMap = await fetchCourseTitles();
+    // 2. Cross-service call: fetch only metadata for courses referenced by Payment DB.
+    const courseIds = [...new Set(transactions.map(t => Number(t.course_id)).filter(Number.isSafeInteger))];
+    const courseMap = await fetchCourseTitles(courseIds);
 
     // 3. Aggregate statistics
     const totalTransactions = transactions.length;
-    const successTransactions = transactions.filter(t => t.status === 'success');
+    const successTransactions = transactions.filter(t => String(t.status).toLowerCase() === 'success');
     const totalRevenue = successTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
     const successRate = totalTransactions > 0 ? (successTransactions.length / totalTransactions) * 100 : 0;
     const averageOrderValue = successTransactions.length > 0 ? totalRevenue / successTransactions.length : 0;

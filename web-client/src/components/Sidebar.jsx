@@ -16,8 +16,7 @@ const navigationGroups = [
       { id: 'dashboard', label: 'Student dashboard', short: 'S' },
       { id: 'lesson', label: 'Lesson viewer', short: 'L' },
       { id: 'quiz', label: 'Quiz module', short: 'Q' },
-      { id: 'payment', label: 'Payment', short: 'P' },
-      { id: 'ai-support', label: 'AI assistant', short: 'AI' },
+      { id: 'payment', label: 'Payment', short: 'P' }
     ]
   },
   {
@@ -30,8 +29,7 @@ const navigationGroups = [
     role: 'admin',
     items: [
       { id: 'revenue-report', label: 'Revenue and sales', short: 'R' },
-      { id: 'user-management', label: 'User management', short: 'U' },
-      { id: 'overview', label: 'System overview', short: 'OV' }
+      { id: 'user-management', label: 'User management', short: 'U' }
     ]
   }
 ];

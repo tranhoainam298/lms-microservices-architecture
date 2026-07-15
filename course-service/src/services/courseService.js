@@ -582,20 +582,45 @@ export async function enrollStudent(studentId, courseId) {
   }
 }
 
-export async function getCourseTitlesInternal() {
+function parseInternalCourseIds(value) {
+  if (value === undefined || value === null || value === '') return [];
+  const rawIds = String(value).split(',');
+  if (rawIds.length > 500) return null;
+
+  const ids = [];
+  for (const rawId of rawIds) {
+    const text = rawId.trim();
+    const id = Number(text);
+    if (!/^[1-9]\d*$/.test(text) || !Number.isSafeInteger(id)) return null;
+    ids.push(id);
+  }
+  return [...new Set(ids)];
+}
+
+export async function getCourseTitlesInternal(courseIdsValue) {
+  const courseIds = parseInternalCourseIds(courseIdsValue);
+  if (courseIds === null) {
+    return { status: 400, body: { code: 'INVALID_COURSE_IDS', message: 'Course IDs must be positive integers.' } };
+  }
+  if (courseIds.length === 0) {
+    return { status: 200, body: { courses: {} } };
+  }
+
   try {
     const connection = await pool.getConnection();
     try {
+      const placeholders = courseIds.map(() => '?').join(', ');
       const [courses] = await connection.query(
-        'SELECT id, title, price, status, instructor_id FROM courses'
+        `SELECT id, title, price, status FROM courses WHERE id IN (${placeholders})`,
+        courseIds
       );
       const courseMap = {};
       for (const course of courses) {
         courseMap[course.id] = {
+          id: course.id,
           title: course.title,
           price: Number(course.price),
-          status: course.status,
-          instructorId: course.instructor_id
+          status: course.status
         };
       }
       return { status: 200, body: { courses: courseMap } };

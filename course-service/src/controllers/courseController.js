@@ -193,6 +193,6 @@ export async function publishDraftHandler(req, res) {
 }
 
 export async function getCourseTitlesInternalHandler(req, res) {
-  const result = await getCourseTitlesInternal();
+  const result = await getCourseTitlesInternal(req.query?.ids);
   res.status(result.status).json(result.body);
 }

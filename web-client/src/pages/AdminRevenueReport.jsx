@@ -58,12 +58,12 @@ export default function AdminRevenueReport({ accessToken }) {
           <div>
             <p className="page-kicker">Administration</p>
             <h2 className="page-title">Revenue performance</h2>
-            <p className="page-description">Loading revenue data from Payment Service...</p>
+            <p className="page-description">Loading the latest revenue data...</p>
           </div>
         </header>
         <div className="revenue-loading" role="status" aria-label="Loading revenue data">
           <div className="revenue-loading__spinner" />
-          <p>Querying Payment DB and Course Service...</p>
+          <p>Preparing payment and course totals...</p>
         </div>
       </div>
     );
@@ -104,7 +104,7 @@ export default function AdminRevenueReport({ accessToken }) {
           <p className="page-kicker">Administration</p>
           <h2 className="page-title">Revenue performance</h2>
           <p className="page-description">
-            Live payment data from Payment DB, cross-referenced with Course Service.
+            Review successful sales, course contribution, and recent payment activity.
           </p>
         </div>
         <div className="revenue-intro__status">
@@ -118,14 +118,14 @@ export default function AdminRevenueReport({ accessToken }) {
           eyebrow="Gross volume"
           title="Total Revenue"
           value={formatVnd(summary.totalRevenue || 0)}
-          description="Successful payments from Payment DB"
+          description="Revenue from successful payments"
           tone="primary"
         />
         <StatCard
           eyebrow="Payment records"
           title="Transaction Count"
           value={summary.totalTransactions || 0}
-          description="All transactions in Payment DB"
+          description="All recorded payment attempts"
         />
         <StatCard
           eyebrow="Order economics"
@@ -251,7 +251,7 @@ export default function AdminRevenueReport({ accessToken }) {
               <option value="momo">Momo</option>
             </select>
           </div>
-          <p className="revenue-toolbar__note">Live data from Payment DB, enriched with Course Service titles.</p>
+          <p className="revenue-toolbar__note">Use the filters to review recent payment activity.</p>
         </div>
 
         <div className="table-container">
