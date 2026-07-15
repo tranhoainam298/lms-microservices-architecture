@@ -1,7 +1,7 @@
 -- =============================================
 -- LMS User Database - Schema & Seed Data
 -- =============================================
-
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
