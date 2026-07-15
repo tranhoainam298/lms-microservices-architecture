@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { forwardAskAiAboutLesson, forwardCompleteLesson, forwardCreateDraft, forwardCreateLessonForDraft, forwardDeleteLessonForDraft, forwardGetCourseLearning, forwardGetLesson, forwardGetLessonsForDraft, forwardGetCourses, forwardGetEnrolledCourses, forwardGetDrafts, forwardPublishDraft, forwardUpdateDraft, forwardUpdateLessonForDraft } from '../proxy/courseServiceProxy.js';
+import { forwardAskAiAboutLesson, forwardCompleteLesson, forwardCreateDraft, forwardCreateLessonForDraft, forwardDeleteDraft, forwardDeleteLessonForDraft, forwardEnrollInFreeCourse, forwardGetAdminCourseReport, forwardGetCourseCategories, forwardGetCourseLearning, forwardGetInstructorCourseProgress, forwardGetInstructorCourses, forwardGetLesson, forwardGetLessonsForDraft, forwardGetCourses, forwardGetEnrolledCourses, forwardGetDrafts, forwardGetPublishedCourseDetail, forwardModerateCourseStatus, forwardPublishDraft, forwardReorderLessonsForDraft, forwardUpdateCourseCategory, forwardUpdateDraft, forwardUpdateLessonForDraft } from '../proxy/courseServiceProxy.js';
 import { jwtAuth } from '../middleware/jwtAuth.js';
 
 const router = Router();
@@ -17,9 +17,96 @@ function parsePositiveRouteId(res, value, code, label) {
   return parsedValue;
 }
 
+function validateScalarQuery(res, query, allowedKeys) {
+  for (const key of allowedKeys) {
+    if (query[key] !== undefined && typeof query[key] !== 'string') {
+      res.status(400).json({ code: 'INVALID_QUERY', message: `${key} must be provided once as a string value.` });
+      return false;
+    }
+  }
+  return true;
+}
+
 router.get('/', async (req, res, next) => {
   try {
-    const upstreamResponse = await forwardGetCourses();
+    if (!validateScalarQuery(res, req.query, ['search', 'category', 'minPrice', 'maxPrice'])) return;
+    const upstreamResponse = await forwardGetCourses(req.query);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/categories', async (req, res, next) => {
+  try {
+    const upstreamResponse = await forwardGetCourseCategories();
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/admin/reports/courses', jwtAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only administrators can view course reports.' });
+    }
+    if (!validateScalarQuery(res, req.query, ['dateFrom', 'dateTo', 'category', 'status'])) return;
+    const upstreamResponse = await forwardGetAdminCourseReport(req.query, req.headers.authorization);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/admin/:courseId/status', jwtAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only administrators can moderate courses.' });
+    }
+    const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+    if (courseId === null) return;
+    const upstreamResponse = await forwardModerateCourseStatus(courseId, req.body, req.headers.authorization);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/admin/:courseId/category', jwtAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only administrators can categorize courses.' });
+    }
+    const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+    if (courseId === null) return;
+    const upstreamResponse = await forwardUpdateCourseCategory(courseId, req.body, req.headers.authorization);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/instructor/:courseId/progress', jwtAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'instructor') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only instructors can view course progress.' });
+    }
+    const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+    if (courseId === null) return;
+    const upstreamResponse = await forwardGetInstructorCourseProgress(courseId, req.headers.authorization);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/instructor/mine', jwtAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'instructor') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only instructors can view their courses.' });
+    }
+    const upstreamResponse = await forwardGetInstructorCourses(req.headers.authorization);
     res.status(upstreamResponse.status).json(upstreamResponse.body);
   } catch (error) {
     next(error);
@@ -61,8 +148,26 @@ router.patch('/drafts/:courseId', jwtAuth, async (req, res, next) => {
         message: 'Only instructors can update draft courses.'
       });
     }
-    const courseId = req.params.courseId;
+    const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+    if (courseId === null) return;
     const upstreamResponse = await forwardUpdateDraft(courseId, req.body, req.headers.authorization);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/drafts/:courseId', jwtAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'instructor') {
+      return res.status(403).json({
+        code: 'FORBIDDEN',
+        message: 'Only instructors can delete course drafts.'
+      });
+    }
+    const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+    if (courseId === null) return;
+    const upstreamResponse = await forwardDeleteDraft(courseId, req.headers.authorization);
     res.status(upstreamResponse.status).json(upstreamResponse.body);
   } catch (error) {
     next(error);
@@ -157,6 +262,23 @@ router.get('/drafts/:courseId/lessons', jwtAuth, async (req, res, next) => {
   }
 });
 
+router.patch('/drafts/:courseId/lessons/reorder', jwtAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'instructor') {
+      return res.status(403).json({
+        code: 'FORBIDDEN',
+        message: 'Only instructors can reorder lessons.'
+      });
+    }
+    const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+    if (courseId === null) return;
+    const upstreamResponse = await forwardReorderLessonsForDraft(courseId, req.body, req.headers.authorization);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.patch('/drafts/:courseId/lessons/:lessonId', jwtAuth, async (req, res, next) => {
   try {
     if (req.user.role !== 'instructor') {
@@ -240,6 +362,31 @@ router.post('/lessons/:lessonId/ai/ask', jwtAuth, async (req, res, next) => {
     const lessonId = parsePositiveRouteId(res, req.params.lessonId, 'INVALID_LESSON_ID', 'Lesson ID');
     if (lessonId === null) return;
     const upstreamResponse = await forwardAskAiAboutLesson(lessonId, req.body, req.headers.authorization);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:courseId/enroll', jwtAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ code: 'FORBIDDEN', message: 'Only students can enroll in courses.' });
+    }
+    const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+    if (courseId === null) return;
+    const upstreamResponse = await forwardEnrollInFreeCourse(courseId, req.headers.authorization);
+    res.status(upstreamResponse.status).json(upstreamResponse.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:courseId', async (req, res, next) => {
+  try {
+    const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+    if (courseId === null) return;
+    const upstreamResponse = await forwardGetPublishedCourseDetail(courseId);
     res.status(upstreamResponse.status).json(upstreamResponse.body);
   } catch (error) {
     next(error);

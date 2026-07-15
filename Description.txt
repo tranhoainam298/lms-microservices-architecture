@@ -1,229 +1,214 @@
-TÀI LIỆU MÔ TẢ CHI TIẾT KIẾN TRÚC, LUỒNG DỮ LIỆU VÀ CẤU HÌNH DATABASE
-HỆ THỐNG LEARNING MANAGEMENT SYSTEM (LMS)
-Dự án: Đồ án môn Software Architecture & Design - Nhóm 10 [cite: 4, 5, 6]
-Công nghệ lõi: Microservices, Node.js, C#, React, Flutter, Kafka/RabbitMQ [cite: 96, 97, 123, 142]
+LMS MICROSERVICES ARCHITECTURE — CURRENT IMPLEMENTATION DESCRIPTION
+==================================================================
 
-================================================================================
-PHẦN 1: TỔNG QUAN CÁCH HỆ THỐNG HOẠT ĐỘNG VÀ KẾT NỐI DỮ LIỆU
-================================================================================
+Purpose
+-------
+This file describes the executable repository. The final Word architecture constraints,
+current secure source code, API/event contracts, and verified runtime take precedence over
+older examples. Conceptual endpoint names from the Word document are mapped to the actual
+routes documented under shared/api-contracts and docs/architecture.
 
-1. Kiến trúc tổng thể (Architecture Style)
-- Hệ thống áp dụng Kiến trúc Microservices kết hợp với API Gateway và giao tiếp qua cơ chế hướng sự kiện (event-driven)[cite: 142].
-- Các domain nghiệp vụ được tách biệt thành các service độc lập: User, Course, Exam & Quiz, Payment, và AI Support[cite: 143].
+IMPLEMENTED NOW
+===============
 
-2. Phương thức giao tiếp và Kết nối dữ liệu (Communication & Data Connection)
-- API Gateway: Đóng vai trò là điểm đầu vào duy nhất cho tất cả các Web/Mobile Client[cite: 123]. API Gateway chịu trách nhiệm định tuyến (routing) request, xác thực JWT (Authentication), và giới hạn tỷ lệ (rate limiting)[cite: 123, 167].
-- Đồng bộ (Synchronous): Các request cần phản hồi ngay lập tức giữa Client và API Gateway, cũng như từ API Gateway đến các microservices được thực hiện qua giao thức HTTPS/REST[cite: 123, 159].
-- Bất đồng bộ (Asynchronous): Hệ thống sử dụng Message Broker (Kafka hoặc RabbitMQ) cho mô hình Publish/Subscribe[cite: 123, 203]. Các sự kiện như đăng nhập, thanh toán hoặc cập nhật khóa học được phát vào Event Bus để các service khác lắng nghe mà không cần gọi trực tiếp[cite: 123].
-- Database per Service: Mỗi microservice làm chủ một cơ sở dữ liệu riêng biệt (User DB, Course DB, Exam DB, Payment DB)[cite: 123, 145]. Không có cơ sở dữ liệu dùng chung; không một service nào được phép truy cập trực tiếp vào cơ sở dữ liệu của service khác[cite: 196].
-- Tích hợp ngoại vi (External Integrations): Việc thanh toán được kết nối qua API của ZaloPay/Momo; tính năng hỗ trợ học tập kết nối với AI Chatbot System[cite: 123].
+1. Core components
+------------------
+The LMS has exactly these deployable core components:
 
-================================================================================
-PHẦN 2: MÔ TẢ CỰC CHI TIẾT CÁC BIỂU ĐỒ (DIAGRAMS)
-================================================================================
+- API Gateway: Express.js, port 3000 inside Docker.
+- User Service: Node.js/Express, port 5001.
+- Course Service: Node.js/Express, port 5002.
+- Exam & Quiz Service: ASP.NET Core / EF Core, port 5003.
+- Payment Service: Node.js/Express, port 5004.
+- Web Client: React/Vite production build served by Nginx.
 
-2.1. Hình 1 (UML Use Case Diagram) [cite: 106, 107]
-- Mô tả: Sơ đồ thể hiện các tác nhân (Actors) và các chức năng chính mà họ tương tác.
-- Tác nhân Student (Học viên): Có các Use Case kết nối trực tiếp đến Login/Register, View Lesson, Take Quiz, Pay for Course, và Ask AI Question[cite: 106].
-- Tác nhân Instructor (Giảng viên): Có các Use Case kết nối đến Create Course, Manage Quiz Bank, và View Reports[cite: 106].
-- Tác nhân Admin (Quản trị viên): Kết nối đến Use Case View Reports[cite: 106].
-- Tác nhân External System (Hệ thống ngoài): Kết nối đến Pay for Course (Xử lý thanh toán) và Ask AI Question (Trả lời tự động)[cite: 106].
+There is no Analytics Service, Reporting Service, Notification Service, Enrollment Service,
+or AI core service. Reporting responsibilities remain inside existing data owners. The AI
+Chatbot System and Payment Gateway are external systems. RabbitMQ is infrastructure.
 
-2.2. Hình 2 (Context Diagram) [cite: 147, 148, 149]
-- Mô tả: Sơ đồ ngữ cảnh đặt Hệ thống LMS làm trung tâm và xác định ranh giới luồng dữ liệu vào/ra với các thực thể bên ngoài[cite: 147, 148].
-- Luồng Student: Gửi dữ liệu Account, Registration request, Payment data vào LMS; nhận Verification, Lectures, Exam results từ LMS[cite: 148].
-- Luồng Teacher: Gửi Course data, Publication request vào LMS; nhận Processing results, Student data từ LMS[cite: 148].
-- Luồng Admin: Gửi Configuration command, Request to export report vào LMS; nhận Confirm update, Statistics data từ LMS[cite: 148].
-- Luồng External System (ZaloPay, Chatbot): LMS gửi Payment order, Consultation question (AI) ra ngoài; nhận lại Reconciliation results, Chatbot response[cite: 148].
+2. Database ownership
+---------------------
+Each business service uses one independent MySQL 8 database:
 
-2.3. Hình 3.1 (Module View - Decomposition Style) [cite: 151, 152, 153]
-- Mô tả: Phân rã cấu trúc hệ thống thành các module nhỏ hơn từ khối LMS System tổng[cite: 151].
-- User Service Module: Chứa Auth, Profile, Role & Permission, Notification[cite: 152].
-- Course Service Module: Chứa Course Management, Lesson, Enrollment, Progress Tracking, Discussion[cite: 152].
-- Exam & Quiz Module: Chứa Question Bank, Answer, Test Generator, Auto Grading, Result History[cite: 152].
-- Payment Service Module: Chứa Transaction, Invoice, Gateway Integration, Webhook Handler[cite: 152].
-- Analytics Service Module: Chứa Student/Instructor Analytics, Admin Dashboard[cite: 152].
-- Shared/Cross-Cutting Modules: Gồm API Gateway, Event Bus (Kafka), AI Chatbot Module, Logging & Monitoring[cite: 151, 152].
+- User Service -> User DB: users, login_audit.
+- Course Service -> Course DB: courses, lessons, enrollments, lesson_progress.
+- Exam & Quiz Service -> Exam DB: quizzes, questions, quiz_results.
+- Payment Service -> Payment DB: transactions.
 
-2.4. Hình 3.2 (Module View - Users Style) [cite: 154, 155]
-- Mô tả: Thể hiện mối quan hệ phụ thuộc "Uses" (Sử dụng) giữa các thành phần[cite: 154].
-- Lớp Ứng dụng: Web App Module và Admin Panel Module trỏ mũi tên "uses" xuống API Gateway Module[cite: 154].
-- Lớp Gateway: API Gateway Module trỏ mũi tên "uses" xuống 4 dịch vụ lõi: User, Course, Exam, Payment Service[cite: 154].
-- Lớp Dịch vụ - Dữ liệu: Các service trỏ "uses" xuống DB riêng của mình[cite: 154]. Course Service có mối quan hệ "uses" chéo sang Exam DB để lấy bài kiểm tra cho khóa học[cite: 154].
-- Lớp Sự kiện: Cả 4 dịch vụ cốt lõi trỏ mũi tên "uses" xuống Event Bus (Kafka) để phát/nhận sự kiện[cite: 154].
+No service connects directly to another service's database. There is no shared application,
+Reporting, Enrollment, Learning Result, or Chatbot database. Cross-domain data is obtained
+through authenticated HTTP APIs or RabbitMQ events.
 
-2.5. Hình 3.3 (Layer View) [cite: 156, 157]
-- Mô tả: Phân tầng hệ thống theo chiều dọc thành 5 tầng rõ rệt[cite: 156].
-- Tầng 1 (Presentation Layer): Web App (ReactJS), Mobile App (Flutter), Admin Dashboard, AI Chatbot UI[cite: 156].
-- Tầng 2 (API Gateway Layer): JWT Authentication, Rate Limiting, Request Routing, Load Balancing[cite: 156].
-- Tầng 3 (Business Logic Layer): 4 Microservices (User, Course, Exam, Payment)[cite: 156].
-- Tầng 4 (Integration Layer): Message Broker, Payment Gateway, AI Chatbot Engine, Email Service[cite: 156].
-- Tầng 5 (Data Layer): User DB, Course DB, Exam DB, Payment DB (PostgreSQL/RDS) và S3 + CloudFront cho Video/Files[cite: 156].
+3. Public request path
+----------------------
+The normal browser path is:
 
-2.6. Hình 4 (Component and Connector View) [cite: 158, 159, 160, 161]
-- Mô tả: Khắc họa các giao thức kết nối khi hệ thống vận hành[cite: 159].
-- Khách hàng giao tiếp bằng HTTPS/REST đến API Gateway[cite: 159].
-- API Gateway định tuyến bằng HTTPS/REST đến các Microservices[cite: 159, 160].
-- Các Microservices kết nối xuống DB tương ứng bằng TCP/IP. Course Service kết nối AWS S3 Storage bằng HTTPS/API[cite: 160].
-- Event-driven: Payment Service phát sự kiện `OrderCreated`, Course Service phát `CourseReserved` đến Message Broker. Notification Service nhận `SendEmail` và gọi qua SMTP[cite: 160].
+Browser -> http://localhost:8080 -> Nginx -> /api -> API Gateway -> owning service.
 
-2.7. Hình 5 (Deployment / Allocation View) [cite: 162, 163, 164, 165]
-- Mô tả: Sơ đồ triển khai vật lý/container hóa hệ thống[cite: 163].
-- Các dịch vụ có thể được triển khai dưới dạng Docker container[cite: 164].
-- Storage Layer & Backup: Mỗi Database (User, Course, Exam, Payment) đều có một bản backup riêng biệt để tăng độ tin cậy[cite: 164].
+Nginx never routes /api directly to a business service. API Gateway mounts /auth, /users,
+/courses, /exams, and /payments. The Web Client uses a relative /api base and never calls a
+database, business-service hostname, ZaloPay endpoint, or AI provider directly.
 
-2.8. Hình 6 -> 12 (Sơ đồ tuần tự - Sequence Diagrams) [cite: 168, 169, 170, 171, 172, 173, 174, 175, 176]
-- Hình 6 (Login): POST /auth/login -> API Gateway -> User Service. Check User DB. Trả token nếu đúng, phát "Login event" qua Message Broker[cite: 169].
-- Hình 7 (Save Draft Course): POST /courses/draft -> API Gateway -> Course Service. Validate và lưu vào Course DB[cite: 170].
-- Hình 8 (View Lesson): GET /lessons/{lessonId} -> API Gateway -> Course Service. Check enrollment trong Course DB. Trả URL nội dung[cite: 171].
-- Hình 9 (Take Quiz): POST /quizzes/{quizId}/submit -> Exam Service chấm điểm dựa trên Exam DB và lưu kết quả[cite: 172].
-- Hình 10 (Pay for Course): POST /payments -> API Gateway -> Payment Service -> ZaloPay/Momo. Thành công -> update Payment DB -> yêu cầu Course Service lưu quyền truy cập vào Course DB[cite: 173].
-- Hình 11 (Revenue Report): GET /reports/revenue -> API Gateway -> Payment Service query Payment DB -> Course Service query Course DB -> Tính doanh thu[cite: 174].
-- Hình 12 (Ask AI): POST /ai/question -> API Gateway -> Course Service. Lấy ngữ cảnh bài học từ Course DB -> Gửi question + context sang AI Chatbot System[cite: 175].
+4. User functionality
+---------------------
+Implemented User Service capabilities include:
 
-================================================================================
-PHẦN 3: BẢN ĐỒ CẤU HÌNH MÔI TRƯỜNG (ENVIRONMENT VARIABLES)
-================================================================================
-Mỗi Microservice chạy trong một Docker Container riêng và nạp cấu hình từ file .env độc lập[cite: 200].
+- student-only public registration;
+- real bcrypt login and HS256 JWT issuance;
+- profile read/update and password change;
+- administrator user list/filter, status and role management;
+- login-audit activity reporting.
 
-1. User Service (.env)
----------------------------------------
-PORT=5001
-NODE_ENV=production
-DB_HOST=user-db-mysql
-DB_PORT=3306
-DB_USER=lms_user_admin
-DB_PASSWORD=UserSecuredPwd2026
-DB_NAME=lms_user_db
-JWT_SECRET=UserMicroserviceSecretKey2026
+After successful login, User Service publishes UserLoggedInEvent on the durable RabbitMQ
+topic exchange lms_events using routing key user.loggedin. The event excludes passwords,
+password hashes, and JWTs. Broker publication failure is non-critical to a valid login.
 
-2. Course Service (.env)
----------------------------------------
-PORT=5002
-NODE_ENV=production
-DB_HOST=course-db-mysql
-DB_PORT=3306
-DB_USER=lms_course_admin
-DB_PASSWORD=CourseSecuredPwd2026
-DB_NAME=lms_course_db
-AWS_S3_BUCKET=lms-media-storage
+5. Course and learning functionality
+------------------------------------
+Implemented Course Service capabilities include:
 
-3. Exam & Quiz Service (appsettings.json - C#/.NET Platform)
----------------------------------------
-{
-  "Logging": {
-    "LogLevel": { "Default": "Information", "Microsoft.AspNetCore": "Warning" }
-  },
-  "AllowedHosts": "*",
-  "ConnectionStrings": {
-    "ExamMysqlConnection": "Server=exam-db-mysql;Port=3306;Database=lms_exam_db;Uid=lms_exam_admin;Pwd=ExamSecuredPwd2026;Pooling=true;MinPoolSize=5;MaxPoolSize=100;"
-  }
-}
+- published catalog with search, category, minimum-price, and maximum-price filters;
+- published course detail and category list;
+- instructor-owned draft creation/list/update/publish;
+- instructor-owned lesson create/list/update/delete for drafts;
+- enrolled-course list, protected lesson/course learning data, resource URLs;
+- idempotent lesson completion and persisted course progress;
+- internally authenticated course purchase metadata and enrollment activation;
+- student exam-access and instructor ownership APIs used by Exam Service;
+- instructor enrollment/progress report;
+- admin course report and course-status moderation;
+- lesson-context AI request orchestration.
 
-4. Payment Service (.env)
----------------------------------------
-PORT=5004
-NODE_ENV=production
-DB_HOST=payment-db-mysql
-DB_PORT=3306
-DB_USER=lms_payment_admin
-DB_PASSWORD=PaymentSecuredPwd2026
-DB_NAME=lms_payment_db
-ZALOPAY_APP_ID=2553
-ZALOPAY_KEY1=uu459283749823
-MOMO_PARTNER_CODE=MOMO_LMS2026
+Course access requires both a published course and active enrollment. Student identity comes
+from JWT. Payment Service is the only caller allowed to supply a student ID to the internal
+enrollment endpoint, and that call requires the internal service secret. Enrollment is unique
+per student/course and activation is idempotent.
 
-================================================================================
-PHẦN 4: CHI TIẾT MÃ LỆNH KẾT NỐI DATABASE THỰC TẾ
-================================================================================
+When access is newly activated, Course Service publishes CourseAccessActivatedEvent with
+routing key course.access.activated. Events do not perform a second enrollment write; the
+synchronous internal HTTP activation is authoritative.
 
-1. Mẫu kết nối cho các dịch vụ Node.js (User, Course, Payment Services)
-Sử dụng thư viện 'mysql2/promise' kết hợp Connection Pooling:
+6. Exam and quiz functionality
+------------------------------
+Exam & Quiz Service implements:
 
-const mysql = require('mysql2/promise');
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: parseInt(process.env.DB_PORT, 10) || 3306,
-  waitForConnections: true,
-  connectionLimit: 50,
-  queueLimit: 0,
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 10000
-});
+- instructor-owned quiz create/list/detail/update/delete/publish for a draft course;
+- single-choice question authoring within the quiz transaction;
+- published quiz listing/loading for an actively enrolled student;
+- secure student payloads without correct answers;
+- server-side validation, grading, result persistence, and one submission per student/quiz;
+- own-result list/detail for students;
+- instructor-owned course quiz-result summary.
 
-async function testConnection() {
-  try {
-    const connection = await pool.getConnection();
-    console.log(`[DATABASE] Kết nối thành công tới database MySQL: ${process.env.DB_NAME}`);
-    connection.release();
-  } catch (error) {
-    console.error('[DATABASE] Lỗi kết nối cơ sở dữ liệu:', error.message);
-    process.exit(1);
-  }
-}
-module.exports = { pool, testConnection };
+Exam Service obtains course and enrollment authorization from Course Service over HTTP with
+the original JWT. It never reads Course DB. Browser-supplied student IDs, scores, pass flags,
+or answer keys are not authoritative.
 
-2. Mẫu kết nối cho dịch vụ C#/.NET Core (Exam & Quiz Service)
-Định nghĩa Context dữ liệu (ExamDbContext.cs):
+7. Payment functionality
+------------------------
+The current executable provider integration is ZaloPay Sandbox v2:
 
-using Microsoft.EntityFrameworkCore;
-public class ExamDbContext : DbContext {
-    public ExamDbContext(DbContextOptions<ExamDbContext> options) : base(options) { }
-    public DbSet<Question> Questions { get; set; }
-    public DbSet<Quiz> Quizzes { get; set; }
-    public DbSet<QuizResult> QuizResults { get; set; }
-    protected override void OnModelCreating(ModelBuilder modelBuilder) {
-        base.OnModelCreating(modelBuilder);
-        modelBuilder.Entity<Question>().HasIndex(q => q.TopicId);
-    }
-}
+- POST /payments/checkout creates a backend-priced pending Payment DB transaction and signs
+  the sandbox create request.
+- GET /payments/check-status/:appTransId verifies payment ownership and signs a sandbox query.
+- POST /payments/callback/zalopay validates the Key2 MAC and stored transaction identity.
+- GET /payments/mine and owned payment detail expose student payment history.
+- mock completion is disabled and returns HTTP 410.
 
-Đăng ký dịch vụ (Program.cs):
-var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("ExamMysqlConnection");
-builder.Services.AddDbContext<ExamDbContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString),
-        mySqlOptions => mySqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 5, maxRetryDelay: TimeSpan.fromSeconds(30), errorNumbersToAdd: null
-        )
-    )
-);
+Course price comes from Course Service, not the browser. A provider-confirmed pending payment
+transitions to the canonical success state and publishes PaymentSucceededEvent using routing
+key payment.succeeded. Payment Service then synchronously calls Course Service to activate
+access. A failed pending payment publishes PaymentFailedEvent using routing key payment.failed
+and never activates enrollment. Repeated confirmation is safe and does not duplicate the
+payment transition or enrollment.
 
-================================================================================
-PHẦN 5: LUỒNG DI CHUYỂN DỮ LIỆU VÀ CƠ CHẾ KẾT NỐI CHÉO (ASYNC DATA CONNECTIVITY)
-================================================================================
-Nguyên tắc: Không service nào được gọi trực tiếp vào DB của service khác[cite: 196]. 
+8. Reporting functionality
+--------------------------
+There is no Reporting or Analytics deployable service.
 
-Luồng xử lý điển hình: Kích hoạt quyền truy cập sau khi thanh toán [cite: 118]
-- Bước 1: Khách hàng thanh toán qua ZaloPay/Momo thành công.
-- Bước 2: Payment Service cập nhật trạng thái hóa đơn trong Payment DB thành 'Paid'[cite: 118].
-- Bước 3: Payment Service đẩy sự kiện (VD: `order-events`) lên Message Broker (Kafka)[cite: 123].
-- Bước 4: Course Service lắng nghe Topic `order-events`, nhận tin nhắn và tự động ghi dữ liệu vào bảng đăng ký của Course DB[cite: 118].
+- Payment Service owns the admin revenue report. It reads Payment DB and calls the protected
+  Course Service title endpoint for minimal metadata. Only status=success contributes revenue.
+- Course Service owns admin course/enrollment reporting and instructor learning progress.
+- Exam Service owns instructor quiz-result reporting.
+- User Service owns login activity reporting.
 
-================================================================================
-PHẦN 6: HƯỚNG DẪN LỆNH KHỞI TẠO VÀ VẬN HÀNH DATABASE QUA CLI
-================================================================================
+Each owner queries only its own database.
 
-1. Lệnh tạo các Database độc lập (Run once tại DB Server)
-CREATE DATABASE lms_user_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE lms_course_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE lms_exam_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE lms_payment_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+9. AI learning support
+----------------------
+The actual path is:
 
-2. Lệnh khởi chạy Migration tự động cập nhật cấu trúc bảng
-- Node.js Services (Sequelize CLI): $ npx sequelize-cli db:migrate --env production
-- C#/.NET Core Service (EF Core CLI): $ dotnet ef database update --context ExamDbContext
+Lesson UI -> API Gateway -> Course Service -> Course DB context -> External AI Chatbot System.
 
-3. Lệnh Backup/Sao lưu dữ liệu độc lập cho từng DB [cite: 201]
-- User DB: $ docker exec -t user-db-mysql mysqldump -u lms_user_admin -pUserSecuredPwd2026 lms_user_db > ./backups/user_db_backup_$(date +%F).sql
-- Course DB: $ docker exec -t course-db-mysql mysqldump -u lms_course_admin -pCourseSecuredPwd2026 lms_course_db > ./backups/course_db_backup_$(date +%F).sql
-- Exam DB: $ docker exec -t exam-db-mysql mysqldump -u lms_exam_admin -pExamSecuredPwd2026 lms_exam_db > ./backups/exam_db_backup_$(date +%F).sql
-- Payment DB: $ docker exec -t payment-db-mysql mysqldump -u lms_payment_admin -pPaymentSecuredPwd2026 lms_payment_db > ./backups/payment_db_backup_$(date +%F).sql
+Course Service validates the student JWT, published course, active enrollment, lesson, and
+question before sending course/lesson/resource/progress context. The external adapter reads
+AI_API_KEY from its own server environment and calls the configured real provider. It returns
+AI_PROVIDER_NOT_CONFIGURED when no key is present and never fabricates a canned answer. The
+provider key is not passed to Web Client, API Gateway, or Course Service.
 
-4. Lệnh thao tác chung Docker Compose [cite: 212]
-- Chạy hệ thống: docker compose up -d [cite: 212]
-- Dừng hệ thống: docker compose down [cite: 212]
-- Xem logs: docker compose logs -f <service-name> [cite: 212]
+10. Message Broker
+------------------
+RabbitMQ is the implemented broker. The durable topic exchange is lms_events. Current routing
+keys are:
+
+- user.loggedin
+- payment.succeeded
+- payment.failed
+- course.access.activated
+
+Each JSON event has eventId, eventType, eventVersion=1, occurredAt, source, and data. Messages
+are persistent and published with confirms/reconnect behavior. Database state is authoritative;
+publication errors are logged safely, and consumers are expected to be idempotent.
+
+11. Local Docker deployment
+---------------------------
+docker-compose.yml deploys Nginx, Web Client, API Gateway, four core services, four separate
+MySQL containers/volumes, RabbitMQ, the external AI adapter, and the local payment-provider
+compatibility fixture. Service-to-service traffic uses Docker DNS names, never localhost.
+
+The optional database-backup-server profile creates timestamped, non-destructive SQL dumps in
+its backup volume. It is disabled during normal startup.
+
+Use:
+
+  docker compose up -d --build
+
+or double-click start-lms.bat. Open http://localhost:8080. Stop without deleting data using:
+
+  docker compose down
+
+Never use docker compose down -v for normal operation.
+
+CREDENTIAL-DEPENDENT LIVE VERIFICATION
+======================================
+
+Source integration is complete for ZaloPay Sandbox and the external AI provider, but live
+verification requires locally configured non-placeholder environment variables. No real keys
+or secret values belong in this repository or this document.
+
+- ZaloPay live sandbox create/query requires ZALOPAY_APP_ID, ZALOPAY_KEY1, ZALOPAY_KEY2.
+- Live AI answers require AI_API_KEY.
+
+The local external payment compatibility container is not the main payment-success path. The
+main Web Client flow uses ZaloPay Sandbox checkout/status polling.
+
+NOT IMPLEMENTED NOW / POSSIBLE FUTURE OPTIONS
+=============================================
+
+- Mobile Client remains a source/deployment placeholder and is not containerized as a working
+  Flutter application.
+- Momo is an architectural payment alternative; no live Momo adapter is currently claimed.
+- Kubernetes, AWS/RDS, S3, CloudFront, production TLS, multi-region deployment, and managed
+  broker/database services are future deployment options, not current runtime facts.
+- Password-recovery email, discussion forums, and announcement delivery are not active APIs in
+  the current source. Adding them must stay inside an approved existing owner and must not add
+  a new core service or database.
+
+REFERENCE DOCUMENTS
+===================
+
+- README.md — project overview and operating guide.
+- docs/architecture/ — final views, seven sequences, mappings, and verification evidence.
+- shared/api-contracts/ — actual endpoint/auth/request/response contracts.
+- shared/event-contracts/ — RabbitMQ event schemas and delivery semantics.
+- docs/deployment/DOCKER_DEPLOYMENT.md — local topology and operation.

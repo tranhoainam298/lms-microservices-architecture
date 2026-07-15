@@ -26,10 +26,15 @@ app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use(errorHandler);
 
-app.listen(port, async () => {
+try {
   await initializeDatabase();
   await connectRabbitMQ();
-  console.log(`User Service listening on http://localhost:${port}`);
-});
+  app.listen(port, () => {
+    console.log(`User Service listening on http://localhost:${port}`);
+  });
+} catch (error) {
+  console.error('FATAL ERROR: User Service could not initialize:', error.message);
+  process.exit(1);
+}
 
 

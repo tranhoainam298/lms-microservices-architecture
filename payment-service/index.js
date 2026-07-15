@@ -1,7 +1,8 @@
 import express from 'express';
-import amqp from 'amqplib';
 import mysql from 'mysql2/promise';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createPaymentEventPublisher } from './src/events/publisher.js';
+import { createPaymentTransitionManager } from './src/paymentTransitions.js';
 
 if (!process.env.JWT_SECRET) {
   console.error('FATAL ERROR: JWT_SECRET is not defined.');
@@ -18,15 +19,15 @@ app.use(express.json());
 const PORT = process.env.PORT || 3004;
 const AMQP_URL = process.env.AMQP_URL || 'amqp://localhost:5672';
 const COURSE_SERVICE_URL = process.env.COURSE_SERVICE_URL || 'http://localhost:5002';
-const EXCHANGE_NAME = 'lms_events';
 const ZALOPAY_CREATE_URL = process.env.ZALOPAY_CREATE_URL || 'https://sb-openapi.zalopay.vn/v2/create';
 const ZALOPAY_QUERY_URL = process.env.ZALOPAY_QUERY_URL || 'https://sb-openapi.zalopay.vn/v2/query';
 const ZALOPAY_REDIRECT_URL = process.env.ZALOPAY_REDIRECT_URL || 'http://localhost:8080/payment-return';
 const ZALOPAY_CALLBACK_URL = process.env.ZALOPAY_CALLBACK_URL || 'http://localhost:8080/api/payments/callback/zalopay';
 const COURSE_PRICE_TO_VND_RATE = Number(process.env.COURSE_PRICE_TO_VND_RATE || 25000);
 
-let channel;
 let pool;
+let paymentTransitions;
+const paymentEvents = createPaymentEventPublisher({ amqpUrl: AMQP_URL });
 
 async function init() {
   pool = mysql.createPool({
@@ -39,15 +40,14 @@ async function init() {
   await pool.query('SELECT 1');
   console.log('Connected to Payment DB');
 
-  try {
-    const connection = await amqp.connect(AMQP_URL);
-    channel = await connection.createChannel();
-    await channel.assertExchange(EXCHANGE_NAME, 'topic', { durable: true });
-    console.log('Connected to RabbitMQ (Payment Service)');
-  } catch (error) {
-    console.error('Failed to connect to RabbitMQ:', error.message);
-    channel = null;
-  }
+  await paymentEvents.start();
+  paymentTransitions = createPaymentTransitionManager({
+    pool,
+    paymentEvents,
+    activateCourseAccess,
+    normalizePayment,
+    paymentEventData
+  });
 }
 
 function parsePositiveInteger(value) {
@@ -184,10 +184,12 @@ async function postZaloPayForm(url, params) {
   return body;
 }
 
-async function getPurchasableCourse(courseId) {
+async function getPurchasableCourse(courseId, studentId) {
   let response;
   try {
-    response = await fetch(`${COURSE_SERVICE_URL}/courses/internal/purchasable/${courseId}`, {
+    const endpoint = new URL(`/courses/internal/purchasable/${courseId}`, `${COURSE_SERVICE_URL.replace(/\/$/, '')}/`);
+    endpoint.searchParams.set('studentId', String(studentId));
+    response = await fetch(endpoint, {
       headers: { 'x-internal-service-secret': process.env.INTERNAL_SERVICE_SECRET }
     });
   } catch {
@@ -247,19 +249,81 @@ function normalizePayment(row) {
   };
 }
 
-async function finalizePaidPayment(transaction) {
-  await pool.execute(`UPDATE transactions SET status = 'success' WHERE id = ?`, [transaction.id]);
-  let enrollment;
+function paymentEventData(transaction) {
+  return {
+    paymentId: transaction.id,
+    studentId: transaction.student_id,
+    courseId: transaction.course_id,
+    amount: Number(transaction.amount),
+    currency: 'VND',
+    provider: transaction.gateway,
+    providerTransactionId: transaction.gateway_transaction_id
+  };
+}
+
+async function reservePendingCheckout({ studentId, courseId, amount, provider }) {
+  const lockName = `lms:checkout:${studentId}:${courseId}`;
+  let connection;
+  let lockAcquired = false;
+  let transactionStarted = false;
+
   try {
-    enrollment = await activateCourseAccess(transaction.student_id, transaction.course_id);
+    connection = await pool.getConnection();
+    const [lockRows] = await connection.execute('SELECT GET_LOCK(?, 5) AS acquired', [lockName]);
+    lockAcquired = Number(lockRows[0]?.acquired) === 1;
+    if (!lockAcquired) {
+      const error = new Error('Another checkout for this course is being created. Try again shortly.');
+      error.status = 409;
+      error.code = 'PAYMENT_CHECKOUT_BUSY';
+      throw error;
+    }
+
+    await connection.beginTransaction();
+    transactionStarted = true;
+    const [existingPayments] = await connection.execute(
+      `SELECT id, status FROM transactions
+       WHERE student_id = ? AND course_id = ? AND status IN ('pending', 'success')
+       ORDER BY id DESC LIMIT 1`,
+      [studentId, courseId]
+    );
+    if (existingPayments.length > 0) {
+      await connection.rollback();
+      transactionStarted = false;
+      return { existingPayment: existingPayments[0] };
+    }
+
+    const [insertResult] = await connection.execute(
+      `INSERT INTO transactions (student_id, course_id, amount, status, gateway)
+       VALUES (?, ?, ?, 'pending', ?)`,
+      [studentId, courseId, amount, provider]
+    );
+    const appTransId = createAppTransId(insertResult.insertId);
+    await connection.execute(
+      'UPDATE transactions SET gateway_transaction_id = ? WHERE id = ?',
+      [appTransId, insertResult.insertId]
+    );
+    await connection.commit();
+    transactionStarted = false;
+    return { paymentId: insertResult.insertId, appTransId };
   } catch (error) {
-    error.status = 502;
-    error.code = 'PAYMENT_PAID_ENROLLMENT_PENDING';
-    error.message = 'ZaloPay confirmed payment, but course access is pending. Check status again.';
+    if (connection && transactionStarted) {
+      await connection.rollback().catch(() => {});
+    }
     throw error;
+  } finally {
+    if (connection && lockAcquired) {
+      await connection.execute('SELECT RELEASE_LOCK(?)', [lockName]).catch(() => {});
+    }
+    connection?.release();
   }
-  const [rows] = await pool.execute(`SELECT * FROM transactions WHERE id = ? LIMIT 1`, [transaction.id]);
-  return { payment: normalizePayment(rows[0]), enrollment };
+}
+
+async function transitionPaymentToFailed(paymentId, failureCode) {
+  return paymentTransitions.transitionPaymentToFailed(paymentId, failureCode);
+}
+
+async function finalizePaidPayment(transaction) {
+  return paymentTransitions.finalizePaidPayment(transaction);
 }
 
 function callbackMacIsValid(data, providedMac, key2) {
@@ -283,21 +347,31 @@ app.post('/payments/checkout', authenticateStudent, async (req, res, next) => {
     }
 
     const zaloPay = getZaloPayConfig();
-    const course = await getPurchasableCourse(courseId);
+    const course = await getPurchasableCourse(courseId, req.user.id);
     const amount = convertCoursePriceToVnd(Number(course.price));
-    const [insertResult] = await pool.execute(
-      `INSERT INTO transactions (student_id, course_id, amount, status, gateway)
-       VALUES (?, ?, ?, 'pending', ?)`,
-      [req.user.id, courseId, amount, provider]
-    );
-    const appTransId = createAppTransId(insertResult.insertId);
-    await pool.execute(`UPDATE transactions SET gateway_transaction_id = ? WHERE id = ?`, [appTransId, insertResult.insertId]);
+    const reservation = await reservePendingCheckout({
+      studentId: req.user.id,
+      courseId,
+      amount,
+      provider
+    });
+    if (reservation.existingPayment) {
+      return res.status(409).json({
+        code: reservation.existingPayment.status === 'success' ? 'PAYMENT_ALREADY_COMPLETED' : 'PAYMENT_ALREADY_PENDING',
+        message: reservation.existingPayment.status === 'success'
+          ? 'This course payment has already been completed.'
+          : 'A payment for this course is already pending.',
+        paymentId: reservation.existingPayment.id
+      });
+    }
+    const paymentId = reservation.paymentId;
+    const appTransId = reservation.appTransId;
 
     const appTime = Date.now();
     const embedData = JSON.stringify({
       redirecturl: ZALOPAY_REDIRECT_URL,
       courseId: String(courseId),
-      paymentId: String(insertResult.insertId),
+      paymentId: String(paymentId),
       studentId: String(req.user.id)
     });
     const item = JSON.stringify([{
@@ -323,11 +397,13 @@ app.post('/payments/checkout', authenticateStudent, async (req, res, next) => {
         mac
       });
     } catch (error) {
-      await pool.execute(`UPDATE transactions SET status = 'failed' WHERE id = ?`, [insertResult.insertId]);
+      // A timeout or transport failure is ambiguous: ZaloPay may have accepted
+      // the order even though its response was lost. Keep the row pending so
+      // signed callback/status-query recovery remains possible.
       throw error;
     }
     if (Number(providerBody.return_code) !== 1 || !providerBody.order_url) {
-      await pool.execute(`UPDATE transactions SET status = 'failed' WHERE id = ?`, [insertResult.insertId]);
+      await transitionPaymentToFailed(paymentId, 'PROVIDER_ORDER_REJECTED');
       const error = new Error('ZaloPay Sandbox could not create the order.');
       error.status = 502;
       error.code = 'ZALOPAY_CREATE_FAILED';
@@ -336,7 +412,7 @@ app.post('/payments/checkout', authenticateStudent, async (req, res, next) => {
 
     return res.status(201).json({
       payment: {
-        id: insertResult.insertId,
+        id: paymentId,
         courseId,
         amount,
         currency: 'VND',
@@ -346,6 +422,18 @@ app.post('/payments/checkout', authenticateStudent, async (req, res, next) => {
         orderUrl: providerBody.order_url
       }
     });
+  } catch (error) { next(error); }
+});
+
+app.get('/payments/mine', authenticateStudent, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT * FROM transactions
+       WHERE student_id = ?
+       ORDER BY created_at DESC, id DESC`,
+      [req.user.id]
+    );
+    return res.status(200).json({ items: rows.map(normalizePayment), total: rows.length });
   } catch (error) { next(error); }
 });
 
@@ -402,9 +490,12 @@ app.get('/payments/check-status/:appTransId', authenticateStudent, async (req, r
       return res.status(200).json({ success: true, paid: true, ...completed });
     }
     if (returnCode === 2) {
-      await pool.execute(`UPDATE transactions SET status = 'failed' WHERE id = ?`, [transaction.id]);
-      const [failedRows] = await pool.execute(`SELECT * FROM transactions WHERE id = ? LIMIT 1`, [transaction.id]);
-      return res.status(200).json({ success: false, paid: false, payment: normalizePayment(failedRows[0]) });
+      const failedTransaction = await transitionPaymentToFailed(transaction.id, 'PROVIDER_REPORTED_FAILED');
+      return res.status(200).json({
+        success: false,
+        paid: false,
+        payment: normalizePayment(failedTransaction)
+      });
     }
     return res.status(200).json({ success: true, paid: false, payment: normalizePayment(transaction) });
   } catch (error) { next(error); }
@@ -517,13 +608,52 @@ async function fetchCourseTitles(courseIds) {
   return body.courses || {};
 }
 
+function parseRevenueDate(value, field) {
+  if (value === undefined) return { value: null };
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return { error: `${field} must use YYYY-MM-DD format.` };
+  }
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    return { error: `${field} must be a valid calendar date.` };
+  }
+  return { value };
+}
+
 app.get('/payments/reports/revenue', authenticateAdmin, async (req, res, next) => {
   try {
-    // 1. Query all transactions from Payment DB
+    for (const key of ['dateFrom', 'dateTo', 'courseId']) {
+      if (req.query[key] !== undefined && typeof req.query[key] !== 'string') {
+        return res.status(400).json({ code: 'INVALID_REPORT_FILTER', message: `${key} must be provided once.` });
+      }
+    }
+    const dateFrom = parseRevenueDate(req.query.dateFrom, 'Start date');
+    const dateTo = parseRevenueDate(req.query.dateTo, 'End date');
+    if (dateFrom.error || dateTo.error) {
+      return res.status(400).json({ code: 'INVALID_REPORT_FILTER', message: dateFrom.error || dateTo.error });
+    }
+    if (dateFrom.value && dateTo.value && dateFrom.value > dateTo.value) {
+      return res.status(400).json({ code: 'INVALID_REPORT_FILTER', message: 'Start date cannot be after end date.' });
+    }
+    const courseId = req.query.courseId === undefined ? null : parsePositiveInteger(req.query.courseId);
+    if (req.query.courseId !== undefined && !courseId) {
+      return res.status(400).json({ code: 'INVALID_REPORT_FILTER', message: 'Course ID must be a positive integer.' });
+    }
+
+    const clauses = [];
+    const parameters = [];
+    if (dateFrom.value) { clauses.push('created_at >= ?'); parameters.push(dateFrom.value); }
+    if (dateTo.value) { clauses.push('created_at < DATE_ADD(?, INTERVAL 1 DAY)'); parameters.push(dateTo.value); }
+    if (courseId) { clauses.push('course_id = ?'); parameters.push(courseId); }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
+    // totalTransactions means all transactions in the requested report scope.
     const [transactions] = await pool.execute(
       `SELECT id, student_id, course_id, amount, status, gateway, gateway_transaction_id, created_at
        FROM transactions
-       ORDER BY created_at DESC`
+       ${where}
+       ORDER BY created_at DESC`,
+      parameters
     );
 
     // 2. Cross-service call: fetch only metadata for courses referenced by Payment DB.
@@ -545,7 +675,6 @@ app.get('/payments/reports/revenue', authenticateAdmin, async (req, res, next) =
         courseRevenueMap[t.course_id] = {
           courseId: t.course_id,
           title: courseInfo?.title || `Course #${t.course_id}`,
-          price: courseInfo?.price || 0,
           totalRevenue: 0,
           transactionCount: 0
         };

@@ -83,14 +83,169 @@ export async function forwardGetLesson(lessonId, authorizationHeader) {
   return { status: response.status, body };
 }
 
-export async function forwardGetCourses() {
+function buildForwardedQuery(query, allowedKeys) {
+  const searchParams = new URLSearchParams();
+  for (const key of allowedKeys) {
+    if (query?.[key] === undefined) continue;
+    const values = Array.isArray(query[key]) ? query[key] : [query[key]];
+    for (const value of values) searchParams.append(key, String(value));
+  }
+  const encoded = searchParams.toString();
+  return encoded ? `?${encoded}` : '';
+}
+
+export async function forwardGetCourses(query = {}) {
+  const queryString = buildForwardedQuery(query, ['search', 'category', 'minPrice', 'maxPrice']);
   let response;
   try {
-    response = await fetch(`${courseServiceUrl}/courses`, {
+    response = await fetch(`${courseServiceUrl}/courses${queryString}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json'
       }
+    });
+  } catch (cause) {
+    const error = new Error('Course Service is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardGetPublishedCourseDetail(courseId) {
+  const courseIdNum = parsePositiveInteger(courseId, 'INVALID_COURSE_ID', 'Course ID');
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/${courseIdNum}`, {
+      headers: { 'Accept': 'application/json' }
+    });
+  } catch (cause) {
+    const error = new Error('Course Service is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardGetCourseCategories() {
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/categories`, {
+      headers: { 'Accept': 'application/json' }
+    });
+  } catch (cause) {
+    const error = new Error('Course Service is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardGetInstructorCourseProgress(courseId, authorizationHeader) {
+  const courseIdNum = parsePositiveInteger(courseId, 'INVALID_COURSE_ID', 'Course ID');
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/instructor/${courseIdNum}/progress`, {
+      headers: {
+        'Accept': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      }
+    });
+  } catch (cause) {
+    const error = new Error('Course Service is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardGetInstructorCourses(authorizationHeader) {
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/instructor/mine`, {
+      headers: {
+        'Accept': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      }
+    });
+  } catch (cause) {
+    const error = new Error('Course Service is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardGetAdminCourseReport(query, authorizationHeader) {
+  const queryString = buildForwardedQuery(query, ['dateFrom', 'dateTo', 'category', 'status']);
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/admin/reports/courses${queryString}`, {
+      headers: {
+        'Accept': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      }
+    });
+  } catch (cause) {
+    const error = new Error('Course Service is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardModerateCourseStatus(courseId, payload, authorizationHeader) {
+  const courseIdNum = parsePositiveInteger(courseId, 'INVALID_COURSE_ID', 'Course ID');
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/admin/${courseIdNum}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (cause) {
+    const error = new Error('Course Service is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardUpdateCourseCategory(courseId, payload, authorizationHeader) {
+  const courseIdNum = parsePositiveInteger(courseId, 'INVALID_COURSE_ID', 'Course ID');
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/admin/${courseIdNum}/category`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      },
+      body: JSON.stringify(payload)
     });
   } catch (cause) {
     const error = new Error('Course Service is unavailable.');
@@ -150,7 +305,7 @@ export async function forwardUpdateDraft(courseId, payload, authorizationHeader)
 
   let response;
   try {
-    response = await fetch(`${courseServiceUrl}/courses/drafts/${courseId}`, {
+    response = await fetch(`${courseServiceUrl}/courses/drafts/${courseIdNum}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -181,6 +336,49 @@ export async function forwardGetCourseLearning(courseId, authorizationHeader) {
     });
   } catch (cause) {
     const error = new Error('Course content is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardEnrollInFreeCourse(courseId, authorizationHeader) {
+  const courseIdNum = parsePositiveInteger(courseId, 'INVALID_COURSE_ID', 'Course ID');
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/${courseIdNum}/enroll`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      }
+    });
+  } catch (cause) {
+    const error = new Error('Course Service is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardDeleteDraft(courseId, authorizationHeader) {
+  const courseIdNum = parsePositiveInteger(courseId, 'INVALID_COURSE_ID', 'Course ID');
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/drafts/${courseIdNum}`, {
+      method: 'DELETE',
+      headers: {
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      }
+    });
+  } catch (cause) {
+    const error = new Error('Course Service is unavailable.');
     error.status = 502;
     error.code = 'COURSE_SERVICE_UNAVAILABLE';
     error.cause = cause;
@@ -268,6 +466,29 @@ export async function forwardGetLessonsForDraft(courseId, authorizationHeader) {
         'Accept': 'application/json',
         ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
       }
+    });
+  } catch (cause) {
+    const error = new Error('Course Service is unavailable.');
+    error.status = 502;
+    error.code = 'COURSE_SERVICE_UNAVAILABLE';
+    error.cause = cause;
+    throw error;
+  }
+  const body = await response.json();
+  return { status: response.status, body };
+}
+
+export async function forwardReorderLessonsForDraft(courseId, payload, authorizationHeader) {
+  const courseIdNum = parsePositiveInteger(courseId, 'INVALID_COURSE_ID', 'Course ID');
+  let response;
+  try {
+    response = await fetch(`${courseServiceUrl}/courses/drafts/${courseIdNum}/lessons/reorder`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authorizationHeader ? { 'Authorization': authorizationHeader } : {})
+      },
+      body: JSON.stringify(payload)
     });
   } catch (cause) {
     const error = new Error('Course Service is unavailable.');

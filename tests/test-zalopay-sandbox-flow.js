@@ -8,6 +8,7 @@ const adminToken = process.env.PAYMENT_E2E_ADMIN_TOKEN;
 const courseId = Number(process.env.PAYMENT_E2E_COURSE_ID || 208);
 const otherStudentId = Number(process.env.PAYMENT_E2E_OTHER_STUDENT_ID || 6);
 const liveSandbox = process.env.PAYMENT_E2E_LIVE_ZALOPAY === 'true';
+const expectUnconfiguredProvider = process.env.PAYMENT_E2E_EXPECT_UNCONFIGURED === 'true';
 
 if (!studentToken) throw new Error('PAYMENT_E2E_STUDENT_TOKEN is required.');
 
@@ -100,11 +101,13 @@ async function run() {
       assert.equal(Number(rows[0].amount), expectedVnd);
       assert.equal(rows[0].status, 'pending');
       console.log('LIVE_ZALOPAY_CREATE_PASS');
-    } else {
+    } else if (expectUnconfiguredProvider) {
       result = await request('/payments/checkout', { method: 'POST', body: { courseId, studentId: 999999, amount: 1, status: 'success' } });
       assert.equal(result.status, 503);
       assert.equal(result.body.code, 'ZALOPAY_NOT_CONFIGURED');
       console.log('LIVE_ZALOPAY_SANDBOX_BLOCKED: missing ZALOPAY_APP_ID/ZALOPAY_KEY1/ZALOPAY_KEY2');
+    } else {
+      console.log('LIVE_ZALOPAY_SANDBOX_NOT_RUN: set PAYMENT_E2E_LIVE_ZALOPAY=true with sandbox credentials');
     }
 
     console.log('ZALOPAY_STATIC_SECURITY_TESTS_PASS');

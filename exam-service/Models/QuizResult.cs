@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace ExamService.Models
 {
     public class QuizResult
@@ -9,6 +11,7 @@ namespace ExamService.Models
         public decimal MaximumScore { get; set; }
         public decimal Percentage { get; set; }
         public bool Passed { get; set; }
+        [Column(TypeName = "json")]
         public string SubmittedAnswers { get; set; } = "[]";
         public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
 

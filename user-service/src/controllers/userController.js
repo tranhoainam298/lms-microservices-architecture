@@ -1,4 +1,4 @@
-import { changeOwnPassword, getOwnProfile, listUsers, updateOwnProfile, updateUserStatus } from '../services/userService.js';
+import { changeOwnPassword, getLoginActivityReport, getOwnProfile, listUsers, updateOwnProfile, updateUserRole, updateUserStatus } from '../services/userService.js';
 
 function parseUserId(res, value) {
   const text = String(value);
@@ -38,5 +38,17 @@ export async function changeUserStatus(req, res) {
   const userId = parseUserId(res, req.params.userId);
   if (userId === null) return;
   const result = await updateUserStatus({ adminId: req.user.id, userId, status: req.body?.status });
+  res.status(result.status).json(result.body);
+}
+
+export async function changeUserRole(req, res) {
+  const userId = parseUserId(res, req.params.userId);
+  if (userId === null) return;
+  const result = await updateUserRole({ adminId: req.user.id, userId, role: req.body?.role });
+  res.status(result.status).json(result.body);
+}
+
+export async function getAdminLoginActivity(req, res) {
+  const result = await getLoginActivityReport(req.query || {});
   res.status(result.status).json(result.body);
 }

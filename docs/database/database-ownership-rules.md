@@ -1,44 +1,49 @@
 # Database Ownership and Isolation Rules
 
-This document establishes the strict rules governing database ownership, isolation, and access within the LMS microservices architecture. These rules ensure microservices autonomy, security, and schema stability.
+## 1. Exclusive ownership
 
----
+Exactly four application databases are permitted:
 
-## 1. Single Ownership Rule
-Each of the 4 allowed databases is owned by exactly one microservice. The owner service has absolute authority over its database schema, read operations, and write operations.
+| Owner service | Owned MySQL database | Current tables |
+|---|---|---|
+| User Service | User DB (`lms_user_db`) | `users`, `login_audit` |
+| Course Service | Course DB (`lms_course_db`) | `courses`, `lessons`, `enrollments`, `lesson_progress` |
+| Exam & Quiz Service | Exam DB (`lms_exam_db`) | `quizzes`, `questions`, `quiz_results` |
+| Payment Service | Payment DB (`lms_payment_db`) | `transactions` |
 
-- **User Service** exclusively owns and accesses **User DB**.
-- **Course Service** exclusively owns and accesses **Course DB**.
-- **Exam & Quiz Service** exclusively owns and accesses **Exam DB**.
-- **Payment Service** exclusively owns and accesses **Payment DB**.
+Only the owner may possess the database hostname, credentials, connection pool, ORM context, or SQL access for its database. API Gateway and Web Client never connect to an application database.
 
----
+## 2. Cross-domain data
 
-## 2. No Direct Cross-Database Access
-- No microservice is allowed to establish direct database connections (e.g., via JDBC/ODBC, SQL connection strings) to any database it does not own.
-- No database-level cross-joins, database links, or shared database instances between different services are permitted.
-- If Service A needs data from Database B, it must obtain it by calling an API endpoint exposed by Service B, or by consuming events published by Service B.
+Identifiers copied across boundaries are logical references, not permission to query another schema. A service obtains foreign-domain information only through:
 
----
+- an authenticated REST/internal API for a synchronous business decision; or
+- a versioned RabbitMQ event for asynchronous notification.
 
-## 3. Data Integration Constraints
+No cross-database joins, shared application schema, database links, or direct foreign-service connection strings are allowed.
 
-### Reporting Integration
-- **Constraint**: There is **no Reporting DB** or dedicated reporting service database.
-- **Rule**: Reporting data must be dynamically aggregated by querying the **Payment Service** (for revenue, transaction statistics) and the **Course Service** (for course metadata, enrollment numbers). Reports are composed via orchestrators or gateway-level queries rather than a centralized query against a shared database.
+## 3. Current integration rules
 
-### AI Chatbot Integration
-- **Constraint**: There is **no Chatbot DB** or chatbot-specific service database.
-- **Rule**: AI support features must interact with the **Course Service** to store and retrieve AI context (`ai_learning_context`) and lesson details, and communicate with the external **AI Chatbot System**. No private database may be created or maintained for the chatbot.
+### Payment and course access
 
-### Learning Results and Course Progress
-- **Constraint**: There is **no Learning Result DB** or **Enrollment DB**.
-- **Rule**: 
-  - Quiz attempts, submitted answers, and quiz grades must reside in the **Exam DB** (owned by the Exam & Quiz Service).
-  - Lesson progress, course completion states, and active course access records must reside in the **Course DB** (owned by the Course Service).
+Payment Service records provider state only in Payment DB. After confirmed success it publishes `PaymentSucceededEvent` and makes an internally authenticated synchronous request to Course Service. Course Service performs the authoritative, idempotent `enrollments` write in Course DB and publishes `CourseAccessActivatedEvent` after a newly activated row is committed.
 
----
+The event does not create a second enrollment path, and Payment Service never writes Course DB.
 
-## 4. Policy Enforcement and Auditing
-- **CI/CD Checks**: Environment configurations must be audited to ensure service deployments do not possess database connection credentials for databases owned by other services.
-- **Code Review**: PRs containing direct database connections to foreign schemas will be automatically rejected.
+### Revenue reporting
+
+Payment Service is the report aggregation owner. It reads `transactions` from Payment DB and requests minimal course metadata from Course Service, which reads Course DB. API Gateway only authenticates/routes and does not aggregate or query data. There is no Reporting Service or Reporting DB.
+
+### Lesson and quiz access
+
+Course Service owns enrollment and learning progress. Exam Service asks Course Service over HTTP whether a student may access a course, then reads/grants quiz data using Exam DB only. Exam Service never reads Course DB.
+
+### AI learning support
+
+Course Service verifies enrollment and assembles course, lesson, resource, and progress context transiently from Course DB. It sends that context to the external AI Chatbot System over HTTP. The context is not persisted in a chatbot-specific table, and the external system has no access to Course DB.
+
+## 4. Enforcement
+
+- `tests/architecture-boundaries.test.js` scans service sources and Docker Compose configuration for foreign DB hosts, credentials, connection strings, SQL configuration, and database imports.
+- Code review must reject any service that gains a direct connection to a foreign database.
+- Fresh-schema and additive migration code must remain inside the owning service/database boundary.

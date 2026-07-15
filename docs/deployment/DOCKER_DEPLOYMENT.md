@@ -1,29 +1,34 @@
 # Docker Deployment Simulation
 
-This deployment is a local Docker Compose simulation of the LMS deployment view. It is intended for demonstrations and reports; it is not a production or cloud deployment.
+This is the local Docker Compose deployment of the LMS architecture. It supports demonstrations, focused runtime verification, and report evidence; it is not a production cloud deployment.
 
-## Architecture mapping
+## Runtime topology
 
-| Deployment layer | Docker simulation |
+| Deployment concern | Compose component |
 |---|---|
-| Client | `web-client`; the Flutter/mobile client remains an external client |
-| Load balancer | `nginx-load-balancer` |
-| Gateway | `api-gateway` |
-| Application services | `user-service`, `course-service`, `exam-service`, `payment-service` |
-| Messaging | `rabbitmq` |
-| Database server | Four isolated MySQL containers and named volumes |
-| External systems | `external-ai-chatbot-mock` (real-provider adapter; compatibility name), `external-payment-gateway-mock` |
-| Backup server | Optional `database-backup-server` profile writing timestamped SQL dumps |
+| Browser entry / load balancer | `nginx-load-balancer` |
+| Web application | `web-client` |
+| Single API entry | `api-gateway` |
+| Approved business services | `user-service`, `course-service`, `exam-service`, `payment-service` |
+| Message Broker | `rabbitmq` |
+| Service-owned databases | `user-db-mysql`, `course-db-mysql`, `exam-db-mysql`, `payment-db-mysql` |
+| External AI system | `external-ai-chatbot-mock` (legacy compatibility name; active real-provider adapter) |
+| External payment simulation | `external-payment-gateway-mock` (deployment-only external mock; not the active ZaloPay checkout path) |
+| Backup server simulation | `database-backup-server` in the optional `backup` profile |
 
-The default browser entry is `http://localhost:8080`. The Docker-built web client uses the relative base URL `/api`, producing the flow Browser → `nginx-load-balancer` → `api-gateway` → the selected core service. Nginx strips `/api` and sends the remaining path only to the Gateway. All other requests go to the web client; Nginx never routes browser traffic directly to a microservice.
+The normal browser path is:
+
+`http://localhost:8080 -> /api -> nginx-load-balancer -> api-gateway -> owning service`
+
+The Docker-built Web Client uses `VITE_API_BASE_URL=/api`. Nginx strips `/api` before proxying to the Gateway. Nginx never routes API calls directly to a business service, and the browser never uses Docker service hostnames.
 
 ## Containers and ports
 
-| Container | Container port | Default host port |
+| Container | Container port | Default host exposure |
 |---|---:|---:|
 | `nginx-load-balancer` | 80 | 8080 |
 | `web-client` | 80 | internal only |
-| `api-gateway` | 3000 | 3000 |
+| `api-gateway` | 3000 | 3000 (debug only) |
 | `user-service` | 5001 | internal only |
 | `course-service` | 5002 | internal only |
 | `exam-service` | 5003 | internal only |
@@ -35,83 +40,106 @@ The default browser entry is `http://localhost:8080`. The Docker-built web clien
 | `payment-db-mysql` | 3306 | 3309 |
 | `external-ai-chatbot-mock` | 5005 | internal only |
 | `external-payment-gateway-mock` | 8080 | internal only |
-| `database-backup-server` | none | disabled by default (`backup` profile) |
+| `database-backup-server` | n/a | disabled by default |
 
-Gateway host port 3000 remains available for local debugging. Normal browser traffic uses the load balancer on port 8080 and `/api`; it does not use the direct Gateway port.
+The Gateway exposes route groups `/auth`, `/users`, `/courses`, `/exams`, and `/payments`. It forwards Authorization, request method/body, and downstream status; it contains no business-database access.
 
-The Gateway routes `/auth`, `/users`, `/courses`, `/exams`, and `/payments`. The Payment route remains a transparent proxy to `payment-service:5004`; checkout, mock completion, trusted pricing, and Course Service enrollment activation remain owned by backend services.
+## Networks and database ownership
 
-## Database ownership
+| Service | Application database | Data network |
+|---|---|---|
+| User Service | `lms_user_db` on `user-db-mysql` | `user-data-network` |
+| Course Service | `lms_course_db` on `course-db-mysql` | `course-data-network` |
+| Exam Service | `lms_exam_db` on `exam-db-mysql` | `exam-data-network` |
+| Payment Service | `lms_payment_db` on `payment-db-mysql` | `payment-data-network` |
 
-Each service is attached only to its own internal database network:
+Each data network is internal and contains only its owning service, database, and the optional backup container. Cross-domain communication uses the shared application network and HTTP:
 
-- User Service → `user-db-mysql` / `lms_user_db` / `user-db-data`
-- Course Service → `course-db-mysql` / `lms_course_db` / `course-db-data`
-- Exam Service → `exam-db-mysql` / `lms_exam_db` / `exam-db-data`
-- Payment Service → `payment-db-mysql` / `lms_payment_db` / `payment-db-data`
+- Exam Service -> Course Service for course ownership/student exam access.
+- Payment Service -> Course Service for authoritative purchase metadata, enrollment activation, and minimal report metadata.
+- Course Service -> external AI adapter for lesson-context questions.
 
-Exam Service calls Course Service over HTTP for course-access checks. It is not connected to the Course DB network.
+No service connects directly to another service's database.
 
-## External systems
+## RabbitMQ
 
-The external AI adapter retains the path `external-systems/ai-chatbot-system/mock-provider` and container name `external-ai-chatbot-mock` for deployment compatibility, but its active `/chat` route calls the configured real provider and never returns canned fallback answers. The provider key is supplied only to this container. The payment mock remains under `external-systems/payment-gateway-zalopay-momo/mock-provider`.
+`rabbitmq` is attached to the internal `messaging-network`. User, Payment, and Course Services publish versioned persistent messages to the durable topic exchange `lms_events`:
+
+- `user.loggedin`
+- `payment.succeeded`
+- `payment.failed`
+- `course.access.activated`
+
+The Payment Service still activates access synchronously through the protected Course Service internal endpoint. The events describe completed domain transitions and must not perform duplicate enrollment writes. Current publishers use confirmation and safe logging; no transactional outbox is implemented.
+
+## External integrations
+
+### ZaloPay
+
+The active paid-course flow calls ZaloPay Sandbox directly from Payment Service using server-side configuration. The external payment mock container represents the deployment diagram's external-system node for local simulation; it is not used to declare a payment successful in the normal Web Client flow. `/payments/mock/complete` remains deprecated/disabled by default.
+
+Required live Sandbox values must be placed in an uncommitted `.env`:
+
+```text
+ZALOPAY_APP_ID
+ZALOPAY_KEY1
+ZALOPAY_KEY2
+```
+
+Without valid values, checkout returns the documented safe configuration error. No production ZaloPay endpoint or real-money flow is used.
+
+### AI provider
+
+The external AI system retains the directory `external-systems/ai-chatbot-system/mock-provider` and Compose name `external-ai-chatbot-mock` only for compatibility. Its active `/chat` implementation calls the configured real provider with a server-side `AI_API_KEY`; it does not return canned answers. Course Service knows only `AI_CHATBOT_URL` and sends enrolled lesson context.
+
+Without a key, the container can remain healthy/degraded while `/chat` returns `AI_PROVIDER_NOT_CONFIGURED`.
 
 ## Configuration
 
-Copy `.env.example` to `.env` and replace the demonstration placeholders before starting. Do not commit real credentials. Container-to-container values use Docker DNS names, including:
+Copy `.env.example` to an uncommitted `.env` and replace local demonstration placeholders as needed. Do not commit secrets. Internal addresses use Docker DNS names, for example:
 
 ```text
 USER_SERVICE_URL=http://user-service:5001
 COURSE_SERVICE_URL=http://course-service:5002
 EXAM_SERVICE_URL=http://exam-service:5003
 PAYMENT_SERVICE_URL=http://payment-service:5004
+EXTERNAL_AI_CHATBOT_URL=http://external-ai-chatbot-mock:5005
 RABBITMQ_URL=amqp://rabbitmq:5672
 ```
 
-When reusing already initialized named volumes, the database credentials supplied at startup must match the credentials with which those volumes were initialized. MySQL initialization variables do not change credentials in an existing data directory.
+MySQL initialization environment values apply only when a named volume is first initialized. Reusing a volume with older credentials may require the repository's non-destructive credential-alignment scripts; these scripts never remove volumes or modify LMS application rows.
 
-## Start and stop
+## Start, verify, and stop
 
 ### Windows one-click startup
 
-On Windows, double-click `start-lms.bat` in the repository root. The launcher uses the root Docker Compose deployment, builds and starts the containers, waits for their health checks, verifies the public health endpoint, and opens:
+Double-click `start-lms.bat`. It starts the root Compose stack, waits for health, checks the public endpoint, and opens:
 
 ```text
 http://localhost:8080
 ```
 
-Port `5173` is only for an explicitly started Vite development server; the normal Docker demo does not use it. The launcher does not run Node or .NET services directly on the host.
+Port 5173 is used only when an explicit Vite development server is running. The normal launcher does not run Exam Service with local `dotnet run` and does not run Payment Service with a nonexistent host `dev` script.
 
-If Exam, Payment, Course, or User Service logs report `Access denied for user` after reusing an older MySQL named volume, run `repair-db-users.bat` first. The normal repair asks for confirmation and aligns the four MySQL application-user passwords when the existing root login still works.
+If logs contain a MySQL `Access denied for user` error:
 
-If the normal repair reports that root authentication failed, run `repair-db-users-emergency.bat`. The emergency helper requires a second explicit confirmation, processes one database at a time, detects the named volume mounted at `/var/lib/mysql`, temporarily stops its original container, and starts a non-published temporary MySQL container against that same volume with grant checks disabled. It changes only MySQL system-account credentials and the application user's existing database grant, stops the temporary container, restarts the original database, and verifies both root and application-user login. It never removes or recreates the named volume and never changes LMS application tables. Emergency repair is never invoked automatically by `start-lms.bat`.
+1. Run `repair-db-users.bat`.
+2. If root authentication is stale too, run `repair-db-users-emergency.bat` explicitly.
+3. Run `start-lms.bat` again.
 
-Recovery order:
+Both repair paths require confirmation and are designed to align only MySQL account credentials. The emergency path is never invoked automatically.
 
-```text
-1. repair-db-users.bat
-2. repair-db-users-emergency.bat   (only if root authentication failed)
-3. start-lms.bat
-```
-
-Live provider features additionally require these values in a local, uncommitted `.env` file:
-
-```text
-ZALOPAY_APP_ID
-ZALOPAY_KEY1
-ZALOPAY_KEY2
-AI_API_KEY
-```
-
-Missing provider credentials do not prevent the LMS from starting; the related live payment or AI operation returns its safe configuration error.
+### CLI
 
 From the repository root:
 
 ```powershell
-docker compose up --build
+docker compose up -d --build
+docker compose ps
+curl.exe http://localhost:8080/health
 ```
 
-To stop without deleting persistent database or RabbitMQ data:
+Stop containers without deleting persistent data:
 
 ```powershell
 docker compose down
@@ -125,26 +153,36 @@ docker system prune
 docker volume prune
 ```
 
-## Verification
+Useful endpoints:
 
-- Web/load balancer: `http://localhost:8080`
-- Load balancer health: `http://localhost:8080/health`
-- API Gateway debug port: `http://localhost:3000`
-- RabbitMQ management UI: `http://localhost:15672`
-- Container state: `docker compose ps`
-- Configuration validation: `docker compose config`
+- LMS: `http://localhost:8080`
+- Public health: `http://localhost:8080/health`
+- Gateway debug port: `http://localhost:3000`
+- RabbitMQ management: `http://localhost:15672`
 
-The four database containers and RabbitMQ should report `healthy`. Application healthchecks are non-destructive HTTP/TCP readiness checks.
+## Final local verification snapshot
 
-## Backup simulation
+The final architecture-alignment build was verified without resetting any named volume:
 
-The `database-backup-server` is disabled during normal `docker compose up --build`. Run one backup explicitly with:
+- `docker compose config -q`: PASS.
+- `docker compose up -d --build`: PASS.
+- `docker compose ps`: 14/14 normal LMS containers healthy.
+- `GET http://localhost:8080/health`: HTTP 200 with status `ok`.
+- Public Student/Instructor/Admin route harness: 16/16 PASS.
+- Current-route smoke harness: 25 PASS, 0 FAIL, 1 intentional skip; the skipped quiz submission was covered by the role harness.
+- Real RabbitMQ exclusive queue: all four routing keys captured, with one enrollment after repeated activation and none after payment failure.
+
+Live provider status is intentionally separate: the checked environment contained placeholders for `ZALOPAY_APP_ID`, `ZALOPAY_KEY1`, `ZALOPAY_KEY2`, and `AI_API_KEY`. Payment missing-configuration behavior returned HTTP 503 without creating a transaction; enrolled AI ask returned HTTP 503 `AI_PROVIDER_NOT_CONFIGURED` without a canned answer.
+
+## Non-destructive backup profile
+
+The backup service is disabled during normal startup. Run one backup explicitly:
 
 ```powershell
 docker compose --profile backup run --rm database-backup-server
 ```
 
-Each run creates a new UTC timestamp directory in the `db-backup-data` named volume:
+It writes a new UTC timestamp directory in the `db-backup-data` named volume:
 
 ```text
 /backups/YYYYMMDD-HHMMSS/user-db.sql
@@ -153,14 +191,15 @@ Each run creates a new UTC timestamp directory in the `db-backup-data` named vol
 /backups/YYYYMMDD-HHMMSS/payment-db.sql
 ```
 
-The script uses `mysqldump --single-transaction --skip-lock-tables`, suppresses generated drop-table statements, refuses to reuse an existing timestamp directory, and never imports, deletes, truncates, resets, or alters database data. It exits non-zero and identifies the database if a dump fails; earlier backup directories remain untouched.
+The script uses a consistent, non-locking dump, refuses to reuse an existing timestamp directory, and performs no import, delete, truncate, reset, or schema mutation.
 
 ## Known limitations
 
-- This is local Docker deployment only, not a production cloud topology.
-- The mobile client is a placeholder/external client and is not containerized.
-- ZaloPay integration uses Sandbox create/query endpoints only. Sandbox credentials are not committed; without them, checkout reports `ZALOPAY_NOT_CONFIGURED`. A localhost callback is generally unreachable externally, so the Web Client relies on status polling.
-- AI lesson support is wired through the external real-provider adapter. Without an externally supplied `AI_API_KEY`, the container remains healthy/degraded and `/chat` returns `AI_PROVIDER_NOT_CONFIGURED`; it never generates a fallback answer.
-- Local Vite development falls back to `http://localhost:3000`; Docker production builds explicitly use `/api` through Nginx.
-- Existing User and Course DB initialization scripts are mounted safely. The current Exam Service migrator upgrades existing tables but does not create the base Exam schema on a completely empty volume. This simulation therefore reuses the existing initialized `infra_exam_db_data` volume; a fresh-install bootstrap requires a separate approved additive migration task.
-- Backup execution is manual and intended only as a local simulation; scheduling and retention are not implemented.
+- Local Docker Compose only; no production Kubernetes/cloud deployment is claimed.
+- An unrelated local Compose project named `costops` can collide with generic container names; use an explicit Compose project name when both stacks must coexist.
+- Mobile client remains an external placeholder and is not containerized.
+- ZaloPay live Sandbox verification depends on uncommitted sandbox credentials; localhost callback reachability normally requires signed polling.
+- AI live verification depends on an uncommitted `AI_API_KEY`.
+- Momo is an architectural alternative, not an implemented provider adapter.
+- RabbitMQ publication has publisher confirms but no transactional outbox, so a narrow commit-to-publish failure window remains.
+- Backup scheduling, retention, encryption, restore automation, and off-host storage are not implemented.

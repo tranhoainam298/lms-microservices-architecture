@@ -8,6 +8,8 @@ export default function AdminRevenueReport({ accessToken }) {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reportFilters, setReportFilters] = useState({ dateFrom: '', dateTo: '', courseId: '' });
+  const [appliedFilters, setAppliedFilters] = useState({ dateFrom: '', dateTo: '', courseId: '' });
   const [statusFilter, setStatusFilter] = useState('all');
   const [providerFilter, setProviderFilter] = useState('all');
 
@@ -16,7 +18,12 @@ export default function AdminRevenueReport({ accessToken }) {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(apiUrl('/payments/reports/revenue'), {
+        const params = new URLSearchParams();
+        if (appliedFilters.dateFrom) params.set('dateFrom', appliedFilters.dateFrom);
+        if (appliedFilters.dateTo) params.set('dateTo', appliedFilters.dateTo);
+        if (appliedFilters.courseId) params.set('courseId', appliedFilters.courseId);
+        const query = params.toString();
+        const response = await fetch(apiUrl(`/payments/reports/revenue${query ? `?${query}` : ''}`), {
           headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         if (!response.ok) {
@@ -34,7 +41,18 @@ export default function AdminRevenueReport({ accessToken }) {
     if (accessToken) {
       fetchRevenueReport();
     }
-  }, [accessToken]);
+  }, [accessToken, appliedFilters]);
+
+  const applyReportFilters = event => {
+    event.preventDefault();
+    setAppliedFilters(reportFilters);
+  };
+
+  const resetReportFilters = () => {
+    const emptyFilters = { dateFrom: '', dateTo: '', courseId: '' };
+    setReportFilters(emptyFilters);
+    setAppliedFilters(emptyFilters);
+  };
 
   const formatVnd = (amount) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -82,6 +100,7 @@ export default function AdminRevenueReport({ accessToken }) {
         <div className="revenue-error" role="alert">
           <strong>Report unavailable</strong>
           <p>{error}</p>
+          <button className="btn btn-secondary" type="button" onClick={resetReportFilters}>Clear filters and retry</button>
         </div>
       </div>
     );
@@ -94,6 +113,37 @@ export default function AdminRevenueReport({ accessToken }) {
     const matchesProvider = providerFilter === 'all' || t.provider === providerFilter;
     return matchesStatus && matchesProvider;
   });
+
+  const exportCsv = () => {
+    const protectCell = value => {
+      const text = String(value ?? '');
+      const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text;
+      return `"${safeText.replaceAll('"', '""')}"`;
+    };
+    const rows = [
+      ['Invoice ID', 'Date', 'Student ID', 'Course ID', 'Course', 'Amount', 'Currency', 'Provider', 'Status'],
+      ...filteredTransactions.map(transaction => [
+        transaction.id,
+        transaction.createdAt,
+        transaction.studentId,
+        transaction.courseId,
+        transaction.courseTitle,
+        transaction.amount,
+        transaction.currency || summary.currency || 'VND',
+        transaction.provider,
+        transaction.status
+      ])
+    ];
+    const csv = rows.map(row => row.map(protectCell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `revenue-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const highestCourseRevenue = Math.max(...courseBreakdown.map(c => c.totalRevenue), 1);
 
@@ -112,6 +162,24 @@ export default function AdminRevenueReport({ accessToken }) {
           <span>Live data</span>
         </div>
       </header>
+
+      <form className="card revenue-toolbar" onSubmit={applyReportFilters}>
+        <div className="revenue-filter">
+          <label htmlFor="revenue-date-from">From date</label>
+          <input id="revenue-date-from" className="form-control" type="date" value={reportFilters.dateFrom} onChange={event => setReportFilters(value => ({ ...value, dateFrom: event.target.value }))} />
+        </div>
+        <div className="revenue-filter">
+          <label htmlFor="revenue-date-to">To date</label>
+          <input id="revenue-date-to" className="form-control" type="date" min={reportFilters.dateFrom || undefined} value={reportFilters.dateTo} onChange={event => setReportFilters(value => ({ ...value, dateTo: event.target.value }))} />
+        </div>
+        <div className="revenue-filter">
+          <label htmlFor="revenue-course-id">Course ID</label>
+          <input id="revenue-course-id" className="form-control" type="number" min="1" step="1" placeholder="All courses" value={reportFilters.courseId} onChange={event => setReportFilters(value => ({ ...value, courseId: event.target.value }))} />
+        </div>
+        <button className="btn btn-primary" type="submit">Apply report filters</button>
+        <button className="btn btn-secondary" type="button" onClick={resetReportFilters}>Reset</button>
+        <button className="btn btn-secondary" type="button" onClick={exportCsv} disabled={filteredTransactions.length === 0}>Export CSV</button>
+      </form>
 
       <div className="metrics-grid mb-6">
         <StatCard

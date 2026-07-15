@@ -1,28 +1,28 @@
-# Revenue Reporting API Contract
+# Reporting API Contracts
 
-**Public entry point:** API Gateway
-**Data ownership:** Payment Service / Payment DB and Course Service / Course DB
+Reporting is implemented inside existing data-owning services. There is no Reporting or Analytics Service and no Reporting DB.
 
-There is no Reporting Service or Reporting DB. The API Gateway only forwards the request. Payment Service reads its own transaction records, requests minimal course metadata from Course Service, and performs the aggregation.
+## Admin revenue report
 
-## GET /payments/reports/revenue
+### `GET /api/payments/reports/revenue`
 
-Returns the current revenue summary, course breakdown, and transaction ledger.
+**Owner:** Payment Service
 
-### Authorization
+**Data:** Payment DB `transactions`; minimal course metadata from Course Service
 
-- A valid administrator JWT is required.
-- Missing or invalid tokens return HTTP 401.
-- Student and instructor tokens return HTTP 403.
+**Authorization:** admin JWT only (`401` missing/invalid; `403` student/instructor)
 
-### Request
+Optional scalar filters:
 
-```http
-GET /payments/reports/revenue
-Authorization: Bearer {accessToken}
-```
+| Parameter | Rule |
+|---|---|
+| `dateFrom` | Inclusive `YYYY-MM-DD`. |
+| `dateTo` | Inclusive `YYYY-MM-DD`; not before `dateFrom`. |
+| `courseId` | Positive integer. |
 
-### Success response (200)
+Invalid filters return `400 INVALID_REPORT_FILTER`.
+
+Success:
 
 ```json
 {
@@ -39,24 +39,62 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-`totalTransactions` counts every recorded payment attempt. Revenue, average order value, and each course's revenue count only the canonical successful payment status (`success`); pending and failed attempts never contribute revenue.
+`totalTransactions` counts every transaction in the filtered scope. Revenue, successful count, success rate numerator, average order value, and course revenue use only the canonical Payment DB status `success`; `pending` and `failed` never contribute revenue.
 
-### Internal course metadata lookup
+Payment Service queries its database, then calls `GET /courses/internal/titles?ids=...` with `X-Internal-Service-Secret`. Course Service returns only `id`, `title`, `price`, and `status` from Course DB. Payment Service performs the final aggregation. Neither service connects to the other's database.
 
-Payment Service calls:
+## Admin course report and moderation
 
-```http
-GET /courses/internal/titles?ids=1,2,3
-X-Internal-Service-Secret: {sharedSecret}
-```
+### `GET /api/courses/admin/reports/courses`
 
-Course Service returns only `id`, `title`, `price`, and `status` for the requested course IDs. Calls without the valid internal secret are rejected. Payment Service never connects to Course DB, and Course Service never connects to Payment DB.
+**Owner:** Course Service
 
-### Data flow
+**Data:** Course DB `courses`, `enrollments`
 
-1. Admin Web Client sends the request through Nginx and API Gateway.
-2. API Gateway forwards the original authorization header to Payment Service.
-3. Payment Service verifies the administrator JWT and queries Payment DB.
-4. Payment Service calls the protected Course Service metadata endpoint for referenced course IDs.
-5. Course Service queries Course DB and returns minimal metadata.
-6. Payment Service aggregates and returns the report through API Gateway.
+**Authorization:** admin JWT only
+
+Optional filters: `dateFrom`, `dateTo`, `category`, and `status=draft|pending_review|published|rejected`. Success returns a course-status/enrollment summary and course rows with enrollment counts and average progress.
+
+### `PATCH /api/courses/admin/:courseId/status`
+
+Admin-only course moderation. Body `{ "status": "draft|pending_review|published|rejected" }`; returns the updated course. This is a Course Service/DB operation, not a reporting-service write.
+
+## Admin user activity
+
+### `GET /api/users/admin/reports/activity`
+
+**Owner:** User Service
+
+**Data:** User DB `login_audit`, `users`
+
+**Authorization:** admin JWT only
+
+Filters: `page`, `pageSize`, `status=success|failed`, `dateFrom`, and `dateTo`. Returns summary counts and a paginated audit list. No password hash, JWT, or stored credential is exposed.
+
+## Instructor learning progress
+
+### `GET /api/courses/instructor/:courseId/progress`
+
+**Owner:** Course Service
+
+**Data:** Course DB `courses`, `enrollments`
+
+**Authorization:** JWT instructor who owns the course
+
+Returns enrollment counts, completed count, average progress, and enrollment rows. `studentId` values in this report are stored Course DB references, not request identity.
+
+## Instructor quiz results
+
+### `GET /api/exams/courses/:courseId/results/summary`
+
+**Owner:** Exam & Quiz Service
+
+**Data:** Exam DB `quizzes`, `quiz_results`
+
+**Authorization:** JWT instructor; ownership verified via Course Service HTTP
+
+Returns overall quiz/attempt/pass/average summary, per-quiz attempt statistics, and result rows. Exam Service never reads Course DB.
+
+## Gateway role
+
+API Gateway verifies coarse roles, validates route/query shapes where implemented, forwards Authorization, and preserves owner responses. It does not join data, calculate report values, or connect to a database.

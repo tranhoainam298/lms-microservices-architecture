@@ -1,4 +1,4 @@
-import { activateEnrollment, askAiAboutLesson, checkStudentExamAccess, completeStudentLesson, createDraftCourse, createLessonForInstructorDraft, deleteLessonForInstructorDraft, getCourseTitlesInternal, getLesson, getLessonsForInstructorDraft, getCourses, getEnrolledCourses, getInstructorDrafts, getPurchasableCourse, getStudentCourseLearning, publishInstructorDraft, updateInstructorDraft, updateLessonForInstructorDraft } from '../services/courseService.js';
+import { activateEnrollment, askAiAboutLesson, checkInstructorCourseAccess, checkStudentExamAccess, completeStudentLesson, createDraftCourse, createLessonForInstructorDraft, deleteInstructorDraft, deleteLessonForInstructorDraft, enrollInFreeCourse, getAdminCourseReport, getCourseTitlesInternal, getInstructorCourseProgress, getInstructorCourses, getLesson, getLessonsForInstructorDraft, getCourses, getEnrolledCourses, getInstructorDrafts, getPublishedCourseCategories, getPublishedCourseDetail, getPurchasableCourse, getStudentCourseLearning, moderateCourseStatus, publishInstructorDraft, reorderLessonsForInstructorDraft, updateAdminCourseCategory, updateInstructorDraft, updateLessonForInstructorDraft } from '../services/courseService.js';
 
 export async function createDraft(req, res) {
   const payload = req.body || {};
@@ -9,7 +9,7 @@ export async function createDraft(req, res) {
     description: payload.description,
     category: payload.category,
     price: payload.price,
-    cover_image: payload.cover_image,
+    cover_image: payload.coverImage ?? payload.cover_image,
     instructorId,
     lessons: payload.lessons
   });
@@ -47,7 +47,9 @@ export async function checkStudentExamAccessHandler(req, res) {
 export async function getPurchasableCourseHandler(req, res) {
   const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
   if (courseId === null) return;
-  const result = await getPurchasableCourse(courseId);
+  const studentId = parsePositiveRouteId(res, req.query?.studentId, 'INVALID_STUDENT_ID', 'Student ID');
+  if (studentId === null) return;
+  const result = await getPurchasableCourse(courseId, studentId);
   res.status(result.status).json(result.body);
 }
 
@@ -69,6 +71,7 @@ export async function createLessonForInstructorDraftHandler(req, res) {
     courseId,
     instructorId: req.user.id,
     title: payload.title,
+    content: payload.content,
     videoUrl: payload.videoUrl,
     documentUrl: payload.documentUrl
   });
@@ -95,6 +98,7 @@ export async function updateLessonForInstructorDraftHandler(req, res) {
     lessonId,
     instructorId: req.user.id,
     title: payload.title,
+    content: payload.content,
     videoUrl: payload.videoUrl,
     documentUrl: payload.documentUrl
   });
@@ -147,7 +151,74 @@ export async function askAiAboutLessonHandler(req, res) {
 }
 
 export async function getCoursesHandler(req, res) {
-  const result = await getCourses();
+  const result = await getCourses({
+    search: req.query?.search,
+    category: req.query?.category,
+    minPrice: req.query?.minPrice,
+    maxPrice: req.query?.maxPrice
+  });
+  res.status(result.status).json(result.body);
+}
+
+export async function reorderLessonsForInstructorDraftHandler(req, res) {
+  const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+
+  const result = await reorderLessonsForInstructorDraft({
+    courseId,
+    instructorId: req.user.id,
+    lessonIds: req.body?.lessonIds
+  });
+  res.status(result.status).json(result.body);
+}
+
+export async function checkInstructorCourseAccessHandler(req, res) {
+  const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+  const result = await checkInstructorCourseAccess({ courseId, instructorId: req.user.id });
+  res.status(result.status).json(result.body);
+}
+
+export async function getPublishedCourseDetailHandler(req, res) {
+  const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+  const result = await getPublishedCourseDetail(courseId);
+  res.status(result.status).json(result.body);
+}
+
+export async function getPublishedCourseCategoriesHandler(req, res) {
+  const result = await getPublishedCourseCategories();
+  res.status(result.status).json(result.body);
+}
+
+export async function getInstructorCourseProgressHandler(req, res) {
+  const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+  const result = await getInstructorCourseProgress({ courseId, instructorId: req.user.id });
+  res.status(result.status).json(result.body);
+}
+
+export async function getAdminCourseReportHandler(req, res) {
+  const result = await getAdminCourseReport({
+    dateFrom: req.query?.dateFrom,
+    dateTo: req.query?.dateTo,
+    category: req.query?.category,
+    status: req.query?.status
+  });
+  res.status(result.status).json(result.body);
+}
+
+export async function moderateCourseStatusHandler(req, res) {
+  const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+  const result = await moderateCourseStatus({ courseId, status: req.body?.status });
+  res.status(result.status).json(result.body);
+}
+
+export async function updateAdminCourseCategoryHandler(req, res) {
+  const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+  const result = await updateAdminCourseCategory({ courseId, category: req.body?.category });
   res.status(result.status).json(result.body);
 }
 
@@ -159,6 +230,18 @@ export async function getEnrolledCoursesHandler(req, res) {
 export async function getInstructorDraftsHandler(req, res) {
   const instructorId = req.user?.id;
   const result = await getInstructorDrafts(instructorId);
+  res.status(result.status).json(result.body);
+}
+
+export async function enrollInFreeCourseHandler(req, res) {
+  const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+  const result = await enrollInFreeCourse({ studentId: req.user.id, courseId });
+  res.status(result.status).json(result.body);
+}
+
+export async function getInstructorCoursesHandler(req, res) {
+  const result = await getInstructorCourses(req.user.id);
   res.status(result.status).json(result.body);
 }
 
@@ -174,9 +257,22 @@ export async function updateDraftHandler(req, res) {
     instructorId,
     title: payload.title,
     description: payload.description,
-    price: payload.price
+    category: payload.category,
+    price: payload.price,
+    coverImage: payload.coverImage ?? payload.cover_image
   });
 
+  res.status(result.status).json(result.body);
+}
+
+export async function deleteDraftHandler(req, res) {
+  const courseId = parsePositiveRouteId(res, req.params.courseId, 'INVALID_COURSE_ID', 'Course ID');
+  if (courseId === null) return;
+
+  const result = await deleteInstructorDraft({
+    courseId,
+    instructorId: req.user.id
+  });
   res.status(result.status).json(result.body);
 }
 

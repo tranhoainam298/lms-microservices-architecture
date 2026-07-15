@@ -80,3 +80,15 @@ export function forwardListUsers(query, authorizationHeader) {
 export const forwardUpdateUserStatus = (userId, payload, authorizationHeader) =>
   forwardUserRequest(`/users/admin/users/${userId}/status`, { method: 'PATCH', payload, authorizationHeader });
 
+export const forwardUpdateUserRole = (userId, payload, authorizationHeader) =>
+  forwardUserRequest(`/users/admin/users/${userId}/role`, { method: 'PATCH', payload, authorizationHeader });
+
+export function forwardGetLoginActivity(query, authorizationHeader) {
+  const params = new URLSearchParams();
+  for (const key of ['page', 'pageSize', 'status', 'dateFrom', 'dateTo']) {
+    if (query[key] !== undefined) params.set(key, String(query[key]));
+  }
+  const suffix = params.size ? `?${params}` : '';
+  return forwardUserRequest(`/users/admin/reports/activity${suffix}`, { authorizationHeader });
+}
+

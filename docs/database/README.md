@@ -1,46 +1,35 @@
 # Database Architecture
 
-This directory contains the database design documentation for the Learning Management System (LMS) Microservices project.
-
-## Database-per-Service Pattern
-
-To ensure loose coupling, independent scalability, and autonomous deployment of each microservice, the system implements the **Database-per-Service** design pattern. 
-
-In this pattern:
-- Each service owns its database private data.
-- Other services cannot access this database directly.
-- The schema of a database is completely private to its owner service.
+The LMS implements database-per-service with four private MySQL databases and no shared application database.
 
 ```mermaid
-graph TD
-    GW[API Gateway] --> UserSvc[User Service]
-    GW --> CourseSvc[Course Service]
-    GW --> ExamSvc[Exam & Quiz Service]
-    GW --> PaySvc[Payment Service]
+flowchart LR
+    Gateway[API Gateway] --> UserService[User Service]
+    Gateway --> CourseService[Course Service]
+    Gateway --> ExamService[Exam & Quiz Service]
+    Gateway --> PaymentService[Payment Service]
 
-    UserSvc --> UserDB[(User DB)]
-    CourseSvc --> CourseDB[(Course DB)]
-    ExamSvc --> ExamDB[(Exam DB)]
-    PaySvc --> PaymentDB[(Payment DB)]
-
-    classDef db fill:#f9f,stroke:#333,stroke-width:2px;
-    class UserDB,CourseDB,ExamDB,PaymentDB db;
+    UserService --> UserDB[(User DB)]
+    CourseService --> CourseDB[(Course DB)]
+    ExamService --> ExamDB[(Exam DB)]
+    PaymentService --> PaymentDB[(Payment DB)]
 ```
 
-## Allowed Databases
+| Database | Owner | Current tables | Primary responsibility |
+|---|---|---|---|
+| User DB (`lms_user_db`) | User Service | `users`, `login_audit` | Identity, profile, role/status, login audit |
+| Course DB (`lms_course_db`) | Course Service | `courses`, `lessons`, `enrollments`, `lesson_progress` | Course authoring, lesson content, access, durable progress |
+| Exam DB (`lms_exam_db`) | Exam & Quiz Service | `quizzes`, `questions`, `quiz_results` | Quiz authoring, server-side answer keys/grading, results |
+| Payment DB (`lms_payment_db`) | Payment Service | `transactions` | Checkout/provider state and revenue source ledger |
 
-The architecture permits **exactly 4 databases**. No extra databases (e.g., Reporting DB, Chatbot DB, Learning Result DB, Notification DB, or Enrollment DB) are allowed.
+There is no Reporting DB, Chatbot DB, Enrollment DB, Learning Result DB, or shared database.
 
-| Database Name | Owner Service | Primary Purpose |
-|---|---|---|
-| **User DB** | User Service | User accounts, profiles, roles, permissions, login audits |
-| **Course DB** | Course Service | Courses, lessons, course access, learning progress, AI context |
-| **Exam DB** | Exam & Quiz Service | Question bank, quizzes, attempts, answers, grading |
-| **Payment DB** | Payment Service | Payments, transactions, payment gateway logs, revenue records |
+## Integration rules
 
-## Communication and Integration Rules
+1. A service connects only to its own database.
+2. Cross-domain decisions use service APIs. Examples include Exam Service asking Course Service for course access, and Payment Service asking Course Service for purchasable metadata and enrollment activation.
+3. RabbitMQ events communicate asynchronous facts. The immediate paid-course access path remains the synchronous, internally authenticated Payment Service to Course Service request; events do not perform a duplicate enrollment write.
+4. Payment Service aggregates the revenue report from Payment DB and enriches it with minimal Course Service metadata. API Gateway routes the request only.
+5. AI context is assembled transiently by Course Service from Course DB and sent to the external AI Chatbot System. No AI context table or AI database exists.
 
-Since services are strictly isolated:
-1. **No Direct Cross-Database Queries**: A service must never run SQL queries or establish direct connections to a database owned by another service.
-2. **API-Based Communication**: Services fetch shared data or trigger actions in other services by making HTTP/REST calls through APIs (managed via API Gateway or internal DNS).
-3. **Event-Driven Integration**: For asynchronous or decoupled propagation of state (e.g., student completes a payment, triggering course access activation), services publish events to the **Message Broker**. Interested services subscribe to these events to update their own databases.
+See the per-database documents for exact columns, indexes, and foreign keys, and `database-ownership-rules.md` for enforceable boundaries.

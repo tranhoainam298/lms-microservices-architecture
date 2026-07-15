@@ -1,101 +1,137 @@
-# Exam API Contract
+# Exam and Quiz API Contract
 
-**Owner service:** Exam & Quiz Service
-**Database:** Exam DB
+**Owner:** Exam & Quiz Service
 
-Exam DB stores the question bank, answer keys, grading results, and quiz metadata.
+**Database:** Exam DB (`quizzes`, `questions`, `quiz_results`)
 
----
+**Public base:** `/api/exams`
 
-## GET /quizzes/{quizId}
+Every Exam API route requires a valid JWT. API Gateway and Exam Service both enforce the required role. Exam Service calls Course Service over HTTP for course ownership/access and never connects to Course DB.
 
-**Entry point:** API Gateway
+## Instructor quiz management
 
-### Description
+Instructor identity comes from the JWT. Authoring is allowed only for the instructor's own draft course, except the result summary, which allows any status of an owned course.
 
-Retrieves quiz details and questions for a student to take. The student must have active access to the course associated with this quiz.
+| Method and public path | Purpose |
+|---|---|
+| `POST /api/exams/courses/:courseId/quizzes` | Create an owned draft quiz and questions; `201 { quiz }`. |
+| `GET /api/exams/courses/:courseId/quizzes/mine` | List owned quizzes; `{ items, total }`. |
+| `GET /api/exams/courses/:courseId/quizzes/:quizId/mine` | Load draft management detail including answer indices. |
+| `PATCH /api/exams/courses/:courseId/quizzes/:quizId` | Replace editable draft metadata and its question set transactionally. |
+| `DELETE /api/exams/courses/:courseId/quizzes/:quizId` | Delete one owned draft quiz; `{ deleted: true, quizId }`. |
+| `PATCH /api/exams/courses/:courseId/quizzes/:quizId/publish` | Publish an owned ready draft quiz. |
+| `GET /api/exams/courses/:courseId/results/summary` | Aggregate and list quiz attempts for an instructor-owned course. |
 
-### Request
+Create/update body:
 
-```
-GET /quizzes/{quizId}
-Authorization: Bearer {accessToken}
-```
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| quizId | string (path) | Yes | ID of the quiz to retrieve |
-
-### Success Response (200 OK)
-
-| Field | Type | Description |
-|---|---|---|
-| quizId | string | Quiz ID |
-| courseId | string | Associated course ID |
-| title | string | Quiz title |
-| description | string | Quiz description |
-| timeLimit | integer | Time limit in minutes (0 = no limit) |
-| questions | array | List of questions (id, text, type, options) |
-| totalPoints | integer | Maximum points for the quiz |
-
-### Error Responses
-
-| Status | Code | Description |
-|---|---|---|
-| 401 | UNAUTHORIZED | Missing or invalid access token |
-| 403 | ACCESS_DENIED | Student does not have active access to this course |
-| 404 | NOT_FOUND | Quiz does not exist |
-
-### Related Sequence Diagram
-
-**Sequence Diagram — Exam Management: Take Quiz**
-
----
-
-## POST /quizzes/{quizId}/submit
-
-**Entry point:** API Gateway
-
-### Description
-
-Submits a student's answers for grading. The Exam & Quiz Service grades the submission against the answer keys stored in Exam DB and returns the result.
-
-### Request
-
-```
-POST /quizzes/{quizId}/submit
-Content-Type: application/json
-Authorization: Bearer {accessToken}
+```json
+{
+  "title": "Knowledge check",
+  "description": "Optional description",
+  "durationMinutes": 30,
+  "passingScore": 60,
+  "questions": [
+    {
+      "questionText": "Which option is correct?",
+      "questionType": "single_choice",
+      "options": ["A", "B"],
+      "correctOptionIndex": 1,
+      "points": 10
+    }
+  ]
+}
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| quizId | string (path) | Yes | ID of the quiz being submitted |
-| studentId | string | Yes | ID of the student submitting |
-| answers | array | Yes | List of answers (questionId, selectedOption or freeText) |
-| submittedAt | string | Yes | Timestamp of submission |
+Rules include title length 3–255, duration 1–300, passing score 0–100, 1–100 questions, 2–6 non-empty options, valid zero-based correct index, and positive points up to 100. The server assigns question order. Update replaces the draft's question rows inside a transaction; published quizzes cannot be edited/deleted through draft routes.
 
-### Success Response (200 OK)
+The management detail route is instructor-only and may return `correctOptionIndex`. Student routes never return it.
 
-| Field | Type | Description |
+Result-summary success contains:
+
+```json
+{
+  "courseId": 1,
+  "summary": { "quizCount": 0, "attemptCount": 0, "passedCount": 0, "averagePercentage": 0 },
+  "quizzes": [],
+  "results": []
+}
+```
+
+Exam Service verifies ownership through `GET /courses/:courseId/instructor-access` with the original JWT. Missing ownership returns `404 COURSE_NOT_FOUND`; Course Service failure returns `502 COURSE_SERVICE_UNAVAILABLE`.
+
+## Student quiz flow
+
+Student identity comes exclusively from the JWT. Course access is checked through Course Service using the same JWT before quiz data or grading is returned.
+
+### `GET /api/exams/courses/:courseId/quizzes`
+
+Returns `{ items, total }` for published quizzes after Course Service confirms an active enrollment in a published course. Each item has quiz metadata and `questionCount`, not answer keys.
+
+### `GET /api/exams/quizzes/:quizId`
+
+Exam Service loads the published quiz to obtain its real `courseId`, calls `GET /courses/:courseId/student-exam-access`, then returns:
+
+```json
+{
+  "quiz": {
+    "id": 1,
+    "courseId": 1,
+    "title": "...",
+    "description": "...",
+    "durationMinutes": 30,
+    "passingScore": 60,
+    "questions": [
+      {
+        "id": 10,
+        "questionText": "...",
+        "questionType": "single_choice",
+        "options": ["A", "B"],
+        "points": 10,
+        "sequenceOrder": 1
+      }
+    ]
+  }
+}
+```
+
+The response never contains `CorrectAnswer`, `correctAnswer`, `CorrectOptionIndex`, `correctOptionIndex`, or `answerKey`.
+
+### `POST /api/exams/quizzes/:quizId/submit`
+
+```json
+{
+  "answers": [
+    { "questionId": 10, "selectedOptionIndex": 1 }
+  ]
+}
+```
+
+The browser does not send authoritative `studentId`, score, maximum score, percentage, passed state, or submission time. Exam Service validates question/option IDs, rejects duplicate question IDs, reloads answer keys from Exam DB, grades server-side, and creates one result per student/quiz.
+
+Success: `201 { result }`, where result fields are `id`, `quizId`, JWT-derived `studentId`, `score`, `maximumScore`, `percentage`, `passed`, and `submittedAt`. Correct answers and per-question answer keys are not returned.
+
+Main errors:
+
+| Status | Code | Meaning |
 |---|---|---|
-| quizId | string | Quiz ID |
-| studentId | string | Student ID |
-| score | integer | Total score achieved |
-| totalPoints | integer | Maximum possible points |
-| passed | boolean | Whether the student passed |
-| gradedAnswers | array | Per-question results (questionId, correct, pointsAwarded) |
-| gradedAt | string | Timestamp of grading |
+| 400 | `INVALID_QUIZ_ID` / `VALIDATION_ERROR` | Bad route ID or answer payload. |
+| 403 | `COURSE_ACCESS_REQUIRED` | Course unpublished or student not actively enrolled. |
+| 404 | `QUIZ_NOT_FOUND` | Published quiz not found. |
+| 409 | `QUIZ_ALREADY_SUBMITTED` | The unique student/quiz result already exists. |
+| 502 | `COURSE_SERVICE_UNAVAILABLE` | Course access could not be verified. |
 
-### Error Responses
+### Results
 
-| Status | Code | Description |
-|---|---|---|
-| 401 | UNAUTHORIZED | Missing or invalid access token |
-| 403 | ACCESS_DENIED | Student does not have active access to this course |
-| 404 | NOT_FOUND | Quiz does not exist |
-| 409 | ALREADY_SUBMITTED | Student has already submitted this quiz |
+| Method and public path | Behavior |
+|---|---|
+| `GET /api/exams/results/mine` | Returns `{ items, total }` for the JWT student. Historical result access does not recheck current enrollment. |
+| `GET /api/exams/results/:resultId` | Returns `200 { result }` only when the result belongs to the JWT student; otherwise privacy-preserving `404 RESULT_NOT_FOUND`. |
 
-### Related Sequence Diagram
+## Authorization summary
 
-**Sequence Diagram — Exam Management: Take Quiz**
+- Missing/invalid token: `401 UNAUTHORIZED` or `401 INVALID_TOKEN`.
+- Wrong role: `403 FORBIDDEN`.
+- Browser identity headers/body fields cannot override JWT identity.
+- Instructor ownership and student access are checked by Course Service REST, not a cross-database query.
+
+Legacy Gateway route groups `/quizzes` and `/questions` return `410 ENDPOINT_DEPRECATED`; all active quiz operations use `/api/exams/...`.

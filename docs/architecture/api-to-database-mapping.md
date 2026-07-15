@@ -1,26 +1,75 @@
-# API to Database Mapping
+# API-to-Database Mapping
 
-This document maps the primary API endpoints of the LMS system to their corresponding owner service, database, main tables, and operational notes.
+This mapping uses the actual table names and active routes. A row containing an internal HTTP dependency describes two independent service operations; it never means one service connects to both databases.
 
----
+## User Service -> User DB only
 
-## Mapping Table
+| API | Tables | Database operation / side effect |
+|---|---|---|
+| `POST /auth/register` | `users` | Insert bcrypt-hashed active student account. |
+| `POST /auth/login` | `users`, `login_audit` | Read credential/status/role, record login attempt, publish `user.loggedin` after success. |
+| `GET/PATCH /users/me`; `PATCH /users/me/password` | `users` | Read/update only the JWT user's profile/password hash. |
+| `GET /users/admin/users` | `users` | Parameterized filtered/paginated user list. |
+| `PATCH /users/admin/users/:userId/status` | `users` | Admin account status transition. |
+| `PATCH /users/admin/users/:userId/role` | `users` | Admin role update with self-change protection. |
+| `GET /users/admin/reports/activity` | `login_audit`, `users` | Filtered audit summary/list; public user metadata only. |
 
-| API Endpoint | Owner Service | Database | Main Tables | Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **POST /auth/login** | User Service | User DB | `users`, `roles`, `user_roles`, `login_audit` | Login and role lookup. Publishes `UserLoggedInEvent` to the Message Broker upon success. |
-| **POST /courses/draft** | Course Service | Course DB | `courses` | Saves a new course draft. |
-| **GET /lessons/{lessonId}** | Course Service | Course DB | `lessons`, `course_access`, `learning_progress` | View lesson content. Checks student's active access status and tracks progress. |
-| **POST /learning-progress** | Course Service | Course DB | `learning_progress` | Updates the completion status/progress of a lesson for a student. |
-| **GET /quizzes/{quizId}** | Exam & Quiz Service | Exam DB | `quizzes`, `quiz_questions`, `question_bank` | Loads the quiz definition and its ordered list of questions. |
-| **POST /quizzes/{quizId}/submit** | Exam & Quiz Service | Exam DB | `quiz_attempts`, `submitted_answers`, `grading_results` | Submits answers for a quiz attempt, grades the answers, and stores results. |
-| **POST /payments** | Payment Service | Payment DB | `payments`, `payment_transactions`, `payment_gateway_logs` | Initiates the course purchase payment flow. Integrates with Momo/ZaloPay. |
-| **GET /reports/revenue** | Payment Service + Course Service | Payment DB + Course DB | `revenue_records`, `courses` | Aggregates data from Payment DB and Course DB. No reporting service or Reporting DB exists. |
-| **POST /ai/question** | Course Service | Course DB | `ai_learning_context`, `lessons` | Routes queries using lesson details and AI contexts to the external AI Chatbot System. No Chatbot DB exists. |
+## Course Service -> Course DB only
 
----
+| API | Tables | Database operation / side effect |
+|---|---|---|
+| `GET /courses`; `GET /courses/categories` | `courses` | Published catalog/filter/category reads. |
+| `GET /courses/:courseId` | `courses`, `lessons` | Published public course and safe lesson outline. |
+| `POST /courses/draft` | `courses`, optional `lessons` | Atomic instructor-owned draft creation. |
+| `GET /courses/drafts/mine`; `GET /courses/instructor/mine` | `courses`, `lessons`, `enrollments` | JWT instructor-owned course listings/counts. |
+| `PATCH /courses/drafts/:courseId`; publish route | `courses`, `lessons` | Owned draft validation/update/publish. |
+| Draft lesson list/create/update/delete routes | `courses`, `lessons` | Owned draft lesson management. |
+| `GET /courses/enrolled` | `courses`, `enrollments` | Active courses for JWT student. |
+| `GET /courses/:courseId/learning`; `GET /courses/lessons/:lessonId` | `courses`, `lessons`, `enrollments`, `lesson_progress` | Enrolled published-course outline/content/progress. |
+| `POST /courses/lessons/:lessonId/complete` | `courses`, `lessons`, `enrollments`, `lesson_progress` | Idempotent lesson completion plus course-progress recalculation in a transaction. |
+| `GET /courses/:courseId/student-exam-access` | `courses`, `enrollments` | JWT student exam access decision for Exam Service. |
+| `GET /courses/:courseId/instructor-access` | `courses` | JWT instructor ownership decision for Exam Service. |
+| `POST /courses/lessons/:lessonId/ai/ask` | `courses`, `lessons`, `enrollments` | Load authorized learning context; external AI call has no AI DB write. |
+| `GET /courses/instructor/:courseId/progress` | `courses`, `enrollments` | Owned course enrollment/progress report. |
+| `GET /courses/admin/reports/courses`; moderation route | `courses`, `enrollments` | Admin course report and status update. |
+| `GET /courses/internal/purchasable/:courseId` | `courses` | Minimal trusted published course metadata for Payment Service. |
+| `POST /courses/internal/enrollments/activate` | `courses`, `enrollments` | Internally authenticated, idempotent enrollment activation; publishes `course.access.activated` only when newly activated. |
+| `GET /courses/internal/titles` | `courses` | Minimal ID/title/price/status map for Payment revenue enrichment. |
 
-## Architectural Guidelines
+`lesson_progress` is created additively by `migrateLessonProgress.js`; `enrollments` has the unique student/course rule enforced by `migrateEnrollmentUniqueness.js`.
 
-1. **API Gateway Routing**: All external requests are routed via the API Gateway to their respective owner services.
-2. **Dual-Database Queries**: Endpoints like `GET /reports/revenue` and `POST /payments` represent operations where a service (e.g., Payment Service) may coordinate with another service (e.g., Course Service) via API calls or event notifications to access their respective data stores. Direct connections across databases are strictly prohibited.
+## Exam & Quiz Service -> Exam DB only
+
+| API | Tables | Database operation / dependency |
+|---|---|---|
+| Instructor quiz create/list/detail/update/delete/publish routes | `quizzes`, `questions` | Owned draft authoring and publication. Update replaces questions transactionally. |
+| `GET /exams/courses/:courseId/quizzes` | `quizzes`, `questions` | Published quiz list after Course Service HTTP access decision. |
+| `GET /exams/quizzes/:quizId` | `quizzes`, `questions` | Load safe student quiz; correct answer stays internal. |
+| `POST /exams/quizzes/:quizId/submit` | `quizzes`, `questions`, `quiz_results` | Server-side grading and unique JWT student/quiz result insert. |
+| `GET /exams/results/mine`; `GET /exams/results/:resultId` | `quiz_results` | JWT student's own historical results. |
+| `GET /exams/courses/:courseId/results/summary` | `quizzes`, `quiz_results` | Instructor result aggregation after Course Service HTTP ownership decision. |
+
+Exam Service's `COURSE_SERVICE_URL` is an HTTP dependency, not a Course DB connection.
+
+## Payment Service -> Payment DB only
+
+| API | Tables | Database operation / dependency |
+|---|---|---|
+| `POST /payments/checkout` | `transactions` | Course Service HTTP price lookup, pending insert, appTransId update, ZaloPay create call. |
+| `GET /payments/mine`; `GET /payments/:paymentId` | `transactions` | JWT student's own payment history/detail. |
+| `GET /payments/check-status/:appTransId` | `transactions` | Owner lookup, ZaloPay query, conditional `pending -> success|failed`; successful state calls Course Service activation. |
+| `POST /payments/callback/zalopay` | `transactions` | MAC/identity verification, conditional success finalization, Course Service activation. |
+| `GET /payments/reports/revenue` | `transactions` | Admin-filtered aggregation; Course titles are fetched through Course Service HTTP. |
+
+Payment success publishes `payment.succeeded`; provider failure publishes `payment.failed`. Neither event grants access. Payment Service never imports Course DB credentials or tables.
+
+## Gateway and external components
+
+- API Gateway has no SQL client and no database mapping.
+- RabbitMQ `lms_events` carries events but owns no LMS business data.
+- ZaloPay Sandbox stores/processes external provider state; Payment DB remains the LMS transaction record.
+- External AI Chatbot System uses a provider API but has no LMS database and cannot query Course DB.
+
+## Forbidden mappings
+
+The runtime contains no Payment Service -> Course DB, Course Service -> Payment DB, Exam Service -> Course DB, Course Service -> Exam DB, or API Gateway -> application DB connection. There is no `roles`, `user_roles`, `course_access`, `learning_progress`, `quiz_attempts`, `grading_results`, `revenue_records`, or AI-context table in the active schemas; prior documents using those names were stale.

@@ -1,89 +1,126 @@
 # Payment API Contract
 
-**Owner service:** Payment Service
-**Database:** Payment DB
-**External system:** Payment Gateway ZaloPay/Momo
+**Owner:** Payment Service
 
----
+**Database:** Payment DB (`transactions`)
 
-## POST /payments/checkout
+**External provider:** ZaloPay Sandbox v2
 
-**Entry point:** API Gateway
+**Public base:** `/api/payments`
 
-### Description
+The executable provider is ZaloPay Sandbox. Momo is an architectural alternative, not a claimed live adapter. Payment Service never connects to Course DB; trusted course data and access activation use protected Course Service HTTP APIs.
 
-Creates a pending ZaloPay Sandbox order. Student identity comes from the verified JWT. Payment Service retrieves the published course and trusted price from Course Service, converts the demo price to integer VND, persists Payment DB state, signs the v2 create request, and returns ZaloPay `order_url`.
+## Student checkout
 
-**Important business rule:** Payment Service must request Course Service to activate course access **only after successful payment**. Course access is never activated before payment confirmation.
+### `POST /api/payments/checkout`
 
-### Request
+Requires a valid student JWT.
 
+```json
+{
+  "courseId": 1,
+  "paymentMethod": "zalopay"
+}
 ```
-POST /payments/checkout
-Content-Type: application/json
-Authorization: Bearer {accessToken}
+
+`paymentMethod` is optional and defaults to `zalopay`; any other value returns `400 INVALID_PAYMENT_METHOD`. Payment Service reads no authoritative `studentId`, `amount`, `status`, `paid`, or enrollment state from the body. It:
+
+1. derives `studentId` from the JWT;
+2. calls `GET /courses/internal/purchasable/:courseId` for the published course title and price;
+3. converts the trusted course price using the configured VND rate;
+4. acquires a MySQL `GET_LOCK` scoped to the JWT student/course pair, checks for an existing `pending` or `success` transaction, and inserts one `pending` Payment DB transaction with a unique `appTransId`;
+5. signs a form request with `ZALOPAY_KEY1` and calls the sandbox `/v2/create` endpoint.
+
+Success: `201`:
+
+```json
+{
+  "payment": {
+    "id": 100,
+    "courseId": 1,
+    "amount": 299000,
+    "currency": "VND",
+    "status": "pending",
+    "provider": "zalopay",
+    "appTransId": "<YYMMDD_unique-suffix>",
+    "orderUrl": "<sandbox order URL>"
+  }
+}
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| courseId | string | Yes | ID of the course being purchased |
-| paymentMethod | string | No | Must be `zalopay`; defaults to `zalopay` |
+Main errors include `400 INVALID_COURSE_ID`, `401 UNAUTHORIZED`/`INVALID_TOKEN`, `403 FORBIDDEN`, `404 COURSE_NOT_AVAILABLE`, `409 PAYMENT_CHECKOUT_BUSY`, `409 PAYMENT_ALREADY_PENDING`, `409 PAYMENT_ALREADY_COMPLETED`, `502 COURSE_SERVICE_UNAVAILABLE`, provider-safe 502 errors, and configuration errors `503 ZALOPAY_NOT_CONFIGURED`, `ZALOPAY_ENV_INVALID`, `ZALOPAY_ENDPOINT_INVALID`, or `COURSE_PRICE_CONVERSION_INVALID`.
 
-### Success Response (201 Created)
+### Atomic checkout reservation
 
-| Field | Type | Description |
-|---|---|---|
-| payment.id | number | Payment DB identifier |
-| payment.courseId | number | Trusted course identifier |
-| payment.amount | number | Trusted course price converted to integer VND |
-| payment.currency | string | `VND` |
-| payment.status | string | `pending` |
-| payment.provider | string | Selected mock provider |
-| payment.appTransId | string | ZaloPay transaction ID in `YYMMDD_suffix` format |
-| payment.orderUrl | string | ZaloPay Sandbox `order_url` |
+Checkout reservation is serialized per `studentId`/`courseId` with MySQL `GET_LOCK`. The reservation transaction checks for an existing `pending` or `success` payment before inserting. This prevents two concurrent requests from creating duplicate active payment attempts even though the current `transactions` schema has no conditional unique index. The named lock is released in `finally`; failure to acquire it within five seconds returns `409 PAYMENT_CHECKOUT_BUSY`.
 
-### Error Responses
+An explicit ZaloPay create-order rejection (a response whose `return_code` is not `1`, including `return_code=2`, or which has no `order_url`) conditionally changes the new row from `pending` to `failed` and emits `PaymentFailedEvent` once. A request timeout, connection loss, or other transport-level unavailability is ambiguous because ZaloPay may have accepted the signed order before its response was lost. In that case the row deliberately remains `pending`, no failure event is published, and a later valid signed callback or status query can recover it.
 
-| Status | Code | Description |
-|---|---|---|
-| 401 | UNAUTHORIZED | Missing or invalid access token |
-| 400 | INVALID_REQUEST | Missing or invalid payment fields |
-| 402 | PAYMENT_FAILED | Payment was rejected by the payment gateway |
-| 504 | GATEWAY_TIMEOUT | Payment gateway did not respond in time |
+Only `https://sb-openapi.zalopay.vn` create/query endpoints are accepted. Real credential values are environment-only and never returned.
 
-## GET /payments/check-status/{appTransId}
+## Student payment history and ownership
 
-Requires a student JWT and ownership of the stored transaction. Payment Service signs the v2 query request with Key1. Paid confirmation changes Payment DB to `success` and calls Course Service internal enrollment activation. Pending or failed provider states never activate access.
+| Method and public path | Behavior |
+|---|---|
+| `GET /api/payments/mine` | Returns `{ items, total }` for all Payment DB transactions owned by the JWT student. |
+| `GET /api/payments/:paymentId` | Returns `200 { payment }` only to its JWT owner; otherwise `403 FORBIDDEN` or `404 PAYMENT_NOT_FOUND`. |
 
-## POST /payments/callback/zalopay
+Normalized payment fields are `id`, `studentId`, `courseId`, `amount`, `currency`, `status`, `provider`, `appTransId`, and `createdAt`. The returned `studentId` is stored server data, not a request authority.
 
-Public provider callback. Payment Service validates `HMAC_SHA256(data, ZALOPAY_KEY2)`, parses embedded IDs, verifies them against the Payment DB row, marks confirmed payment successful, and activates enrollment. Polling remains authoritative for local development because a provider cannot normally reach a localhost callback.
+## Provider status polling
 
-## POST /payments/mock/complete
+### `GET /api/payments/check-status/:appTransId`
 
-Returns HTTP 410. Mock completion is disabled by default and is not used by Web Client.
+Requires a student JWT and ownership of the stored ZaloPay transaction.
 
-## GET /payments/{paymentId}
+- `pending`: Payment Service signs `/v2/query` with Key1.
+- provider `return_code=1`: verify any returned amount, conditionally transition `pending -> success`, publish `PaymentSucceededEvent` once, and synchronously activate Course Service access.
+- provider `return_code=2`: explicitly rejected/failed; conditionally transition `pending -> failed`, publish `PaymentFailedEvent` once, and never call enrollment activation.
+- other provider state: return `paid: false` with the current pending payment.
+- already `success`: retry the idempotent Course Service activation without republishing the payment event.
 
-Returns the payment only to its JWT student owner. It never accepts `studentId` as authority.
+A query transport failure is not treated as provider-declared failure: Payment Service returns a safe upstream error while preserving `pending`, and it emits no `payment.failed` fact.
 
-### Flow After Successful Payment
+Successful response:
 
-1. Payment Service receives paid confirmation from ZaloPay Sandbox query or a valid callback
-2. Payment Service updates payment status to "succeeded" in Payment DB
-3. Payment Service sends an internally authenticated request to Course Service to activate course access
-4. Payment Service does not publish the legacy enrollment event after synchronous activation, avoiding duplicate enrollment writes
-5. Course Service activates enrollment/access in Course DB
-6. Course Service publishes `CourseAccessActivatedEvent` to Message Broker
-7. Payment Service returns the real payment and enrollment response
+```json
+{
+  "success": true,
+  "paid": true,
+  "payment": { "status": "success" },
+  "enrollment": { "id": 10, "studentId": 1, "courseId": 1, "status": "active" }
+}
+```
 
-### Flow After Failed Payment
+If ZaloPay has confirmed payment but Course Service activation fails, Payment DB remains `success` and the API returns `502 PAYMENT_PAID_ENROLLMENT_PENDING`; polling can safely retry.
 
-1. Payment Service receives failure from ZaloPay Sandbox query
-2. Payment Service updates payment status to "failed" in Payment DB
-3. Payment Service publishes `PaymentFailedEvent` to Message Broker
-4. Payment Service returns error response — course access is NOT activated
+## ZaloPay callback
 
-### Related Sequence Diagram
+### `POST /api/payments/callback/zalopay`
 
-**Sequence Diagram — Payment Management: Pay for Course**
+This provider callback does not use a student JWT. It requires `{ data, mac }`, verifies `HMAC_SHA256(data, ZALOPAY_KEY2)` using timing-safe comparison, parses embedded identifiers, and checks app ID, payment, student, course, provider transaction ID, and amount against Payment DB before finalization.
+
+Provider acknowledgements are always HTTP 200:
+
+- `{ "return_code": 1, "return_message": "Success" }` after valid idempotent finalization;
+- `{ "return_code": -1, "return_message": "MAC invalid" }` for invalid MAC;
+- `{ "return_code": 0, "return_message": "Server error" }` for identity/state/internal errors.
+
+Polling is the usable localhost fallback because an external provider cannot normally reach a localhost callback URL.
+
+## Payment and access events
+
+After the first successful Payment DB transition, Payment Service publishes `PaymentSucceededEvent` to `lms_events` with routing key `payment.succeeded`, then calls `POST /courses/internal/enrollments/activate`. Course Service performs the authoritative idempotent enrollment transaction and publishes `CourseAccessActivatedEvent` with routing key `course.access.activated` only for newly activated access.
+
+After the first explicit provider-declared failed Payment DB transition, Payment Service publishes `PaymentFailedEvent` with routing key `payment.failed` and performs no enrollment call. Ambiguous provider transport failures do not change the stored state and do not publish this event.
+
+Event data contains payment/course/student identifiers and safe transaction metadata; it excludes JWTs, HMAC keys, provider credentials, and database credentials. Event publication never performs a second enrollment write.
+
+## Deprecated endpoints
+
+- `POST /api/payments/mock/complete` returns `410 ENDPOINT_DEPRECATED` and is not used by Web Client.
+- `POST /api/payments/webhook/zalopay` returns `410 ENDPOINT_DEPRECATED`; use `/payments/callback/zalopay`.
+
+## Revenue reporting
+
+`GET /api/payments/reports/revenue` is documented in [reporting-api.md](reporting-api.md).

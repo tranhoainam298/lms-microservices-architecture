@@ -1,90 +1,71 @@
-# Exam & Quiz Database Design (Exam DB)
+# Exam DB
 
-## Owner Service
-**Exam & Quiz Service**
+## Ownership
 
-## Purpose
-Store question bank, quizzes, answer keys, quiz attempts, submitted answers, and grading results.
+- **Owner:** Exam & Quiz Service
+- **MySQL database:** `lms_exam_db`
+- **Fresh-schema source:** `infra/mysql-init/init-exam-db.sql`
+- **Runtime compatibility checks:** `exam-service/Data/ExamSchemaMigrator.cs` and EF Core model configuration in `exam-service/Data/ExamDbContext.cs`
 
----
+Only Exam Service connects to Exam DB. Course publication, instructor ownership, and student enrollment are verified through Course Service HTTP APIs; Exam Service never connects to Course DB.
 
 ## Tables
 
-### 1. `question_bank`
-- **Purpose**: A repository of reusable assessment questions.
-- **Main Fields**:
-  - `id` (UUID, Primary Key): Unique identifier for the question.
-  - `course_id` (UUID): Reference to the course this question belongs to (Note: Logical reference to Course Service; no database-level FK).
-  - `question_text` (TEXT): The actual question prompt.
-  - `question_type` (VARCHAR): Type of question (e.g., `single_choice`, `multiple_choice`, `true_false`, `short_answer`).
-  - `options` (JSON): The list of possible options (for multiple/single choice).
-  - `correct_answer` (TEXT/JSON): The correct answer or key used for grading.
-  - `created_at` (TIMESTAMP): Creation timestamp.
-- **Relationships**:
-  - One-to-Many with `quiz_questions` (a question can be placed in multiple quizzes).
-  - One-to-Many with `submitted_answers` (a question can have many submitted student answers).
+### `quizzes`
 
-### 2. `quizzes`
-- **Purpose**: Defines assessment quizzes/exams within a course context.
-- **Main Fields**:
-  - `id` (UUID, Primary Key): Unique identifier for the quiz.
-  - `course_id` (UUID): Reference to the course (Note: Logical reference to Course Service; no database-level FK).
-  - `title` (VARCHAR): Title of the quiz.
-  - `description` (TEXT): Description or instructions for the quiz.
-  - `passing_score` (INT): Minimum score required to pass.
-  - `time_limit_minutes` (INT): Time limit in minutes.
-  - `created_at` (TIMESTAMP): Creation timestamp.
-- **Relationships**:
-  - One-to-Many with `quiz_questions` (a quiz is composed of multiple questions).
-  - One-to-Many with `quiz_attempts` (students can attempt a quiz multiple times).
+| Column | MySQL type | Constraints / behavior |
+|---|---|---|
+| `Id` | `INT` | `AUTO_INCREMENT PRIMARY KEY` |
+| `CourseId` | `INT` | `NOT NULL`; logical Course Service reference |
+| `InstructorId` | `INT` | `NOT NULL`; identity derived from a verified JWT |
+| `Title` | `VARCHAR(255)` | `NOT NULL` |
+| `Description` | `LONGTEXT` | nullable |
+| `TimeLimitMinutes` | `INT` | `NOT NULL`, defaults to `30` |
+| `PassingScore` | `INT` | `NOT NULL`, defaults to `60` |
+| `Status` | `VARCHAR(20)` | `NOT NULL`, defaults to `draft` |
+| `CreatedAt` | `DATETIME(6)` | `NOT NULL`, defaults to the current timestamp |
+| `UpdatedAt` | `DATETIME(6)` | `NOT NULL`, updates automatically |
 
-### 3. `quiz_questions`
-- **Purpose**: Junction table linking quizzes to questions in the question bank, establishing the sequence/order.
-- **Main Fields**:
-  - `quiz_id` (UUID, Foreign Key referencing `quizzes(id)`): The quiz.
-  - `question_id` (UUID, Foreign Key referencing `question_bank(id)`): The question.
-  - *Composite Primary Key*: `(quiz_id, question_id)`.
-  - `sequence_order` (INT): The order in which the question appears in the quiz.
-- **Relationships**:
-  - Many-to-One with `quizzes`.
-  - Many-to-One with `question_bank`.
+### `questions`
 
-### 4. `quiz_attempts`
-- **Purpose**: Tracks student attempts on specific quizzes.
-- **Main Fields**:
-  - `id` (UUID, Primary Key): Unique identifier for the attempt.
-  - `student_id` (UUID): Reference to the student (Note: Logical reference to User Service; no database-level FK).
-  - `quiz_id` (UUID, Foreign Key referencing `quizzes(id)`): The quiz being taken.
-  - `attempt_number` (INT): The student's attempt counter (e.g., attempt 1, 2).
-  - `status` (VARCHAR): Status of the attempt (e.g., `in_progress`, `submitted`, `abandoned`).
-  - `started_at` (TIMESTAMP): When the student started the quiz.
-  - `submitted_at` (TIMESTAMP, Nullable): When the student submitted their answers.
-- **Relationships**:
-  - Many-to-One with `quizzes`.
-  - One-to-Many with `submitted_answers` (an attempt records answers for each question).
-  - One-to-One with `grading_results` (an attempt results in exactly one final grading output).
+Questions are owned directly by one quiz; there is no separate reusable question-bank junction schema.
 
-### 5. `submitted_answers`
-- **Purpose**: Stores student responses to individual questions within a specific quiz attempt.
-- **Main Fields**:
-  - `id` (UUID, Primary Key): Unique identifier.
-  - `attempt_id` (UUID, Foreign Key referencing `quiz_attempts(id)`): The specific attempt.
-  - `question_id` (UUID, Foreign Key referencing `question_bank(id)`): The question answered.
-  - `submitted_answer` (TEXT/JSON): Raw response text or option IDs selected by the student.
-  - `is_correct` (BOOLEAN): Flag indicating if the grading algorithm marked it correct.
-  - `score` (INT): Score earned for this individual question.
-- **Relationships**:
-  - Many-to-One with `quiz_attempts`.
-  - Many-to-One with `question_bank`.
+| Column | MySQL type | Constraints / behavior |
+|---|---|---|
+| `Id` | `INT` | `AUTO_INCREMENT PRIMARY KEY` |
+| `CourseId` | `INT` | `NOT NULL`; logical Course Service reference |
+| `QuizId` | `INT` | `NOT NULL`, FK to `quizzes(Id)` with `ON DELETE CASCADE` |
+| `Topic` | `VARCHAR(255)` | `NOT NULL` |
+| `Content` | `LONGTEXT` | `NOT NULL` |
+| `Options` | `JSON` | `NOT NULL` |
+| `CorrectAnswer` | `VARCHAR(255)` | `NOT NULL`; server-side answer key |
+| `Difficulty` | `VARCHAR(50)` | `NOT NULL`, defaults to `medium` |
+| `Points` | `DECIMAL(10,2)` | `NOT NULL`, defaults to `1.00` |
+| `OrderIndex` | `INT` | `NOT NULL`, defaults to `1` |
+| `CreatedAt` | `DATETIME(6)` | `NOT NULL`, defaults to the current timestamp |
 
-### 6. `grading_results`
-- **Purpose**: Stores the final grading outcome, feedback, and pass/fail evaluation for an attempt. Replaces a separate Learning Result DB.
-- **Main Fields**:
-  - `id` (UUID, Primary Key): Unique identifier.
-  - `attempt_id` (UUID, Foreign Key referencing `quiz_attempts(id)`, Unique): The attempt being graded.
-  - `final_score` (INT): Overall score obtained by the student.
-  - `passed` (BOOLEAN): Indicates if the final score met the quiz's `passing_score`.
-  - `feedback` (TEXT, Nullable): Automatic or instructor-entered feedback.
-  - `graded_at` (TIMESTAMP): When the grading was finalized.
-- **Relationships**:
-  - One-to-One with `quiz_attempts`.
+Student quiz-read APIs project safe question DTOs and do not return `CorrectAnswer`.
+
+### `quiz_results`
+
+Stores one server-graded submission per student and quiz.
+
+| Column | MySQL type | Constraints / behavior |
+|---|---|---|
+| `Id` | `INT` | `AUTO_INCREMENT PRIMARY KEY` |
+| `StudentId` | `INT` | `NOT NULL`; identity derived from a verified JWT |
+| `QuizId` | `INT` | `NOT NULL`, FK to `quizzes(Id)` with `ON DELETE CASCADE` |
+| `Score` | `DECIMAL(10,2)` | `NOT NULL`, defaults to `0` |
+| `MaximumScore` | `DECIMAL(10,2)` | `NOT NULL`, defaults to `0` |
+| `Percentage` | `DECIMAL(5,2)` | `NOT NULL`, defaults to `0` |
+| `Passed` | `TINYINT(1)` | `NOT NULL`, defaults to `0` |
+| `SubmittedAnswers` | `JSON` | `NOT NULL` |
+| `SubmittedAt` | `DATETIME(6)` | `NOT NULL`, defaults to the current timestamp |
+
+`UX_quiz_results_StudentId_QuizId (StudentId, QuizId)` prevents duplicate submissions under the current one-attempt policy.
+
+## Runtime responsibilities
+
+Exam Service loads the answer key internally, calculates score, maximum score, percentage, and pass/fail, then persists the result in `quiz_results`. Client-supplied score, pass state, or student identity is never authoritative.
+
+These three tables are the complete current Exam DB schema; question content and result data are stored directly in them.

@@ -1,33 +1,37 @@
-# Local Development Plan
+# Local Docker Runtime
 
-This document outlines the network configurations and local port mappings allocated for running the microservices, clients, databases, and message brokers on a single development machine.
+The supported one-click and report/demo runtime is Docker Compose. Run `docker compose up -d --build` or double-click `start-lms.bat`, then open `http://localhost:8080`.
 
-> [!NOTE]
-> These values represent **planning values only** for deployment design. No configurations, Docker containers, database setups, or applications have been initialized in this step, and no database has been started yet.
+## Port assignments
 
----
+| Component | Container port | Host port | Notes |
+| :--- | :---: | :---: | :--- |
+| Nginx load balancer | `80` | `8080` | Default browser entry and `/api` reverse proxy. |
+| Web Client | `80` | none | Reached through Nginx. |
+| API Gateway | `3000` | `3000` | Host mapping is debug-only; browsers should use Nginx on 8080. |
+| User Service | `5001` | none | Internal Docker service. |
+| Course Service | `5002` | none | Internal Docker service. |
+| Exam Service | `5003` | none | Internal Docker service. |
+| Payment Service | `5004` | none | Internal Docker service. |
+| External AI adapter | `5005` | none | Internal external-system adapter. |
+| External payment compatibility fixture | `8080` | none | Not the main ZaloPay success path. |
+| RabbitMQ AMQP | `5672` | `5672` | Broker protocol. |
+| RabbitMQ management | `15672` | `15672` | Local developer UI. |
+| User MySQL | `3306` | `3316` | User DB only. |
+| Course MySQL | `3306` | `3317` | Course DB only. |
+| Exam MySQL | `3306` | `3308` | Exam DB only. |
+| Payment MySQL | `3306` | `3309` | Payment DB only. |
 
-## Network Port Assignments
+Host ports can be overridden by the variables documented in `.env.example`.
 
-| Component / Service | Local Port | Default Protocol | Description |
-| :--- | :---: | :--- | :--- |
-| **API Gateway** | `3000` | HTTP | Single public entry point for client applications. |
-| **User Service** | `3001` | HTTP | Backend authentication and accounts service. |
-| **Course Service** | `3002` | HTTP | Backend course syllabus and tracking service. |
-| **Exam Service** | `3003` | HTTP | Backend assessments and quiz scoring service. |
-| **Payment Service** | `3004` | HTTP | Backend checkouts and invoice handling service. |
-| **Web Client** | `5173` | HTTP | ReactJS client dashboard application (Vite default). |
-| **RabbitMQ** | `5672` | AMQP | Message broker event listening interface. |
-| **RabbitMQ Management UI** | `15672` | HTTP | Broker monitoring console for developers. |
-| **SQL Server User DB** | `14331` | TCP/SQL Server | Database instance dedicated to the User Service. |
-| **SQL Server Course DB** | `14332` | TCP/SQL Server | Database instance dedicated to the Course Service. |
-| **SQL Server Exam DB** | `14333` | TCP/SQL Server | Database instance dedicated to the Exam Service. |
-| **SQL Server Payment DB** | `14334` | TCP/SQL Server | Database instance dedicated to the Payment Service. |
+## Container communication
 
----
+Containers use Docker DNS names, never host `localhost`, for service-to-service traffic:
 
-## Service Communication Architecture
+- API Gateway calls `user-service:5001`, `course-service:5002`, `exam-service:5003`, and `payment-service:5004`.
+- Exam Service calls Course Service over HTTP for authorization; it does not connect to Course DB.
+- Payment Service calls Course Service over authenticated internal HTTP for purchase metadata, access activation, and report metadata; it does not connect to Course DB.
+- User, Course, and Payment services publish to `rabbitmq:5672`.
+- Each business service joins only its own data network. The optional backup profile is the only component that can read all four DB networks.
 
-During local development, services communicate in two ways:
-1. **Synchronous Requests**: Services reach other services directly using localhost URLs and the specific ports listed above (e.g., Course Service calls User Service on `http://localhost:3001`).
-2. **Asynchronous Events**: Services connect to the RabbitMQ broker at `amqp://localhost:5672` to publish and consume system events.
+Do not start the Docker production Web Client at `localhost:5173`; that port is only for an explicitly launched Vite development server.

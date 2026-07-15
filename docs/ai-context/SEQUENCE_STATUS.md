@@ -1,31 +1,60 @@
 # Sequence Status
 
-Reference mapping of the 7 sequence diagrams from the authoritative design:
+The authoritative sequence order is fixed below. Endpoint and event names match the current runtime rather than conceptual names from older diagrams.
 
-### Sequence 1: User Login
-*   *Flow:* User $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ User Service $\rightarrow$ User DB.
-*   *Status:* **Achieved** (Active).
+## 1. Login
 
-### Sequence 2: Course Catalog Search
-*   *Flow:* Student $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Course Service $\rightarrow$ Course DB.
-*   *Status:* **Achieved** (Active).
+`User -> Web Client -> API Gateway -> User Service -> User DB -> RabbitMQ`
 
-### Sequence 3: View Lesson Content
-*   *Flow:* Student $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Course Service $\rightarrow$ Course DB.
-*   *Status:* **Achieved** (JWT student access, active enrollment, real resources, and persisted completion are implemented).
+- Runtime endpoint: `POST /auth/login`
+- Event: exchange `lms_events`, routing key `user.loggedin`
+- Status: achieved and runtime verified through public login; a real exclusive queue captured `user.loggedin`.
 
-### Sequence 4: Take Quiz
-*   *Flow:* Student $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Exam Service $\rightarrow$ Exam DB.
-*   *Status:* **Achieved**. Enrolled student load/submit passed through the Gateway, questions excluded answer keys, server grading persisted the result, and role/access/duplicate protections passed.
+## 2. Save Draft Course
 
-### Sequence 5: Course Payment
-*   *Flow:* Student $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Payment Service $\rightarrow$ Payment DB $\rightarrow$ Webhook callback.
-*   *Status:* **ZaloPay Sandbox source flow aligned; live provider create requires sandbox credentials**. Browser uses Nginx/Gateway, Payment Service owns signed create/query/callback and Payment DB state, then calls Course Service after paid confirmation.
+`Instructor -> Web Client -> API Gateway -> Course Service -> Course DB`
 
-### Sequence 6: Revenue Report
-*   *Flow:* Admin $\rightarrow$ Web Client $\rightarrow$ Nginx $\rightarrow$ API Gateway $\rightarrow$ Payment Service $\rightarrow$ Payment DB $\rightarrow$ Course Service internal API $\rightarrow$ Course DB $\rightarrow$ Payment Service aggregation $\rightarrow$ response.
-*   *Status:* **Achieved**. Admin-authenticated `GET /payments/reports/revenue` queries Payment DB transactions, requests minimal course metadata through protected `GET /courses/internal/titles?ids=...`, and returns summary statistics, course revenue breakdown, and a filterable transaction ledger. Payment Service never connects to Course DB and Course Service never connects to Payment DB.
+- Runtime endpoint: `POST /courses/draft`
+- Security: instructor JWT, server-derived instructor identity, transactional course/lesson creation
+- Status: achieved and runtime verified by the public role E2E.
 
-### Sequence 7: Ask Learning Question (AI Support)
-*   *Flow:* Student $\rightarrow$ Web Client $\rightarrow$ API Gateway $\rightarrow$ Course Service $\rightarrow$ Course DB $\rightarrow$ External AI Chatbot System.
-*   *Status:* **Real provider integration implemented; live provider call requires `AI_API_KEY`**. Course Service supplies enrolled lesson context to the external provider adapter; no frontend/provider shortcut or canned fallback is active.
+## 3. View Lesson
+
+`Student -> Web Client -> API Gateway -> Course Service -> Course DB`
+
+- Runtime endpoints: `GET /courses/:courseId/learning`, `GET /courses/lessons/:lessonId`, and `POST /courses/lessons/:lessonId/complete`
+- Security: student JWT, published course, active enrollment
+- Status: achieved and runtime verified. Course 224 persisted one completed lesson and 100% course progress.
+
+## 4. Take Quiz
+
+`Student -> Web Client -> API Gateway -> Exam Service -> Course Service (authorization) -> Exam DB`
+
+- Runtime endpoints: `GET /exams/courses/:courseId/quizzes`, `GET /exams/quizzes/:quizId`, `POST /exams/quizzes/:quizId/submit`, and result routes
+- Security: student JWT and Course Service access decision; answer keys remain server-side
+- Status: achieved and revalidated. Quiz 808 was loaded without answer keys, graded server-side, and persisted result 5 as 20/20.
+
+## 5. Pay for Course
+
+`Student -> Web Client -> API Gateway -> Payment Service -> Course Service / Payment DB / ZaloPay -> RabbitMQ`
+
+- Runtime endpoints: `POST /payments/checkout`, `GET /payments/check-status/:appTransId`, and `POST /payments/callback/zalopay`
+- Events: `payment.succeeded`, `payment.failed`, then `course.access.activated` after idempotent synchronous access activation
+- Status: source/event complete. Real RabbitMQ captured success, failure, and access-activation events; idempotency and no enrollment after failure passed. Live ZaloPay create/query remains blocked by placeholder sandbox credentials.
+
+## 6. View Revenue Report
+
+`Admin -> Web Client -> API Gateway -> Payment Service -> Payment DB -> Course Service -> Course DB -> Payment Service`
+
+- Runtime endpoint: `GET /payments/reports/revenue`
+- Internal metadata endpoint: `GET /courses/internal/titles?ids=...`
+- Ownership: Payment Service aggregates; Payment Service never connects to Course DB
+- Status: achieved and runtime verified. Missing/invalid/wrong-role requests were denied; admin aggregation and the internal-secret boundary passed.
+
+## 7. Ask Learning Question
+
+`Student -> Lesson UI -> API Gateway -> Course Service -> Course DB -> External AI Chatbot System`
+
+- Runtime endpoint: `POST /courses/lessons/:lessonId/ai/ask`
+- Security: student JWT, active enrollment, server-loaded lesson/course context
+- Status: source/security complete. The enrolled missing-configuration request returned HTTP 503 `AI_PROVIDER_NOT_CONFIGURED`; a live provider call remains blocked by placeholder `AI_API_KEY`.

@@ -1,3 +1,14 @@
 # Quality Attributes
 
-<!-- TODO: Define quality attribute scenarios (performance, security, availability, scalability, etc.) -->
+| Attribute | Source / stimulus | Environment and artifact | Required response | Measure |
+|---|---|---|---|---|
+| Performance | A student opens a lesson or quiz during normal or peak traffic. | API Gateway, Course Service, Exam Service | Route and query efficiently and return stable content. | Lesson/quiz response target is approximately 2–3 seconds under normal load. |
+| Scalability | Enrollment traffic rises substantially for a new course. | Course and Payment services | Scale the high-load component independently without scaling every service. | Course/Payment instances can be increased independently while contracts remain stable. |
+| Availability | A business service, RabbitMQ consumer, or payment provider is temporarily unavailable. | Runtime LMS | Isolate the failure; unrelated domains continue operating. Non-critical event-consumer failure does not invalidate a successful login. | Enrolled learning remains usable during payment-provider failure; failures return explicit status rather than fabricated success. |
+| Security | An unauthenticated or unauthorized caller invokes a protected operation. | Gateway and owning service | Validate JWT and role in the owning service and reject the request without leaking secrets. | All protected operations require valid identity/role; answer keys, credentials, keys, and trusted financial values are not exposed to clients/events. |
+| Reliability | Connectivity fails during quiz submission, payment confirmation, or event publication. | Exam/Payment/Course service and owned DB | Preserve consistent authoritative DB state; make repeated completion/activation safe; log asynchronous publication failure safely. | No access after failed payment, no duplicate enrollment, and quiz duplicate policy is deterministic. |
+| Maintainability | Payment, Exam, Course, or User behavior changes. | Microservices codebase and contracts | Modify the owning service without direct database coupling to other domains. | A service can change independently when its public/internal API and event contracts remain compatible. |
+| Data integrity | A cross-domain flow needs course, payment, or exam information. | REST/event connectors | Query the owning service rather than its database and use transactions for local multi-row writes. | Architecture-boundary tests detect forbidden database hosts/imports; each service writes only its own DB. |
+| Observability | A provider or broker operation fails. | Service logs and health checks | Record safe diagnostic context without passwords, tokens, keys, or raw secrets. | Operators can identify the failing component and event/provider operation without credential disclosure. |
+
+These are target scenarios. Meeting a scenario requires measured runtime evidence; its presence in this document is not an assertion that every target has already been achieved.

@@ -22,14 +22,18 @@ const navigationGroups = [
   {
     label: 'Instructor tools',
     role: 'instructor',
-    items: [{ id: 'course-draft', label: 'Course drafts', short: 'C' }]
+    items: [
+      { id: 'course-draft', label: 'Course drafts', short: 'C' },
+      { id: 'instructor-monitoring', label: 'Student progress', short: 'SP' }
+    ]
   },
   {
     label: 'Administration',
     role: 'admin',
     items: [
       { id: 'revenue-report', label: 'Revenue and sales', short: 'R' },
-      { id: 'user-management', label: 'User management', short: 'U' }
+      { id: 'user-management', label: 'User management', short: 'U' },
+      { id: 'course-operations', label: 'Course operations', short: 'CO' }
     ]
   }
 ];

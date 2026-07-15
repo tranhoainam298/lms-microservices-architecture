@@ -35,6 +35,17 @@ public static class ExamSchemaMigrator
         }
 
         await db.Database.ExecuteSqlRawAsync("UPDATE questions q JOIN quizzes z ON z.CourseId=q.CourseId SET q.QuizId=z.Id WHERE q.QuizId IS NULL");
+        var missingQuizLinks = await db.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*) AS Value FROM questions WHERE QuizId IS NULL").SingleAsync();
+        if (missingQuizLinks > 0)
+            throw new InvalidOperationException(
+                "Exam schema migration cannot make questions.QuizId required because orphan question rows remain.");
+
+        var quizIdNullable = await db.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*) AS Value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='questions' AND COLUMN_NAME='QuizId' AND IS_NULLABLE='YES'").SingleAsync();
+        if (quizIdNullable > 0)
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE questions MODIFY COLUMN QuizId INT NOT NULL");
+
         var questionFk = await db.Database.SqlQueryRaw<int>(
             "SELECT COUNT(*) AS Value FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='questions' AND CONSTRAINT_NAME='FK_questions_quizzes_QuizId'").SingleAsync();
         if (questionFk == 0)

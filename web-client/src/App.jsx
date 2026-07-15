@@ -11,6 +11,8 @@ import PaymentPage from './pages/PaymentPage';
 import AdminRevenueReport from './pages/AdminRevenueReport';
 import ProfilePage from './pages/ProfilePage';
 import AdminUserManagement from './pages/AdminUserManagement';
+import InstructorMonitoring from './pages/InstructorMonitoring';
+import AdminCourseOperations from './pages/AdminCourseOperations';
 import { apiUrl } from './config/api';
 
 // Application page metadata
@@ -45,17 +47,49 @@ const pageMeta = {
     subtitle: 'Create, organize, and publish engaging course content.',
     context: 'Instructor workspace'
   },
+  'instructor-monitoring': {
+    title: 'Student progress',
+    subtitle: 'Review course enrollment, learning progress, and quiz performance.',
+    context: 'Instructor workspace'
+  },
   'revenue-report': {
     title: 'Revenue and sales',
     subtitle: 'Review payment activity and course performance.',
     context: 'Administration'
   },
   profile: { title: 'Your profile', subtitle: 'Manage your account details and password.', context: 'User account' },
-  'user-management': { title: 'User management', subtitle: 'Review and activate platform accounts.', context: 'Administration' }
+  'user-management': { title: 'User management', subtitle: 'Review roles and account availability.', context: 'Administration' },
+  'course-operations': { title: 'Course operations', subtitle: 'Moderate courses and review account activity.', context: 'Administration' }
 };
 
-const tabPages = new Set(['home', 'dashboard', 'course-draft', 'revenue-report', 'profile', 'user-management']);
+const tabPages = new Set(['home', 'dashboard', 'course-draft', 'instructor-monitoring', 'revenue-report', 'profile', 'user-management', 'course-operations']);
 const studentOnlyPages = new Set(['dashboard', 'lesson', 'quiz', 'payment']);
+const instructorOnlyPages = new Set(['course-draft', 'instructor-monitoring']);
+const adminOnlyPages = new Set(['revenue-report', 'user-management', 'course-operations']);
+
+async function requestJson(path, accessToken) {
+  const response = await fetch(apiUrl(path), {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body.message || 'The requested information could not be loaded.');
+  }
+  return body;
+}
+
+function normalizePayment(payment) {
+  return {
+    id: payment.id,
+    courseId: payment.courseId ?? payment.course_id,
+    amount: Number(payment.amount || 0),
+    currency: payment.currency || 'VND',
+    status: payment.status || payment.payment_status,
+    provider: payment.provider || payment.payment_method,
+    appTransId: payment.appTransId || payment.gateway_transaction_id,
+    createdAt: payment.createdAt || payment.created_at
+  };
+}
 
 export default function App() {
   const [authSession, setAuthSession] = useState(null);
@@ -66,51 +100,127 @@ export default function App() {
   const [activePage, setActivePage] = useState(null); // 'lesson', 'quiz', 'payment'
   const [pageParams, setPageParams] = useState(null);
 
-  // Real Database states
-  const [courses, setCourses] = useState([]);
-  const [courseAccess, setCourseAccess] = useState([]);
+  const [catalogCourses, setCatalogCourses] = useState([]);
+  const [enrolledCourses, setEnrolledCourses] = useState([]);
+  const [instructorDrafts, setInstructorDrafts] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [quizAttempts, setQuizAttempts] = useState([]);
+  const [quizzes, setQuizzes] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [studentDataLoading, setStudentDataLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState('');
+  const [studentDataErrors, setStudentDataErrors] = useState([]);
+  const studentRequestId = React.useRef(0);
 
-  const refreshEnrolledCourses = async () => {
-    if (authSession?.role !== 'student') return;
-    const accessRes = await fetch(apiUrl('/courses/enrolled'), {
-      headers: { 'Authorization': `Bearer ${authSession.accessToken}` }
-    });
-    if (!accessRes.ok) throw new Error('Enrolled courses could not be refreshed.');
-    const enrolled = await accessRes.json();
-    setCourses(current => current.map(course => {
-      const enrolledCourse = enrolled.find(item => item.id === course.id);
-      return enrolledCourse ? { ...course, progress_percent: Number(enrolledCourse.progress_percent || 0) } : course;
-    }));
-    setCourseAccess(enrolled.map(course => ({
-      id: course.id,
-      user_id: authSession.userProfile.id,
-      course_id: course.id,
-      access_status: 'active'
-    })));
-  };
+  const courses = React.useMemo(() => {
+    const byId = new Map(catalogCourses.map(course => [Number(course.id), course]));
+    for (const enrolled of enrolledCourses) {
+      const id = Number(enrolled.id);
+      byId.set(id, {
+        ...(byId.get(id) || {}),
+        ...enrolled,
+        price: Number(enrolled.price || 0),
+        progress_percent: Number(enrolled.progress_percent || 0)
+      });
+    }
+    return [...byId.values()];
+  }, [catalogCourses, enrolledCourses]);
 
-  React.useEffect(() => {
-    async function loadData() {
-      try {
-        const res = await fetch(apiUrl('/courses'), {
-          headers: authSession ? { 'Authorization': `Bearer ${authSession.accessToken}` } : {}
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCourses(data);
-        }
-        
-        if (authSession?.role === 'student') {
-          await refreshEnrolledCourses();
-        }
-      } catch (err) {
-        console.error('Failed to load courses', err);
-        setCourses([]);
+  const courseAccess = React.useMemo(() => enrolledCourses.map(course => ({
+    id: course.id,
+    course_id: course.id,
+    access_status: 'active'
+  })), [enrolledCourses]);
+
+  const loadCatalog = React.useCallback(async (filters = {}) => {
+    const query = new URLSearchParams();
+    for (const field of ['search', 'category', 'minPrice', 'maxPrice']) {
+      const value = filters[field];
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        query.set(field, String(value).trim());
       }
     }
-    loadData();
-  }, [authSession]);
+
+    setCatalogLoading(true);
+    setCatalogError('');
+    try {
+      const queryString = query.toString();
+      const path = `/courses${queryString ? `?${queryString}` : ''}`;
+      const body = await requestJson(path);
+      setCatalogCourses(Array.isArray(body) ? body : []);
+    } catch (error) {
+      setCatalogError(error.message || 'The course catalog could not be loaded.');
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
+  const loadStudentWorkspace = React.useCallback(async () => {
+    if (authSession?.role !== 'student' || !authSession.accessToken) return;
+    const requestId = ++studentRequestId.current;
+    setStudentDataLoading(true);
+    setStudentDataErrors([]);
+
+    const token = authSession.accessToken;
+    const [enrollmentResult, paymentResult, resultResult] = await Promise.allSettled([
+      requestJson('/courses/enrolled', token),
+      requestJson('/payments/mine', token),
+      requestJson('/exams/results/mine', token)
+    ]);
+    if (requestId !== studentRequestId.current) return;
+
+    const errors = [];
+    let currentEnrollments = [];
+    if (enrollmentResult.status === 'fulfilled') {
+      currentEnrollments = Array.isArray(enrollmentResult.value) ? enrollmentResult.value : [];
+      setEnrolledCourses(currentEnrollments);
+    } else {
+      errors.push(`Enrolled courses: ${enrollmentResult.reason.message}`);
+    }
+
+    if (paymentResult.status === 'fulfilled') {
+      setPayments((paymentResult.value.items || []).map(normalizePayment));
+    } else {
+      errors.push(`Payment history: ${paymentResult.reason.message}`);
+    }
+
+    if (resultResult.status === 'fulfilled') {
+      setQuizAttempts(resultResult.value.items || []);
+    } else {
+      errors.push(`Quiz results: ${resultResult.reason.message}`);
+    }
+
+    if (enrollmentResult.status === 'fulfilled') {
+      const quizResults = await Promise.allSettled(currentEnrollments.map(async (course) => {
+        const body = await requestJson(`/exams/courses/${course.id}/quizzes`, token);
+        return (body.items || []).map(quiz => ({ ...quiz, courseId: quiz.courseId || course.id }));
+      }));
+      if (requestId !== studentRequestId.current) return;
+      setQuizzes(quizResults.flatMap(result => result.status === 'fulfilled' ? result.value : []));
+      const quizFailureCount = quizResults.filter(result => result.status === 'rejected').length;
+      if (quizFailureCount > 0) {
+        errors.push(`Assessments: ${quizFailureCount} enrolled course${quizFailureCount === 1 ? '' : 's'} could not be checked.`);
+      }
+    }
+
+    setStudentDataErrors(errors);
+    setStudentDataLoading(false);
+  }, [authSession?.accessToken, authSession?.role]);
+
+  React.useEffect(() => {
+    loadCatalog();
+  }, [loadCatalog]);
+
+  React.useEffect(() => {
+    studentRequestId.current += 1;
+    setEnrolledCourses([]);
+    setPayments([]);
+    setQuizAttempts([]);
+    setQuizzes([]);
+    setStudentDataErrors([]);
+    setStudentDataLoading(false);
+    if (authSession?.role === 'student') loadStudentWorkspace();
+  }, [authSession?.accessToken, authSession?.role, loadStudentWorkspace]);
 
   const handleLogin = (session) => {
     const authenticatedRole = session.role;
@@ -127,10 +237,16 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    studentRequestId.current += 1;
     setAuthSession(null);
     setCurrentTab('dashboard');
     setActivePage(null);
     setPageParams(null);
+    setEnrolledCourses([]);
+    setPayments([]);
+    setQuizAttempts([]);
+    setQuizzes([]);
+    setStudentDataErrors([]);
   };
 
   const handleProfileUpdated = (profile) => {
@@ -159,12 +275,26 @@ export default function App() {
   };
 
   const handleSaveDraft = (newDraft) => {
-    setCourses(prev => [{ ...newDraft, instructor_id: newDraft.instructorId }, ...prev]);
+    setInstructorDrafts(previous => [newDraft, ...previous.filter(draft => draft.id !== newDraft.id)]);
   };
 
   const handlePaymentSuccess = async (payment) => {
-    setPayments(prev => [payment, ...prev.filter(item => item.id !== payment.id)]);
-    await refreshEnrolledCourses();
+    const normalized = normalizePayment(payment);
+    setPayments(previous => [normalized, ...previous.filter(item => item.id !== normalized.id)]);
+    await loadStudentWorkspace();
+  };
+
+  const handleEnrollFreeCourse = async (courseId) => {
+    const response = await fetch(apiUrl(`/courses/${courseId}/enroll`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${authSession.accessToken}` }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.message || 'The course could not be enrolled.');
+    }
+    await loadStudentWorkspace();
+    return body;
   };
 
   // Render Login if no authenticated session
@@ -178,24 +308,22 @@ export default function App() {
     if (studentOnlyPages.has(requestedPage) && authSession.role !== 'student') {
       return <div className="access-denied" role="alert"><strong>Student access required</strong><span>This workspace is available to authenticated student accounts only.</span></div>;
     }
-    if (requestedPage === 'course-draft' && authSession.role !== 'instructor') {
-      return <div className="access-denied" role="alert"><strong>Instructor access required</strong><span>Only instructors can create and save course drafts.</span></div>;
+    if (instructorOnlyPages.has(requestedPage) && authSession.role !== 'instructor') {
+      return <div className="access-denied" role="alert"><strong>Instructor access required</strong><span>This workspace is available to authenticated instructor accounts only.</span></div>;
     }
-    if (requestedPage === 'revenue-report' && authSession.role !== 'admin') {
-      return <div className="access-denied" role="alert"><strong>Administrator access required</strong><span>Revenue data is restricted to administrator accounts.</span></div>;
-    }
-    if (requestedPage === 'user-management' && authSession.role !== 'admin') {
-      return <div className="access-denied" role="alert"><strong>Administrator access required</strong><span>Only administrators can manage user accounts.</span></div>;
+    if (adminOnlyPages.has(requestedPage) && authSession.role !== 'admin') {
+      return <div className="access-denied" role="alert"><strong>Administrator access required</strong><span>This workspace is restricted to administrator accounts.</span></div>;
     }
 
     if (activePage === 'lesson') {
+      const selectedCourse = pageParams?.course || courses.find(course => course.id === pageParams?.courseId);
       return (
-        <LessonPage 
-          courseId={pageParams?.courseId} 
-          course={courses.find(course => course.id === pageParams?.courseId)}
+        <LessonPage
+          courseId={selectedCourse?.id}
+          course={selectedCourse}
           accessToken={authSession.accessToken}
-          isEnrolled={courseAccess.some(access => access.course_id === pageParams?.courseId && access.access_status === 'active')}
-          onBuyCourse={(courseId) => handleNavigate('payment', { courseId })}
+          isEnrolled={courseAccess.some(access => access.course_id === selectedCourse?.id && access.access_status === 'active')}
+          onBuyCourse={(courseId) => handleNavigate('payment', { courseId, course: courses.find(item => item.id === courseId) })}
           onOpenQuiz={(courseId) => handleNavigate('quiz', { courseId })}
           onBack={handleBackToDashboard}
         />
@@ -203,8 +331,8 @@ export default function App() {
     }
     if (activePage === 'quiz') {
       return (
-        <QuizPage 
-          quizId={pageParams?.quizId} 
+        <QuizPage
+          quizId={pageParams?.quizId}
           courseId={pageParams?.courseId}
           accessToken={authSession.accessToken}
           onBack={handleBackToDashboard}
@@ -212,10 +340,10 @@ export default function App() {
       );
     }
     if (activePage === 'payment') {
-      const selectedCourse = courses.find(c => c.id === pageParams?.courseId);
+      const selectedCourse = pageParams?.course || courses.find(course => course.id === pageParams?.courseId);
       return (
-        <PaymentPage 
-          course={selectedCourse} 
+        <PaymentPage
+          course={selectedCourse}
           accessToken={authSession.accessToken}
           onPaymentSuccess={handlePaymentSuccess}
           onBack={handleBackToDashboard}
@@ -240,53 +368,66 @@ export default function App() {
         );
       case 'dashboard':
         return (
-          <StudentDashboard 
+          <StudentDashboard
             courses={courses}
             courseAccess={courseAccess}
             payments={payments}
-            quizAttempts={[]}
-            progress={[]}
-            quizzes={[]}
+            quizAttempts={quizAttempts}
+            quizzes={quizzes}
             user={user}
+            loading={studentDataLoading}
+            dataErrors={studentDataErrors}
+            catalogLoading={catalogLoading}
+            catalogError={catalogError}
+            onCatalogFiltersChange={loadCatalog}
+            onEnrollFreeCourse={handleEnrollFreeCourse}
             onNavigate={handleNavigate}
           />
         );
-      case 'lesson':
+      case 'lesson': {
+        const selectedCourse = enrolledCourses[0] || courses[0];
         return (
           <LessonPage
-            courseId={courseAccess[0]?.course_id || courses[0]?.id}
-            course={courses.find(course => course.id === (courseAccess[0]?.course_id || courses[0]?.id))}
+            courseId={selectedCourse?.id}
+            course={selectedCourse}
             accessToken={authSession.accessToken}
-            isEnrolled={Boolean(courseAccess[0])}
-            onBuyCourse={(courseId) => handleNavigate('payment', { courseId })}
+            isEnrolled={enrolledCourses.some(course => course.id === selectedCourse?.id)}
+            onBuyCourse={(courseId) => handleNavigate('payment', { courseId, course: courses.find(item => item.id === courseId) })}
             onOpenQuiz={(courseId) => handleNavigate('quiz', { courseId })}
             onBack={handleBackToDashboard}
           />
         );
-      case 'quiz':
-        return <QuizPage courseId={pageParams?.courseId} accessToken={authSession.accessToken} onBack={handleBackToDashboard} />;
-      case 'payment':
+      }
+      case 'quiz': {
+        const selectedQuiz = quizzes[0];
+        return <QuizPage quizId={selectedQuiz?.id} courseId={selectedQuiz?.courseId || enrolledCourses[0]?.id} accessToken={authSession.accessToken} onBack={handleBackToDashboard} />;
+      }
+      case 'payment': {
+        const selectedCourse = courses.find(course => !courseAccess.some(access => access.course_id === course.id) && Number(course.price) > 0);
         return (
           <PaymentPage
-            course={courses.find(course => course.id === 201)}
+            course={selectedCourse}
             accessToken={authSession.accessToken}
             onPaymentSuccess={handlePaymentSuccess}
             onBack={handleBackToDashboard}
           />
         );
+      }
       case 'course-draft':
         return (
-          <InstructorCourseDraft 
+          <InstructorCourseDraft
             onSaveDraft={handleSaveDraft}
-            initialDrafts={courses.filter(c => c.instructor_id === user.id && c.status === 'draft')}
+            initialDrafts={instructorDrafts}
             accessToken={authSession.accessToken}
             userProfile={authSession.userProfile}
             role={authSession.role}
           />
         );
+      case 'instructor-monitoring':
+        return <InstructorMonitoring accessToken={authSession.accessToken} />;
       case 'revenue-report':
         return (
-          <AdminRevenueReport 
+          <AdminRevenueReport
             accessToken={authSession.accessToken}
           />
         );
@@ -294,16 +435,18 @@ export default function App() {
         return <ProfilePage accessToken={authSession.accessToken} onProfileUpdated={handleProfileUpdated} />;
       case 'user-management':
         return <AdminUserManagement accessToken={authSession.accessToken} currentUserId={user.id} />;
+      case 'course-operations':
+        return <AdminCourseOperations accessToken={authSession.accessToken} />;
       default:
-        return <div>Tab not found</div>;
+        return <div>Page not found</div>;
     }
   };
 
   return (
     <AppShell
       currentTab={activePage || currentTab}
-      onTabChange={(tab) => { setActivePage(null); setCurrentTab(tab); }} 
-      user={user} 
+      onTabChange={(tab) => { setActivePage(null); setCurrentTab(tab); }}
+      user={user}
       onLogout={handleLogout}
       pageMeta={pageMeta[activePage || currentTab]}
     >
