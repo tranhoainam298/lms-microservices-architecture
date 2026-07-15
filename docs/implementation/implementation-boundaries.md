@@ -32,4 +32,8 @@ This document defines strict boundaries, isolation constraints, and design rules
 - **Rule**: Do not put shared business logic in the `shared/` directory. The `shared/` directory should only house common utilities, logging libraries, error definitions, and interface types. Putting business logic in `shared/` introduces tight code-level coupling.
 
 ### 5. Third-Party / External System Boundaries
-- **Rule**: External systems, such as **Momo/ZaloPay** and the **AI Chatbot System**, must remain mocked or represented as placeholders until the dedicated integration phase. No real credentials or SDK implementations should be added until then.
+- **Rule**: Payment Gateway and AI Chatbot remain external systems, not core LMS services and not owners of LMS databases.
+- **Rule**: The implemented payment adapter targets ZaloPay Sandbox only. Momo remains an architectural alternative unless a separately configured and tested adapter is added.
+- **Rule**: The external AI adapter calls its configured real provider only from the server side. Web Client, API Gateway, and Course Service must not receive `AI_API_KEY`.
+- **Rule**: Provider credentials are supplied through local/server environment variables, never hardcoded, logged, returned to clients, or committed.
+- **Rule**: Missing provider credentials must return an explicit configuration error; active business flows must not silently substitute fake payment success or canned AI answers.

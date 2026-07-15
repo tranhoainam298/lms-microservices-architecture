@@ -8,18 +8,21 @@ export async function initializeDatabase() {
       password_hash VARCHAR(255) NOT NULL,
       full_name VARCHAR(255) NOT NULL,
       role VARCHAR(50) DEFAULT 'student',
-      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      status VARCHAR(50) NOT NULL DEFAULT 'active',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     );
   `;
 
+  let connection;
   try {
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
     await connection.query(createTableQuery);
-    console.log('[DATABASE] Bảng users đã được khởi tạo/kiểm tra thành công.');
-    connection.release();
+    console.log('[DATABASE] User schema is ready.');
   } catch (error) {
-    console.error('[DATABASE] Lỗi khi khởi tạo cơ sở dữ liệu:', error.message);
+    console.error('[DATABASE] User schema initialization failed:', error.message);
+    throw error;
+  } finally {
+    if (connection) connection.release();
   }
 }

@@ -1,60 +1,87 @@
-# AI Support API Contract
+# Lesson AI Support API Contract
 
-**Entry point:** API Gateway
-**Owner flow:** API Gateway → Course Service → Course DB → AI Chatbot System
+**Public owner:** Course Service
 
-> **Note:** There is no separate Chatbot Service or Chatbot DB. The AI support flow is handled by Course Service, which provides learning context from Course DB to the external AI Chatbot System.
+**Database:** Course DB
 
----
+**External dependency:** External AI Chatbot System
 
-## POST /ai/question
+**Public endpoint:** `POST /api/courses/lessons/:lessonId/ai/ask`
 
-### Description
+There is no AI core microservice or Chatbot DB. Course Service owns access validation and learning context; the external adapter alone calls the configured real provider.
 
-Allows a student to ask a learning question within the context of a specific course and lesson. Course Service retrieves the relevant learning context from Course DB and forwards the question along with the context to the external AI Chatbot System.
+## Request
 
-### Request
+Requires a valid student JWT and active enrollment in the lesson's published course.
 
+```json
+{
+  "question": "Explain the key idea in this lesson."
+}
 ```
-POST /ai/question
-Content-Type: application/json
-Authorization: Bearer {accessToken}
+
+The trimmed question must contain 1–1000 characters. The request does not accept `studentId`, `courseId`, provider URL, provider key, or context supplied by the browser as authority.
+
+Course Service derives `studentId` from JWT, finds the lesson and parent course, checks active enrollment, and loads this Course DB context:
+
+- course title and description;
+- lesson title;
+- video/document resource metadata;
+- stored course progress percentage.
+
+It sends `{ question, context }` to the external adapter's internal `POST /chat` endpoint. It does not send JWTs, passwords, payment data, database credentials, internal service secrets, or a full user profile.
+
+## Success
+
+`200`:
+
+```json
+{
+  "answer": "...",
+  "model": "gpt-4o-mini",
+  "provider": "openai",
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null
+  }
+}
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| studentId | string | Yes | ID of the student asking the question |
-| courseId | string | Yes | ID of the course for context |
-| lessonId | string | Yes | ID of the current lesson for context |
-| question | string | Yes | The student's question text |
+Course Service validates that the external response contains a non-empty answer before returning it.
 
-### Success Response (200 OK)
+## Errors
 
-| Field | Type | Description |
+| Status | Code | Meaning |
 |---|---|---|
-| answer | string | AI-generated answer to the student's question |
-| sourceContext | string | Summary of the learning context used to generate the answer |
-| fallbackMessage | string | Displayed if the AI cannot provide a confident answer (e.g., "Please contact your instructor for further help.") |
+| 400 | `INVALID_LESSON_ID` / `VALIDATION_ERROR` | Invalid route ID or question length/type. |
+| 401 | `UNAUTHORIZED` / `INVALID_TOKEN` | JWT missing or invalid. |
+| 403 | `FORBIDDEN` | Authenticated role is not student. |
+| 403 | `COURSE_ACCESS_REQUIRED` | Lesson course is unpublished or student is not actively enrolled. |
+| 404 | `LESSON_NOT_FOUND` | Lesson does not exist. |
+| 500 | `AI_CONTEXT_LOAD_FAILED` | Course DB context could not be loaded. |
+| 502 | `AI_SUPPORT_UNAVAILABLE` | Adapter/network unavailable. |
+| 502 | `AI_PROVIDER_UNAVAILABLE` | Provider request failed. |
+| 502 | `AI_PROVIDER_RESPONSE_INVALID` / `AI_RESPONSE_INVALID` | Provider/adapter response lacked a valid answer. |
+| 503 | `AI_PROVIDER_NOT_CONFIGURED` | External adapter has no non-placeholder `AI_API_KEY`. |
 
-### Error Responses
+No error path returns a canned or simulated answer.
 
-| Status | Code | Description |
-|---|---|---|
-| 401 | UNAUTHORIZED | Missing or invalid access token |
-| 403 | ACCESS_DENIED | Student does not have active access to this course |
-| 404 | NOT_FOUND | Course or lesson does not exist |
-| 503 | AI_SERVICE_UNAVAILABLE | External AI Chatbot System is not available |
+## External adapter interface
 
-### Data Flow
+Course Service calls `POST /chat` on `AI_CHATBOT_URL`:
 
-1. Client sends question to API Gateway
-2. API Gateway forwards request to Course Service
-3. Course Service retrieves learning context (lesson content, course outline) from Course DB
-4. Course Service sends the question + context to the external AI Chatbot System
-5. AI Chatbot System returns an answer
-6. Course Service returns the answer, sourceContext, and fallbackMessage to API Gateway
-7. API Gateway returns response to Client
+```json
+{
+  "question": "...",
+  "context": {
+    "courseTitle": "...",
+    "courseDescription": "...",
+    "lessonTitle": "...",
+    "lessonContent": "...",
+    "lessonResources": [],
+    "progressPercent": 50
+  }
+}
+```
 
-### Related Sequence Diagram
-
-**Sequence Diagram — AI Support: Ask Learning Question**
+The adapter reads `AI_API_KEY` only from its server environment and calls `${AI_BASE_URL}/v1/chat/completions`. Its `/health` route can report degraded configuration while the container remains available. Live provider behavior is credential-dependent and must not be reported as verified when the key is absent.

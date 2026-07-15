@@ -6,6 +6,8 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
   const [drafts, setDrafts] = useState([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [coverImage, setCoverImage] = useState('');
   const [price, setPrice] = useState('49.00');
   const [status, setStatus] = useState('draft');
   const [isSaving, setIsSaving] = useState(false);
@@ -14,6 +16,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
   const [fieldErrors, setFieldErrors] = useState({});
   const [initialLessons, setInitialLessons] = useState([]);
   const [tempLessonTitle, setTempLessonTitle] = useState('');
+  const [tempLessonContent, setTempLessonContent] = useState('');
   const [tempLessonVideoUrl, setTempLessonVideoUrl] = useState('');
   const [tempLessonDocumentUrl, setTempLessonDocumentUrl] = useState('');
   const [tempLessonError, setTempLessonError] = useState('');
@@ -22,6 +25,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
   const [editingDraft, setEditingDraft] = useState(null);
   const [lessonDraft, setLessonDraft] = useState(null);
   const [lessonTitle, setLessonTitle] = useState('');
+  const [lessonContent, setLessonContent] = useState('');
   const [lessonVideoUrl, setLessonVideoUrl] = useState('');
   const [lessonDocumentUrl, setLessonDocumentUrl] = useState('');
   const [isSavingLesson, setIsSavingLesson] = useState(false);
@@ -33,9 +37,13 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
   const [isLessonFormOpen, setIsLessonFormOpen] = useState(false);
   const [editingLesson, setEditingLesson] = useState(null);
   const [deletingLessonId, setDeletingLessonId] = useState(null);
+  const [isReorderingLessons, setIsReorderingLessons] = useState(false);
   const [publishingDraftId, setPublishingDraftId] = useState(null);
   const [publishSuccess, setPublishSuccess] = useState('');
   const [publishError, setPublishError] = useState('');
+  const [deletingDraftId, setDeletingDraftId] = useState(null);
+  const [deleteSuccess, setDeleteSuccess] = useState('');
+  const [deleteError, setDeleteError] = useState('');
   const [quizDraft, setQuizDraft] = useState(null);
   const [quizzes, setQuizzes] = useState([]);
   const [quizFormOpen, setQuizFormOpen] = useState(false);
@@ -85,12 +93,15 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setEditingDraft(draft);
     setTitle(draft.title);
     setDescription(draft.description);
+    setCategory(draft.category || '');
+    setCoverImage(draft.coverImage || draft.cover_image || '');
     setPrice(String(draft.price));
     setSaveError('');
     setSaveSuccess(false);
     setFieldErrors({});
     setInitialLessons([]);
     setTempLessonTitle('');
+    setTempLessonContent('');
     setTempLessonVideoUrl('');
     setTempLessonDocumentUrl('');
     setTempLessonError('');
@@ -100,12 +111,15 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setEditingDraft(null);
     setTitle('');
     setDescription('');
+    setCategory('');
+    setCoverImage('');
     setPrice('49.00');
     setSaveError('');
     setSaveSuccess(false);
     setFieldErrors({});
     setInitialLessons([]);
     setTempLessonTitle('');
+    setTempLessonContent('');
     setTempLessonVideoUrl('');
     setTempLessonDocumentUrl('');
     setTempLessonError('');
@@ -118,8 +132,8 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
       setTempLessonError('Lesson title is required.');
       return;
     }
-    if (!tempLessonVideoUrl.trim() && !tempLessonDocumentUrl.trim()) {
-      setTempLessonError('Provide a video URL or document URL.');
+    if (!tempLessonContent.trim() && !tempLessonVideoUrl.trim() && !tempLessonDocumentUrl.trim()) {
+      setTempLessonError('Provide lesson text, a video URL, or a document URL.');
       return;
     }
     if (tempLessonVideoUrl.trim() && !tempLessonVideoUrl.trim().startsWith('http://') && !tempLessonVideoUrl.trim().startsWith('https://')) {
@@ -133,6 +147,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
 
     const newLesson = {
       title: tempLessonTitle.trim(),
+      content: tempLessonContent.trim() || null,
       videoUrl: tempLessonVideoUrl.trim() || null,
       documentUrl: tempLessonDocumentUrl.trim() || null,
       orderIndex: initialLessons.length + 1
@@ -140,6 +155,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
 
     setInitialLessons([...initialLessons, newLesson]);
     setTempLessonTitle('');
+    setTempLessonContent('');
     setTempLessonVideoUrl('');
     setTempLessonDocumentUrl('');
   };
@@ -158,6 +174,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setIsLessonFormOpen(false);
     setEditingLesson(null);
     setLessonTitle('');
+    setLessonContent('');
     setLessonVideoUrl('');
     setLessonDocumentUrl('');
     setLessonError('');
@@ -169,6 +186,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setIsLessonFormOpen(true);
     setEditingLesson(null);
     setLessonTitle('');
+    setLessonContent('');
     setLessonVideoUrl('');
     setLessonDocumentUrl('');
     setLessonError('');
@@ -188,6 +206,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setIsLessonFormOpen(false);
     setEditingLesson(null);
     setLessonTitle('');
+    setLessonContent('');
     setLessonVideoUrl('');
     setLessonDocumentUrl('');
     setLessonError('');
@@ -231,6 +250,42 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     }
   };
 
+  const handleDeleteDraft = async (draft) => {
+    if (!window.confirm(`Delete draft "${draft.title}"? It will be removed from your authoring workspace.`)) {
+      return;
+    }
+
+    setDeletingDraftId(draft.id);
+    setDeleteError('');
+    setDeleteSuccess('');
+    try {
+      const response = await fetch(apiUrl(`/courses/drafts/${draft.id}`), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      const responseBody = await response.json();
+      if (!response.ok) {
+        throw new Error(responseBody.message || 'The draft course could not be deleted.');
+      }
+
+      if (editingDraft?.id === draft.id) handleCancelEdit();
+      if (lessonDraft?.id === draft.id) clearLessonWorkspace();
+      if (quizDraft?.id === draft.id) {
+        setQuizDraft(null);
+        setQuizzes([]);
+        resetQuizForm();
+      }
+      await fetchDrafts();
+      setDeleteSuccess(`"${draft.title}" was deleted.`);
+    } catch (requestError) {
+      setDeleteError(requestError instanceof TypeError
+        ? 'Draft deletion is temporarily unavailable. Please try again shortly.'
+        : requestError.message);
+    } finally {
+      setDeletingDraftId(null);
+    }
+  };
+
   const handleSaveLesson = async (event) => {
     event.preventDefault();
     if (!lessonDraft || role !== 'instructor') {
@@ -252,6 +307,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
         },
         body: JSON.stringify({
           title: lessonTitle,
+          content: lessonContent,
           videoUrl: lessonVideoUrl,
           documentUrl: lessonDocumentUrl
         })
@@ -272,6 +328,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
       setIsLessonFormOpen(false);
       setEditingLesson(null);
       setLessonTitle('');
+      setLessonContent('');
       setLessonVideoUrl('');
       setLessonDocumentUrl('');
     } catch (requestError) {
@@ -312,6 +369,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
     setEditingLesson(lesson);
     setIsLessonFormOpen(true);
     setLessonTitle(lesson.title || '');
+    setLessonContent(lesson.content || '');
     setLessonVideoUrl(lesson.videoUrl || '');
     setLessonDocumentUrl(lesson.documentUrl || '');
     setLessonError('');
@@ -346,6 +404,44 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
         : requestError.message);
     } finally {
       setDeletingLessonId(null);
+    }
+  };
+
+  const handleMoveLesson = async (index, direction) => {
+    if (!lessonDraft || isReorderingLessons) return;
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= lessons.length) return;
+
+    const reordered = [...lessons];
+    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+    setIsReorderingLessons(true);
+    setLessonError('');
+    setLessonSuccess(null);
+    try {
+      const response = await fetch(apiUrl(`/courses/drafts/${lessonDraft.id}/lessons/reorder`), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ lessonIds: reordered.map(item => item.id) })
+      });
+      const responseBody = await response.json();
+      if (!response.ok) {
+        throw new Error(responseBody.message || 'The lesson order could not be saved.');
+      }
+      setLessons(responseBody.items || []);
+      setLessonSuccess({
+        id: reordered[targetIndex].id,
+        title: reordered[targetIndex].title,
+        action: 'reordered'
+      });
+    } catch (requestError) {
+      setLessonError(requestError instanceof TypeError
+        ? 'Lesson ordering is temporarily unavailable. Please try again shortly.'
+        : requestError.message);
+    } finally {
+      setIsReorderingLessons(false);
     }
   };
 
@@ -438,7 +534,9 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
       const bodyData = {
         title,
         description,
-        price: Number(price)
+        category,
+        price: Number(price),
+        coverImage
       };
       if (!editingDraft) {
         bodyData.lessons = initialLessons;
@@ -466,6 +564,8 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
       setEditingDraft(null);
       setTitle('');
       setDescription('');
+      setCategory('');
+      setCoverImage('');
       setPrice('49.00');
       setStatus('draft');
       setFieldErrors({});
@@ -486,7 +586,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
           <p className="page-kicker">Instructor workspace</p>
           <h2 className="page-title" id="draft-page-title">Create a course draft</h2>
           <p className="page-description">
-            Shape the course essentials, review the learner-facing preview, and save through the live service route.
+            Shape the course essentials, review the learner-facing preview, and save your work as a private draft.
           </p>
         </div>
         <div className="draft-page-header__status">
@@ -593,6 +693,35 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                 </div>
 
                 <div className="draft-form-grid">
+                  <div className="form-group">
+                    <label htmlFor="draft-category">Category</label>
+                    <input
+                      id="draft-category"
+                      type="text"
+                      className="form-control"
+                      maxLength="255"
+                      placeholder="e.g., Data Science"
+                      value={category}
+                      onChange={(event) => setCategory(event.target.value)}
+                    />
+                    <p className="field-helper">Helps students find this course in the catalog.</p>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="draft-cover-image">Cover image URL</label>
+                    <input
+                      id="draft-cover-image"
+                      type="url"
+                      className="form-control"
+                      maxLength="255"
+                      placeholder="https://example.com/course-cover.jpg"
+                      value={coverImage}
+                      onChange={(event) => setCoverImage(event.target.value)}
+                    />
+                    <p className="field-helper">Optional HTTP or HTTPS image shown in the catalog.</p>
+                  </div>
+                </div>
+
+                <div className="draft-form-grid">
                   <div className={`form-group${fieldErrors.price ? ' has-error' : ''}`}>
                     <label htmlFor="draft-price">Price (USD)</label>
                     <div className="price-field">
@@ -645,6 +774,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                           <div>
                             <strong>{lesson.orderIndex}. {lesson.title}</strong>
                             <div style={{ fontSize: '12px', color: '#64748b' }}>
+                              {lesson.content && <span>Text lesson </span>}
                               {lesson.videoUrl && <span>Video: {lesson.videoUrl} </span>}
                               {lesson.documentUrl && <span>Document: {lesson.documentUrl}</span>}
                             </div>
@@ -668,6 +798,19 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                       placeholder="e.g., Course introduction"
                       value={tempLessonTitle}
                       onChange={(e) => setTempLessonTitle(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="temp-lesson-content">Lesson text</label>
+                    <textarea
+                      id="temp-lesson-content"
+                      className="form-control"
+                      rows="5"
+                      maxLength="50000"
+                      placeholder="Write an explanation, notes, or reading material for this lesson."
+                      value={tempLessonContent}
+                      onChange={(e) => setTempLessonContent(e.target.value)}
                     />
                   </div>
 
@@ -742,6 +885,16 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                   {publishError}
                 </div>
               )}
+              {deleteSuccess && (
+                <div className="form-alert form-alert--success" role="status">
+                  {deleteSuccess}
+                </div>
+              )}
+              {deleteError && (
+                <div className="form-alert form-alert--error" role="alert">
+                  {deleteError}
+                </div>
+              )}
             </div>
 
             {lessonDraft && isLessonFormOpen && (
@@ -758,6 +911,18 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                       value={lessonTitle}
                       onChange={(event) => setLessonTitle(event.target.value)}
                       required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="lesson-content">Lesson text</label>
+                    <textarea
+                      id="lesson-content"
+                      className="form-control"
+                      rows="8"
+                      maxLength="50000"
+                      placeholder="Write the lesson explanation or reading material."
+                      value={lessonContent}
+                      onChange={(event) => setLessonContent(event.target.value)}
                     />
                   </div>
                   <div className="form-group">
@@ -783,7 +948,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                       value={lessonDocumentUrl}
                       onChange={(event) => setLessonDocumentUrl(event.target.value)}
                     />
-                    <p className="field-helper">Provide a video URL, document URL, or both.</p>
+                    <p className="field-helper">Provide lesson text, a video URL, a document URL, or any combination.</p>
                   </div>
                 </fieldset>
                 <div className="draft-form-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -818,20 +983,39 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                   <p className="lesson-authoring-state">No lessons have been added to this draft yet.</p>
                 ) : (
                   <ol className="lesson-authoring-list">
-                    {lessons.map(lesson => (
+                    {lessons.map((lesson, index) => (
                       <li className="lesson-authoring-item" key={lesson.id}>
                         <div>
                           <strong>{lesson.sequenceOrder ? `${lesson.sequenceOrder}. ` : ''}{lesson.title}</strong>
                           <div className="lesson-authoring-links">
+                            {lesson.content && <span>Text content</span>}
                             {lesson.videoUrl && <a href={lesson.videoUrl} target="_blank" rel="noopener noreferrer">Video</a>}
                             {lesson.documentUrl && <a href={lesson.documentUrl} target="_blank" rel="noopener noreferrer">Document</a>}
                           </div>
                         </div>
                         <div className="lesson-authoring-actions">
-                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleStartLessonEdit(lesson)} disabled={deletingLessonId === lesson.id}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleMoveLesson(index, -1)}
+                            disabled={index === 0 || isReorderingLessons || deletingLessonId !== null}
+                            aria-label={`Move ${lesson.title} earlier`}
+                          >
+                            Up
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleMoveLesson(index, 1)}
+                            disabled={index === lessons.length - 1 || isReorderingLessons || deletingLessonId !== null}
+                            aria-label={`Move ${lesson.title} later`}
+                          >
+                            Down
+                          </button>
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleStartLessonEdit(lesson)} disabled={deletingLessonId === lesson.id || isReorderingLessons}>
                             Edit
                           </button>
-                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDeleteLesson(lesson)} disabled={deletingLessonId === lesson.id}>
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDeleteLesson(lesson)} disabled={deletingLessonId === lesson.id || isReorderingLessons}>
                             {deletingLessonId === lesson.id ? 'Deleting...' : 'Delete'}
                           </button>
                         </div>
@@ -905,7 +1089,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
               {isLoading ? (
                 <div className="draft-empty-state" role="status">
                   <strong>Loading drafts...</strong>
-                  <p>Fetching your saved course drafts from the database.</p>
+                  <p>Loading your saved course drafts.</p>
                 </div>
               ) : loadError ? (
                 <div className="draft-empty-state" role="alert" style={{ color: '#ef4444' }}>
@@ -932,6 +1116,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                           onClick={() => handleStartEdit(draft)}
                           className="btn btn-secondary btn-sm"
                           style={{ padding: '2px 8px', fontSize: '12px' }}
+                          disabled={deletingDraftId === draft.id}
                         >
                           Edit
                         </button>
@@ -940,6 +1125,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                           onClick={() => handleStartLesson(draft)}
                           className="btn btn-secondary btn-sm"
                           style={{ padding: '2px 8px', fontSize: '12px' }}
+                          disabled={deletingDraftId === draft.id}
                         >
                           Add Lesson
                         </button>
@@ -948,19 +1134,29 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                           onClick={() => handleViewLessons(draft)}
                           className="btn btn-secondary btn-sm"
                           style={{ padding: '2px 8px', fontSize: '12px' }}
+                          disabled={deletingDraftId === draft.id}
                         >
                           View Lessons
                         </button>
-                        <button type="button" onClick={() => startQuiz(draft)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '12px' }}>Add Quiz</button>
-                        <button type="button" onClick={() => loadQuizzes(draft)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '12px' }}>View Quizzes</button>
+                        <button type="button" onClick={() => startQuiz(draft)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '12px' }} disabled={deletingDraftId === draft.id}>Add Quiz</button>
+                        <button type="button" onClick={() => loadQuizzes(draft)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '12px' }} disabled={deletingDraftId === draft.id}>View Quizzes</button>
                         <button
                           type="button"
                           onClick={() => handlePublishDraft(draft)}
                           className="btn btn-primary btn-sm"
                           style={{ padding: '2px 8px', fontSize: '12px' }}
-                          disabled={publishingDraftId === draft.id}
+                          disabled={publishingDraftId === draft.id || deletingDraftId === draft.id}
                         >
                           {publishingDraftId === draft.id ? 'Publishing...' : 'Publish'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteDraft(draft)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
+                          disabled={deletingDraftId === draft.id || publishingDraftId === draft.id}
+                        >
+                          {deletingDraftId === draft.id ? 'Deleting...' : 'Delete Draft'}
                         </button>
                       </div>
                     </li>

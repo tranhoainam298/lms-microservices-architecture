@@ -1,24 +1,27 @@
-# Event Contracts
+# LMS event contracts
 
-Events are published to the **Message Broker** for asynchronous, event-driven communication between services. Each event follows a standard structure with an `eventId` and `occurredAt` timestamp.
+The running services publish business notifications to one durable RabbitMQ topic exchange: `lms_events`.
 
-Event contracts define the **event name and payload fields only** — they do not contain implementation code.
+Every current event uses this envelope:
 
-## Event Contract Files
+```json
+{
+  "eventId": "UUID",
+  "eventType": "EventName",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-15T08:30:00.000Z",
+  "source": "service-name",
+  "data": {}
+}
+```
 
-| File | Events | Publisher |
+| Contract | Routing key | Producer |
 |---|---|---|
-| [user-events.md](user-events.md) | UserLoggedInEvent | User Service |
-| [payment-events.md](payment-events.md) | PaymentCreatedEvent, PaymentSucceededEvent, PaymentFailedEvent | Payment Service |
-| [course-events.md](course-events.md) | CourseDraftSavedEvent, CourseAccessActivatedEvent, LessonCompletedEvent | Course Service |
+| [UserLoggedInEvent](UserLoggedInEvent.md) | `user.loggedin` | User Service |
+| [PaymentSucceededEvent](PaymentSucceededEvent.md) | `payment.succeeded` | Payment Service |
+| [PaymentFailedEvent](PaymentFailedEvent.md) | `payment.failed` | Payment Service |
+| [CourseAccessActivatedEvent](CourseAccessActivatedEvent.md) | `course.access.activated` | Course Service |
 
-## Event Structure Convention
+Messages are persistent and publishers use RabbitMQ confirms, but the current services do not have transactional outboxes. Publication is therefore confirmed best effort after the owning database transition, not an end-to-end at-least-once guarantee: a process failure between commit and publish can lose an event. Consumers must still deduplicate by `eventId` and keep business writes idempotent because retries or broker redelivery can duplicate a message. The synchronous, internally authenticated Payment-to-Course request remains the authoritative immediate course-access path; payment events do not create enrollment records.
 
-All events share the following base fields:
-
-| Field | Type | Description |
-|---|---|---|
-| eventId | string | Unique identifier for this event instance |
-| occurredAt | string | ISO 8601 timestamp of when the event occurred |
-
-Additional fields are specific to each event type and documented in the respective contract file.
+Events never contain passwords, password hashes, JWTs, API keys, database credentials, internal-service secrets, or complete user profiles.

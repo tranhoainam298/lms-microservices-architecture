@@ -1,7 +1,7 @@
 import { pool } from '../data/database.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { publishEvent } from '../events/publisher.js';
+import { createUserLoggedInEvent, publishEvent, USER_LOGGED_IN_ROUTING_KEY } from '../events/publisher.js';
 import { recordLoginAttempt } from '../data/loginAuditRepository.js';
 import { validateFullName, validatePassword } from './userService.js';
 
@@ -165,12 +165,14 @@ export async function authenticateUser({ email, password, role, ipAddress, userA
       userAgent
     });
 
-    // Emit event to RabbitMQ
-    await publishEvent('user_events', 'user.loggedin', {
-      userId: user.id,
-      email: user.email,
-      timestamp: new Date().toISOString()
-    });
+    const loginTime = new Date().toISOString();
+    const loginEventPublished = await publishEvent(
+      USER_LOGGED_IN_ROUTING_KEY,
+      createUserLoggedInEvent({ userId: user.id, role: user.role, loginTime })
+    );
+    if (!loginEventPublished) {
+      console.warn('[AUTH] Login succeeded, but UserLoggedInEvent publication was unavailable.');
+    }
 
     return {
       status: 200,

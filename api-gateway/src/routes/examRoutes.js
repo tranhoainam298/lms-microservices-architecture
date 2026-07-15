@@ -34,6 +34,7 @@ router.get('/courses/:courseId/quizzes/:quizId/mine', requireRole('instructor', 
 router.patch('/courses/:courseId/quizzes/:quizId', requireRole('instructor', 'Only instructors can manage quizzes.'), validateIds, forward);
 router.delete('/courses/:courseId/quizzes/:quizId', requireRole('instructor', 'Only instructors can manage quizzes.'), validateIds, forward);
 router.patch('/courses/:courseId/quizzes/:quizId/publish', requireRole('instructor', 'Only instructors can manage quizzes.'), validateIds, forward);
+router.get('/courses/:courseId/results/summary', requireRole('instructor', 'Only instructors can view course quiz results.'), validateIds, forward);
 router.get('/courses/:courseId/quizzes', requireRole('student', 'Only students can view published quizzes.'), validateIds, forward);
 router.get('/quizzes/:quizId', requireRole('student', 'Only students can take quizzes.'), validateIds, forward);
 router.post('/quizzes/:quizId/submit', requireRole('student', 'Only students can submit quizzes.'), validateIds, forward);

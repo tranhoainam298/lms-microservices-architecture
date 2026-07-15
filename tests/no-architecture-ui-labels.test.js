@@ -16,13 +16,15 @@ const activeUiFiles = [
   'web-client/src/pages/AdminUserManagement.jsx',
   'web-client/src/pages/InstructorCourseDraft.jsx',
   'web-client/src/pages/AdminRevenueReport.jsx',
-  'web-client/src/pages/AiSupportPage.jsx'
+  'web-client/src/pages/InstructorMonitoring.jsx',
+  'web-client/src/pages/AdminCourseOperations.jsx'
 ];
 const banned = [
   'API Gateway', 'Web Client', 'Course Service', 'Course DB', 'Payment Service',
   'Payment DB', 'Exam Service', 'Exam DB', 'User Service', 'User DB',
   'Message Broker', 'RabbitMQ', 'Architecture demo', 'service boundary',
-  'database boundary', 'Request Flow', 'Request Ownership', 'External Payment Mock'
+  'database boundary', 'Request Flow', 'Request Ownership', 'External Payment Mock',
+  'live service route', 'from the database'
 ];
 
 for (const relativeFile of activeUiFiles) {

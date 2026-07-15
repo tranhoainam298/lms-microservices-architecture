@@ -219,6 +219,8 @@ export default function LessonPage({ courseId, course: catalogCourse, accessToke
                 <div className="lesson-player__empty"><span className="lesson-player__icon" aria-hidden="true">▶</span><h3>{lesson.title}</h3><p>This video opens in a secure external player.</p><a className="btn btn-primary" href={lesson.videoUrl} target="_blank" rel="noopener noreferrer">Open video</a></div>
               ) : lesson?.documentUrl ? (
                 <div className="lesson-player__empty"><span className="lesson-player__icon" aria-hidden="true">▤</span><h3>{lesson.title}</h3><p>Use the lesson document below to continue studying.</p></div>
+              ) : lesson?.content ? (
+                <div className="lesson-player__empty"><span className="lesson-player__icon" aria-hidden="true">Aa</span><h3>{lesson.title}</h3><p>Read the lesson text below, then mark the lesson as completed when you are ready.</p></div>
               ) : (
                 <div className="lesson-player__empty"><h3>This lesson content is not available yet.</h3><p>Check back after your instructor publishes the learning material.</p></div>
               )}
@@ -230,6 +232,15 @@ export default function LessonPage({ courseId, course: catalogCourse, accessToke
               {isLastLesson ? <button className="btn btn-secondary" type="button" onClick={() => onOpenQuiz?.(courseId)}>Go to quiz →</button> : <button className="btn btn-secondary" type="button" onClick={() => selectLesson(lessons[currentIndex + 1], currentIndex + 1)}>Next lesson →</button>}
             </footer>
           </article>
+
+          {lesson?.content && (
+            <article className="card lesson-reading" aria-labelledby="lesson-reading-title">
+              <div className="section-heading">
+                <div><span className="section-label">Reading</span><h3 id="lesson-reading-title">Lesson content</h3></div>
+              </div>
+              <div className="lesson-reading__body" style={{ whiteSpace: 'pre-wrap' }}>{lesson.content}</div>
+            </article>
+          )}
 
           <div className="lesson-tools-grid">
             <section className="card lesson-resources" aria-labelledby="lesson-resources-title"><div className="section-heading"><div><span className="section-label">Study materials</span><h3 id="lesson-resources-title">Lesson resources</h3></div></div>{lesson?.documentUrl ? <a className="resource-card" href={lesson.documentUrl} target="_blank" rel="noopener noreferrer"><span aria-hidden="true">▤</span><span><strong>Open lesson document</strong><small>View or download in a new tab</small></span></a> : <p className="muted-copy">No additional resources are attached to this lesson.</p>}</section>

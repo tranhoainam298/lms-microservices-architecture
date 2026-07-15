@@ -1,31 +1,38 @@
 # API Contracts
 
-All client requests (Web Client, Mobile Client) go through the **API Gateway** before reaching any backend service. The API Gateway handles routing, JWT validation, and rate limiting.
+These contracts describe the current executable HTTP APIs. Browser examples include the public `/api` prefix; Nginx removes that prefix and API Gateway forwards the remaining route to the owning service.
 
-API contracts define the **request/response format only** — they do not contain implementation code. Each contract specifies:
+## Contract index
 
-- The HTTP endpoint
-- The owner service responsible for handling the request
-- The database that stores the data
-- Request and response field definitions
-- Error response definitions
-- Related sequence diagram references
-
-## Contract Files
-
-| File | Endpoint(s) | Owner Service | Database |
+| Contract | Route groups | Owner | Owned database / external dependency |
 |---|---|---|---|
-| [auth-api.md](auth-api.md) | POST /auth/login | User Service | User DB |
-| [course-api.md](course-api.md) | POST /courses/draft, GET /lessons/{lessonId}, POST /learning-progress | Course Service | Course DB |
-| [exam-api.md](exam-api.md) | GET /quizzes/{quizId}, POST /quizzes/{quizId}/submit | Exam & Quiz Service | Exam DB |
-| [payment-api.md](payment-api.md) | POST /payments | Payment Service | Payment DB |
-| [reporting-api.md](reporting-api.md) | GET /reports/revenue | Payment Service + Course Service | Payment DB + Course DB |
-| [ai-support-api.md](ai-support-api.md) | POST /ai/question | Course Service | Course DB |
+| [Authentication and users](auth-api.md) | `/auth`, `/users` | User Service | User DB; RabbitMQ login event |
+| [Courses and learning](course-api.md) | `/courses` | Course Service | Course DB; External AI Chatbot System |
+| [Exams and quizzes](exam-api.md) | `/exams` | Exam & Quiz Service | Exam DB; Course Service access API |
+| [Payments](payment-api.md) | `/payments` | Payment Service | Payment DB; Course Service APIs; ZaloPay Sandbox; RabbitMQ events |
+| [Reports](reporting-api.md) | User, Course, Exam, and Payment report endpoints | Existing owner services | Each owner reads only its database |
+| [AI support](ai-support-api.md) | `/courses/lessons/:lessonId/ai/ask` | Course Service | Course DB; External AI Chatbot System |
 
-## Important Rules
+## Security rules shared by all contracts
 
-- No service accesses another service's database directly.
-- Cross-service communication uses the **Message Broker** (event-driven) or synchronous API calls through the API Gateway.
-- Payment Service must request Course Service to activate course access only after successful payment.
-- Reporting data is aggregated from existing services (Payment Service, Course Service). There is no separate Reporting Service or Reporting DB.
-- AI support routes through Course Service to the external AI Chatbot System. There is no separate Chatbot Service or Chatbot DB.
+- Protected identity comes from a verified JWT. Browser-supplied `userId`, `studentId`, `instructorId`, or custom identity headers are never authoritative.
+- Quiz score, pass status, payment amount, payment status, and enrollment status are calculated or loaded by the owning backend.
+- API Gateway routes requests and applies edge validation; it never accesses an application database or implements business calculations.
+- Cross-domain data uses a narrow REST/internal API or a RabbitMQ event. No service connects to another service's database.
+- Internal Course Service routes require `X-Internal-Service-Secret` and are not browser APIs.
+- Errors use `{ "code": "...", "message": "..." }` unless a provider callback requires its provider-specific acknowledgement format.
+
+## Database ownership
+
+| Service | Database |
+|---|---|
+| User Service | User DB (`users`, `login_audit`) |
+| Course Service | Course DB (`courses`, `lessons`, `enrollments`, `lesson_progress`) |
+| Exam & Quiz Service | Exam DB (`quizzes`, `questions`, `quiz_results`) |
+| Payment Service | Payment DB (`transactions`) |
+
+There is no shared application database, Reporting DB, Enrollment DB, or Chatbot DB.
+
+## Event relationship
+
+The durable RabbitMQ topic exchange is `lms_events`. Current routing keys are `user.loggedin`, `payment.succeeded`, `payment.failed`, and `course.access.activated`. The matching schemas live in `shared/event-contracts/`.

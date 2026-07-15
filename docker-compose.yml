@@ -97,7 +97,7 @@ services:
       DB_NAME: ${USER_DB_NAME:-lms_user_db}
       DB_USER: ${USER_DB_USER:-lms_user_admin}
       DB_PASSWORD: ${USER_DB_PASSWORD:-demo_user_db_password_change_me}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672"
     expose:
       - "5001"
     depends_on:
@@ -130,7 +130,7 @@ services:
       DB_NAME: ${COURSE_DB_NAME:-lms_course_db}
       DB_USER: ${COURSE_DB_USER:-lms_course_admin}
       DB_PASSWORD: ${COURSE_DB_PASSWORD:-demo_course_db_password_change_me}
-      AMQP_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
+      AMQP_URL: "amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672"
       AI_CHATBOT_URL: ${EXTERNAL_AI_CHATBOT_URL:-http://external-ai-chatbot-mock:5005}
     expose:
       - "5002"
@@ -201,7 +201,7 @@ services:
       DB_NAME: ${PAYMENT_DB_NAME:-lms_payment_db}
       DB_USER: ${PAYMENT_DB_USER:-lms_payment_admin}
       DB_PASSWORD: ${PAYMENT_DB_PASSWORD:-demo_payment_db_password_change_me}
-      AMQP_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
+      AMQP_URL: "amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672"
     expose:
       - "5004"
     depends_on:

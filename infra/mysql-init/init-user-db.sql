@@ -14,15 +14,17 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS login_audit (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id INT,
-  login_status VARCHAR(50) NOT NULL,
-  failure_reason VARCHAR(255),
-  ip_address VARCHAR(100),
-  user_agent TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  login_status VARCHAR(20) NOT NULL,
+  failure_reason VARCHAR(50),
+  ip_address VARCHAR(45) NOT NULL,
+  user_agent VARCHAR(500),
+  occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_user_id (user_id),
-  INDEX idx_created_at (created_at)
+  INDEX idx_login_audit_status (login_status),
+  INDEX idx_login_audit_occurred_at (occurred_at),
+  CONSTRAINT fk_login_audit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed demo users (password: password123 - bcrypt hash)

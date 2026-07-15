@@ -324,6 +324,22 @@ Run the current-route, non-destructive smoke suite while the stack is up:
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/e2e-full-test.ps1
 ```
 
+Final architecture-alignment evidence:
+
+| Verification | Result |
+|---|---|
+| Focused static/security suite | 9/9 PASS |
+| Modified Node syntax checks | 38/38 PASS |
+| Web Client production build | PASS, 50 Vite modules |
+| Exam Service build | PASS, 0 warnings / 0 errors |
+| Docker Compose rebuild and health | PASS, 14/14 LMS containers healthy |
+| Public health | HTTP 200, status `ok` |
+| Student / Instructor / Admin public-path E2E | 16/16 PASS |
+| Current-route smoke | 25 PASS, 0 FAIL, 1 intentional skip covered by the role E2E |
+| Real RabbitMQ integration | PASS for `user.loggedin`, `payment.succeeded`, `payment.failed`, and `course.access.activated` |
+
+Live ZaloPay and AI provider checks are not reported as passes when their credential variables contain placeholders. Verified missing-configuration behavior is fail-closed: payment returns HTTP 503 without writing a transaction, and enrolled AI ask returns HTTP 503 `AI_PROVIDER_NOT_CONFIGURED` without a canned answer.
+
 Regenerate the README screenshots from the running application:
 
 ```bash
@@ -342,6 +358,7 @@ The capture script uses Chrome or Edge headless mode, calls the real local appli
 | Server-graded quiz and result persistence | ✅ Achieved |
 | Admin user management and revenue reporting | ✅ Achieved |
 | Docker deployment behind Nginx | ✅ Achieved |
+| RabbitMQ event integration | ✅ Achieved and runtime verified |
 | ZaloPay Sandbox source integration | 🟡 Complete; live test requires credentials |
 | Real AI provider adapter | 🟡 Complete; live test requires `AI_API_KEY` |
 

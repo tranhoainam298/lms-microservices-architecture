@@ -6,6 +6,7 @@ using ExamService.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MySqlConnector;
 
 namespace ExamService.Controllers;
 
@@ -29,6 +30,20 @@ public class QuizController(ExamDbContext db, IHttpClientFactory clients) : Cont
             using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
             var items = json.RootElement.TryGetProperty("items", out var list) ? list : json.RootElement;
             return items.ValueKind == JsonValueKind.Array && items.EnumerateArray().Any(x => x.GetProperty("id").GetInt32() == courseId);
+        }
+        catch { return null; }
+    }
+
+    private async Task<bool?> OwnsCourse(int courseId)
+    {
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, $"/courses/{courseId}/instructor-access");
+            request.Headers.TryAddWithoutValidation("Authorization", Request.Headers.Authorization.ToString());
+            var response = await clients.CreateClient("CourseService").SendAsync(request);
+            if (response.IsSuccessStatusCode) return true;
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return false;
+            return null;
         }
         catch { return null; }
     }
@@ -73,6 +88,25 @@ public class QuizController(ExamDbContext db, IHttpClientFactory clients) : Cont
 
     private object Summary(Quiz q) => new { id=q.Id, courseId=q.CourseId, title=q.Title, description=q.Description, durationMinutes=q.TimeLimitMinutes, passingScore=q.PassingScore, status=q.Status, instructorId=q.InstructorId, questionCount=q.Questions.Count, createdAt=q.CreatedAt, updatedAt=q.UpdatedAt };
     private static Question BuildQuestion(QuestionInput q, int courseId, int order) => new() { CourseId=courseId, Topic="single_choice", Content=q.QuestionText!.Trim(), Options=JsonSerializer.Serialize(q.Options!.Select(x=>x.Trim())), CorrectAnswer=q.CorrectOptionIndex.ToString(), Difficulty="medium", Points=q.Points, OrderIndex=order, CreatedAt=DateTime.UtcNow };
+    private static int? CorrectOptionIndex(Question question)
+    {
+        if (int.TryParse(question.CorrectAnswer, out var storedIndex)) return storedIndex;
+        var options = JsonSerializer.Deserialize<List<string>>(question.Options) ?? [];
+        var legacyIndex = options.FindIndex(option => option == question.CorrectAnswer);
+        return legacyIndex >= 0 ? legacyIndex : null;
+    }
+
+    private static bool IsDuplicateKey(DbUpdateException exception)
+    {
+        Exception? current = exception;
+        while (current is not null)
+        {
+            if (current is MySqlException { Number: 1062 }) return true;
+            current = current.InnerException;
+        }
+
+        return false;
+    }
 
     [HttpPost("courses/{courseId}/quizzes")]
     public async Task<IActionResult> Create(string courseId, QuizInput input)
@@ -116,7 +150,7 @@ public class QuizController(ExamDbContext db, IHttpClientFactory clients) : Cont
         if (!owns.Value) return NotFound(new { code="DRAFT_NOT_FOUND", message="The draft course was not found." });
         var quiz = await db.Quizzes.AsNoTracking().Include(x => x.Questions).SingleOrDefaultAsync(x => x.Id == qid && x.CourseId == cid && x.InstructorId == UserId && x.Status == "draft");
         if (quiz is null) return NotFound(new { code="QUIZ_NOT_FOUND", message="The draft quiz was not found." });
-        return Ok(new { quiz = new { id=quiz.Id, courseId=quiz.CourseId, title=quiz.Title, description=quiz.Description, durationMinutes=quiz.TimeLimitMinutes, passingScore=quiz.PassingScore, questions=quiz.Questions.OrderBy(x=>x.OrderIndex).Select(x=>new { id=x.Id, questionText=x.Content, questionType=x.Topic, options=JsonSerializer.Deserialize<List<string>>(x.Options), correctOptionIndex=int.Parse(x.CorrectAnswer), points=x.Points, sequenceOrder=x.OrderIndex }) } });
+        return Ok(new { quiz = new { id=quiz.Id, courseId=quiz.CourseId, title=quiz.Title, description=quiz.Description, durationMinutes=quiz.TimeLimitMinutes, passingScore=quiz.PassingScore, questions=quiz.Questions.OrderBy(x=>x.OrderIndex).Select(x=>new { id=x.Id, questionText=x.Content, questionType=x.Topic, options=JsonSerializer.Deserialize<List<string>>(x.Options), correctOptionIndex=CorrectOptionIndex(x), points=x.Points, sequenceOrder=x.OrderIndex }) } });
     }
 
     [HttpDelete("courses/{courseId}/quizzes/{quizId}")]
@@ -143,10 +177,67 @@ public class QuizController(ExamDbContext db, IHttpClientFactory clients) : Cont
     public async Task<IActionResult> Submit(string quizId,SubmitAnswersInput input)
     {
         if(Role!="student")return Forbidden("Only students can submit quizzes.");if(!Id(quizId,out var qid))return BadRequest(new{code="INVALID_QUIZ_ID",message="Quiz ID must be a positive integer."});var quiz=await db.Quizzes.Include(x=>x.Questions).SingleOrDefaultAsync(x=>x.Id==qid&&x.Status=="published");if(quiz is null)return NotFound(new{code="QUIZ_NOT_FOUND",message="The published quiz was not found."});var access=await StudentCourseAccess(quiz.CourseId);if(CourseAccessFailure(access) is IActionResult failure)return failure;var answers=input.Answers??[];if(answers.GroupBy(x=>x.QuestionId).Any(g=>g.Count()>1))return BadRequest(new{code="VALIDATION_ERROR",message="Each question may be answered only once."});var map=quiz.Questions.ToDictionary(x=>x.Id);foreach(var a in answers){if(!map.TryGetValue(a.QuestionId,out var question)||a.SelectedOptionIndex<0||a.SelectedOptionIndex>=JsonSerializer.Deserialize<List<string>>(question.Options)!.Count)return BadRequest(new{code="VALIDATION_ERROR",message="An answer contains an invalid question or option."});}
-        if(await db.QuizResults.AnyAsync(x=>x.QuizId==qid&&x.StudentId==UserId))return Conflict(new{code="QUIZ_ALREADY_SUBMITTED",message="This quiz has already been submitted."});decimal earned=0;foreach(var a in answers)if(int.TryParse(map[a.QuestionId].CorrectAnswer,out var correct)&&correct==a.SelectedOptionIndex)earned+=map[a.QuestionId].Points;var max=quiz.Questions.Sum(x=>x.Points);var percentage=max==0?0:Math.Round(earned/max*100,2);var result=new QuizResult{QuizId=qid,StudentId=UserId,Score=earned,MaximumScore=max,Percentage=percentage,Passed=percentage>=quiz.PassingScore,SubmittedAnswers=JsonSerializer.Serialize(answers),SubmittedAt=DateTime.UtcNow};db.QuizResults.Add(result);await db.SaveChangesAsync();return StatusCode(201,new{result=new{id=result.Id,quizId=qid,studentId=UserId,score=earned,maximumScore=max,percentage,passed=result.Passed,submittedAt=result.SubmittedAt}});
+        if(await db.QuizResults.AnyAsync(x=>x.QuizId==qid&&x.StudentId==UserId))return Conflict(new{code="QUIZ_ALREADY_SUBMITTED",message="This quiz has already been submitted."});decimal earned=0;foreach(var a in answers)if(CorrectOptionIndex(map[a.QuestionId]) is int correct&&correct==a.SelectedOptionIndex)earned+=map[a.QuestionId].Points;var max=quiz.Questions.Sum(x=>x.Points);var percentage=max==0?0:Math.Round(earned/max*100,2);var result=new QuizResult{QuizId=qid,StudentId=UserId,Score=earned,MaximumScore=max,Percentage=percentage,Passed=percentage>=quiz.PassingScore,SubmittedAnswers=JsonSerializer.Serialize(answers),SubmittedAt=DateTime.UtcNow};db.QuizResults.Add(result);
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (IsDuplicateKey(exception))
+        {
+            db.Entry(result).State = EntityState.Detached;
+            return Conflict(new { code="QUIZ_ALREADY_SUBMITTED", message="This quiz has already been submitted." });
+        }
+        return StatusCode(201,new{result=new{id=result.Id,quizId=qid,studentId=UserId,score=earned,maximumScore=max,percentage,passed=result.Passed,submittedAt=result.SubmittedAt}});
     }
 
     private object Result(QuizResult x)=>new{id=x.Id,quizId=x.QuizId,studentId=x.StudentId,score=x.Score,maximumScore=x.MaximumScore,percentage=x.Percentage,passed=x.Passed,submittedAt=x.SubmittedAt};
+    [HttpGet("courses/{courseId}/results/summary")]
+    public async Task<IActionResult> InstructorResults(string courseId)
+    {
+        if (Role != "instructor") return Forbidden("Only instructors can view course quiz results.");
+        if (!Id(courseId, out var cid)) return BadRequest(new { code="INVALID_COURSE_ID", message="Course ID must be a positive integer." });
+        var owns = await OwnsCourse(cid);
+        if (owns is null) return StatusCode(502, new { code="COURSE_SERVICE_UNAVAILABLE", message="Course Service is unavailable." });
+        if (!owns.Value) return NotFound(new { code="COURSE_NOT_FOUND", message="The course was not found." });
+
+        var quizzes = await db.Quizzes.AsNoTracking()
+            .Include(x => x.QuizResults)
+            .Where(x => x.CourseId == cid && x.InstructorId == UserId)
+            .OrderBy(x => x.Id)
+            .ToListAsync();
+        var results = quizzes.SelectMany(x => x.QuizResults.Select(r => new
+        {
+            id = r.Id,
+            quizId = x.Id,
+            quizTitle = x.Title,
+            studentId = r.StudentId,
+            score = r.Score,
+            maximumScore = r.MaximumScore,
+            percentage = r.Percentage,
+            passed = r.Passed,
+            submittedAt = r.SubmittedAt
+        })).OrderByDescending(x => x.submittedAt).ToList();
+        return Ok(new
+        {
+            courseId = cid,
+            summary = new
+            {
+                quizCount = quizzes.Count,
+                attemptCount = results.Count,
+                passedCount = results.Count(x => x.passed),
+                averagePercentage = results.Count == 0 ? 0 : Math.Round(results.Average(x => x.percentage), 2)
+            },
+            quizzes = quizzes.Select(x => new
+            {
+                id = x.Id,
+                title = x.Title,
+                status = x.Status,
+                attemptCount = x.QuizResults.Count,
+                averagePercentage = x.QuizResults.Count == 0 ? 0 : Math.Round(x.QuizResults.Average(r => r.Percentage), 2)
+            }),
+            results
+        });
+    }
     [HttpGet("results/mine")] public async Task<IActionResult> Results(){if(Role!="student")return Forbidden("Only students can view quiz results.");var items=await db.QuizResults.AsNoTracking().Where(x=>x.StudentId==UserId).OrderByDescending(x=>x.SubmittedAt).ToListAsync();return Ok(new{items=items.Select(Result),total=items.Count});}
     [HttpGet("results/{resultId}")] public async Task<IActionResult> ResultById(string resultId){if(Role!="student")return Forbidden("Only students can view quiz results.");if(!Id(resultId,out var rid))return BadRequest(new{code="INVALID_RESULT_ID",message="Result ID must be a positive integer."});var result=await db.QuizResults.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==rid&&x.StudentId==UserId);return result is null?NotFound(new{code="RESULT_NOT_FOUND",message="The quiz result was not found."}):Ok(new{result=Result(result)});}
 }

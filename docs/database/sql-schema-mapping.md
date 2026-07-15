@@ -1,21 +1,24 @@
-# SQL Schema Mapping
+# MySQL Schema Mapping
 
-This document maps each of the 4 microservice databases to its owner service, physical SQL Server schema file, logical tables, and external ID references.
+This mapping reflects the current fresh Docker bootstrap SQL and additive owner-service migration checks.
 
----
+| Database | Owner service | Fresh schema file | Current tables | Logical external IDs |
+|---|---|---|---|---|
+| User DB (`lms_user_db`) | User Service | `infra/mysql-init/init-user-db.sql` | `users`, `login_audit` | none |
+| Course DB (`lms_course_db`) | Course Service | `infra/mysql-init/init-course-db.sql` | `courses`, `lessons`, `enrollments`, `lesson_progress` | `courses.instructor_id`, `enrollments.student_id`, `lesson_progress.student_id` refer logically to User Service IDs |
+| Exam DB (`lms_exam_db`) | Exam & Quiz Service | `infra/mysql-init/init-exam-db.sql` | `quizzes`, `questions`, `quiz_results` | `CourseId` refers logically to Course Service; `InstructorId` and `StudentId` refer logically to User Service identities |
+| Payment DB (`lms_payment_db`) | Payment Service | `infra/mysql-init/init-payment-db.sql` | `transactions` | `student_id` refers logically to User Service; `course_id` refers logically to Course Service |
 
-## SQL Schema Mapping Table
+All entity identifiers in the current schemas are integer IDs (`INT`, with `login_audit.id` using `BIGINT UNSIGNED`).
 
-| Database | Owner Service | Schema File | Tables | External IDs |
-| :--- | :--- | :--- | :--- | :--- |
-| **User DB** | User Service | `infra/databases/user-db/schema.sql` | `users`, `roles`, `user_roles`, `login_audit` | None |
-| **Course DB** | Course Service | `infra/databases/course-db/schema.sql` | `courses`, `lessons`, `course_access`, `learning_progress`, `ai_learning_context` | `user_id`, `instructor_id` |
-| **Exam DB** | Exam & Quiz Service | `infra/databases/exam-db/schema.sql` | `question_bank`, `quizzes`, `quiz_questions`, `quiz_attempts`, `submitted_answers`, `grading_results` | `user_id`, `course_id` |
-| **Payment DB** | Payment Service | `infra/databases/payment-db/schema.sql` | `payments`, `payment_transactions`, `payment_gateway_logs`, `revenue_records` | `user_id`, `course_id` |
+## Owner-controlled additive compatibility
 
----
+- Course Service ensures `lessons.content`, the unique enrollment key, and `lesson_progress` exist through non-destructive checks in `course-service/src/data/`.
+- Exam Service checks required columns, question/result constraints, and the unique student/quiz result index through `exam-service/Data/ExamSchemaMigrator.cs` and EF Core model configuration.
+- These checks modify only the owning database and do not create cross-service database access.
 
-## Architectural Rules
+## Relationship rules
 
-1. **Owner Exclusivity**: A service has exclusive schema, read, and write controls over its respective database schema. No cross-service SQL connections are permitted.
-2. **Logical Joins**: Fields classified as *External IDs* (e.g., `user_id`, `course_id`, `instructor_id`) act as logical foreign keys. They reference entities owned by external services but are stored without active, database-enforced SQL foreign key constraints to support total database isolation.
+- Foreign keys are used only inside a service-owned database: Course DB links lessons/progress/enrollments to courses and lessons; Exam DB links questions/results to quizzes; User DB links login audits to users.
+- IDs representing another service's entity are logical references with no cross-database FK.
+- Cross-service validation and enrichment occur through HTTP APIs or RabbitMQ events, never SQL joins across databases.

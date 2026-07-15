@@ -13,7 +13,7 @@ async function migrateUserStatus() {
 
     if (columns.length === 0) {
       await connection.query(
-        "ALTER TABLE users ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'active' AFTER role"
+        "ALTER TABLE users ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'active' AFTER role"
       );
       console.log('Added users.status with active as the default.');
     } else {

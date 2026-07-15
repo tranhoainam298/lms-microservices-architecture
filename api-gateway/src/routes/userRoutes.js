@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { jwtAuth } from '../middleware/jwtAuth.js';
 import { passwordChangeRateLimiter } from '../middleware/passwordChangeRateLimiter.js';
-import { forwardChangeOwnPassword, forwardGetOwnProfile, forwardListUsers, forwardUpdateOwnProfile, forwardUpdateUserStatus } from '../proxy/userServiceProxy.js';
+import { forwardChangeOwnPassword, forwardGetLoginActivity, forwardGetOwnProfile, forwardListUsers, forwardUpdateOwnProfile, forwardUpdateUserRole, forwardUpdateUserStatus } from '../proxy/userServiceProxy.js';
 
 const router = Router();
 
@@ -55,6 +55,22 @@ router.patch('/admin/users/:userId/status', jwtAuth, adminOnly, async (req, res,
     const userId = parseUserId(res, req.params.userId);
     if (userId === null) return;
     const result = await forwardUpdateUserStatus(userId, req.body, req.headers.authorization);
+    res.status(result.status).json(result.body);
+  } catch (error) { next(error); }
+});
+
+router.patch('/admin/users/:userId/role', jwtAuth, adminOnly, async (req, res, next) => {
+  try {
+    const userId = parseUserId(res, req.params.userId);
+    if (userId === null) return;
+    const result = await forwardUpdateUserRole(userId, req.body, req.headers.authorization);
+    res.status(result.status).json(result.body);
+  } catch (error) { next(error); }
+});
+
+router.get('/admin/reports/activity', jwtAuth, adminOnly, async (req, res, next) => {
+  try {
+    const result = await forwardGetLoginActivity(req.query || {}, req.headers.authorization);
     res.status(result.status).json(result.body);
   } catch (error) { next(error); }
 });

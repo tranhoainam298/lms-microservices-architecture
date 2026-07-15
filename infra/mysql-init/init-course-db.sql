@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS lessons (
   id INT AUTO_INCREMENT PRIMARY KEY,
   course_id INT NOT NULL,
   title VARCHAR(255) NOT NULL,
-  content TEXT,
+  content LONGTEXT,
   video_url VARCHAR(255),
   document_url VARCHAR(255),
   order_index INT DEFAULT 0,
@@ -34,21 +34,38 @@ CREATE TABLE IF NOT EXISTS enrollments (
   progress_percent DECIMAL(5, 2) DEFAULT 0.0,
   status VARCHAR(50) DEFAULT 'active',
   enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_enrollments_student_course (student_id, course_id),
   FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS lesson_progress (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  student_id INT NOT NULL,
+  course_id INT NOT NULL,
+  lesson_id INT NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'completed',
+  completed_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_lesson_progress_student_course_lesson (student_id, course_id, lesson_id),
+  KEY idx_lesson_progress_course (course_id),
+  KEY idx_lesson_progress_lesson (lesson_id),
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================
 -- Seed Data: Courses (instructor_id=2 is Tran Thi Bich, instructor_id=6 is Vo Thi Phuong)
 -- =============================================
 INSERT INTO courses (id, title, description, category, price, instructor_id, status) VALUES
-  (1, 'Nhập môn Lập trình Python', 'Khóa học cơ bản về Python cho người mới bắt đầu. Bao gồm cú pháp, biến, vòng lặp, hàm, xử lý file và lập trình hướng đối tượng cơ bản.', 'Lập trình', 299000, 2, 'published'),
-  (2, 'Phát triển Web với React & Node.js', 'Xây dựng ứng dụng web full-stack hiện đại với React (frontend) và Node.js/Express (backend). Bao gồm REST API, database, authentication.', 'Lập trình Web', 499000, 2, 'published'),
-  (3, 'Cơ sở dữ liệu MySQL từ A-Z', 'Học thiết kế, truy vấn, tối ưu hóa cơ sở dữ liệu MySQL. Từ SELECT cơ bản đến JOIN, Subquery, Index, Transaction và Stored Procedure.', 'Cơ sở dữ liệu', 349000, 2, 'published'),
-  (4, 'Kiến trúc Microservices', 'Tìm hiểu về kiến trúc microservices, API Gateway, message broker, Docker, và các design pattern phổ biến trong hệ thống phân tán.', 'Kiến trúc phần mềm', 599000, 6, 'published'),
-  (5, 'Machine Learning cơ bản', 'Giới thiệu về Machine Learning với Python. Supervised Learning, Unsupervised Learning, Neural Networks cơ bản với scikit-learn và TensorFlow.', 'AI & Machine Learning', 699000, 6, 'published'),
-  (6, 'Thiết kế UI/UX cho Developer', 'Các nguyên tắc thiết kế giao diện người dùng, typography, color theory, wireframing, prototyping với Figma và áp dụng vào dự án thực tế.', 'Thiết kế', 249000, 2, 'published'),
-  (7, 'DevOps và CI/CD Pipeline', 'Docker, Kubernetes, Jenkins, GitHub Actions. Xây dựng pipeline CI/CD hoàn chỉnh cho dự án phần mềm.', 'DevOps', 549000, 6, 'draft'),
-  (8, 'Tiếng Anh cho Lập trình viên', 'Học tiếng Anh chuyên ngành IT: đọc tài liệu kỹ thuật, viết email, giao tiếp trong team quốc tế.', 'Kỹ năng mềm', 199000, 2, 'draft')
+  (1, 'Nhập môn Lập trình Python', 'Khóa học cơ bản về Python cho người mới bắt đầu. Bao gồm cú pháp, biến, vòng lặp, hàm, xử lý file và lập trình hướng đối tượng cơ bản.', 'Lập trình', 11.96, 2, 'published'),
+  (2, 'Phát triển Web với React & Node.js', 'Xây dựng ứng dụng web full-stack hiện đại với React (frontend) và Node.js/Express (backend). Bao gồm REST API, database, authentication.', 'Lập trình Web', 19.96, 2, 'published'),
+  (3, 'Cơ sở dữ liệu MySQL từ A-Z', 'Học thiết kế, truy vấn, tối ưu hóa cơ sở dữ liệu MySQL. Từ SELECT cơ bản đến JOIN, Subquery, Index, Transaction và Stored Procedure.', 'Cơ sở dữ liệu', 13.96, 2, 'published'),
+  (4, 'Kiến trúc Microservices', 'Tìm hiểu về kiến trúc microservices, API Gateway, message broker, Docker, và các design pattern phổ biến trong hệ thống phân tán.', 'Kiến trúc phần mềm', 23.96, 6, 'published'),
+  (5, 'Machine Learning cơ bản', 'Giới thiệu về Machine Learning với Python. Supervised Learning, Unsupervised Learning, Neural Networks cơ bản với scikit-learn và TensorFlow.', 'AI & Machine Learning', 27.96, 6, 'published'),
+  (6, 'Thiết kế UI/UX cho Developer', 'Các nguyên tắc thiết kế giao diện người dùng, typography, color theory, wireframing, prototyping với Figma và áp dụng vào dự án thực tế.', 'Thiết kế', 9.96, 2, 'published'),
+  (7, 'DevOps và CI/CD Pipeline', 'Docker, Kubernetes, Jenkins, GitHub Actions. Xây dựng pipeline CI/CD hoàn chỉnh cho dự án phần mềm.', 'DevOps', 21.96, 6, 'draft'),
+  (8, 'Tiếng Anh cho Lập trình viên', 'Học tiếng Anh chuyên ngành IT: đọc tài liệu kỹ thuật, viết email, giao tiếp trong team quốc tế.', 'Kỹ năng mềm', 7.96, 2, 'draft')
 ON DUPLICATE KEY UPDATE title=VALUES(title);
 
 -- =============================================
@@ -109,3 +126,20 @@ INSERT INTO enrollments (id, student_id, course_id, progress_percent, status) VA
   (7, 5, 2, 50.00, 'active'),
   (8, 5, 5, 0.00, 'active')
 ON DUPLICATE KEY UPDATE progress_percent=VALUES(progress_percent);
+
+-- Keep lesson-level seed completion consistent with enrollments.progress_percent.
+INSERT INTO lesson_progress (student_id, course_id, lesson_id, status) VALUES
+  (1, 1, 1, 'completed'),
+  (1, 1, 2, 'completed'),
+  (1, 1, 3, 'completed'),
+  (1, 1, 4, 'completed'),
+  (1, 2, 6, 'completed'),
+  (1, 2, 7, 'completed'),
+  (4, 1, 1, 'completed'),
+  (4, 1, 2, 'completed'),
+  (4, 1, 3, 'completed'),
+  (4, 3, 12, 'completed'),
+  (5, 2, 6, 'completed'),
+  (5, 2, 7, 'completed'),
+  (5, 2, 8, 'completed')
+ON DUPLICATE KEY UPDATE status=VALUES(status);

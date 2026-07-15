@@ -1,6 +1,6 @@
 # Service Build Order
 
-This document details the recommended implementation sequence. By building components in this dependency order, developers can minimize rework and ensure that mock interfaces are replaced systematically with real APIs.
+This document records the dependency-aware order for maintaining or rebuilding the implemented stack.
 
 ---
 
@@ -31,7 +31,7 @@ Configure proxy route mappings to User, Course, Exam, and Payment services. Impl
 Build user interfaces using ReactJS to support authentication, lesson interaction, quiz assessments, and checkout sequences.
 
 ### 9. RabbitMQ event integration
-Introduce active messaging connections between Payment Service (publishing payments events) and Course Service (listening to grant course access).
+Connect User, Payment, and Course publishers to the durable `lms_events` topic exchange. Course access remains an idempotent synchronous Course Service operation; events are asynchronous architectural notifications and do not perform a second enrollment write.
 
 ### 10. Reporting and AI support flows
 Implement the cross-service data aggregation for reports (Payment + Course) and connect the AI query routes to the external AI Chatbot System.
