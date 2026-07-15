@@ -6,29 +6,26 @@ const demoRoles = [
     id: 'student',
     label: 'Student',
     shortLabel: 'ST',
-    email: 'student@lms.edu',
     description: 'Continue lessons, quizzes, and course access.'
   },
   {
     id: 'instructor',
     label: 'Instructor',
     shortLabel: 'IN',
-    email: 'instructor@lms.edu',
     description: 'Create and manage course drafts.'
   },
   {
     id: 'admin',
     label: 'Administrator',
     shortLabel: 'AD',
-    email: 'admin@lms.edu',
     description: 'Review revenue and platform activity.'
   }
 ];
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin, onBrowseCourses }) {
   const [mode, setMode] = useState('login');
-  const [email, setEmail] = useState('student@lms.edu');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('student');
@@ -45,8 +42,6 @@ export default function LoginPage({ onLogin }) {
     setError('');
     setFieldErrors(currentErrors => ({ ...currentErrors, email: '' }));
 
-    const nextRole = demoRoles.find(option => option.id === selectedRole);
-    if (nextRole) setEmail(nextRole.email);
   };
 
   const validateFields = () => {
@@ -159,6 +154,8 @@ export default function LoginPage({ onLogin }) {
           <button type="button" className={`btn ${mode === 'register' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setMode('register'); setRole('student'); setEmail(''); setPassword(''); setError(''); setSuccess(''); }}>Register</button>
         </div>
 
+        <button className="btn btn-secondary w-full login-browse-courses" type="button" onClick={onBrowseCourses}>Browse courses</button>
+
         <div className="login-route-summary" aria-label="Secure sign-in status">
           <span className="login-route-summary__status" aria-hidden="true" />
           <div>
@@ -169,7 +166,7 @@ export default function LoginPage({ onLogin }) {
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           {mode === 'login' && <fieldset className="login-role-selector" disabled={isLoading}>
-            <legend>Choose a demo role</legend>
+            <legend>Choose your role</legend>
             <div className="login-role-grid">
               {demoRoles.map(option => {
                 const isSelected = role === option.id;
@@ -209,6 +206,7 @@ export default function LoginPage({ onLogin }) {
               type="email"
               className="form-control"
               value={email}
+              placeholder="you@example.com"
               onChange={(e) => {
                 setEmail(e.target.value);
                 setError('');
@@ -263,7 +261,7 @@ export default function LoginPage({ onLogin }) {
                 {showPassword ? 'Hide' : 'Show'}
               </button>
             </div>
-            <p className="field-helper" id="password-helper">Demo password: <code>password123</code></p>
+            <p className="field-helper" id="password-helper">Enter the password for your account.</p>
             {fieldErrors.password && <p className="field-error" id="password-error" role="alert">{fieldErrors.password}</p>}
           </div>
 
@@ -284,10 +282,10 @@ export default function LoginPage({ onLogin }) {
           </button>
         </form>
 
-        {mode === 'login' && <section className="login-demo-hint" aria-label="Selected demo account">
+        {mode === 'login' && <section className="login-demo-hint" aria-label="Selected workspace">
           <div>
-            <span className="login-demo-hint__label">Selected demo account</span>
-            <strong>{selectedDemoRole.email}</strong>
+            <span className="login-demo-hint__label">Selected workspace</span>
+            <strong>{selectedDemoRole.label}</strong>
           </div>
         </section>}
       </main>

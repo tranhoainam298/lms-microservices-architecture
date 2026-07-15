@@ -1525,6 +1525,41 @@ textarea.form-control {
   margin-bottom: var(--space-5);
 }
 
+.login-browse-courses {
+  margin-bottom: var(--space-5);
+}
+
+.public-catalog-shell {
+  min-height: 100dvh;
+  background: var(--color-canvas);
+}
+
+.public-catalog-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) max(var(--space-4), calc((100vw - var(--content-max)) / 2));
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.public-catalog-content {
+  width: min(100%, var(--content-max));
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-12);
+}
+
+@media (max-width: 768px) {
+  .public-catalog-content {
+    padding: var(--space-6) var(--space-4) var(--space-10);
+  }
+}
+
 .account-page {
   display: grid;
   gap: var(--space-5);
@@ -2349,6 +2384,13 @@ textarea.form-control {
   background: var(--color-danger-soft);
 }
 
+.metric-card__title {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+  font-weight: var(--weight-semibold);
+}
+
 .metric-card--info {
   border-color: var(--color-info-border);
   background: var(--color-info-soft);
@@ -2377,6 +2419,7 @@ textarea.form-control {
 }
 
 .metric-card__value {
+  display: block;
   margin-top: var(--space-3);
   color: var(--color-text);
   font-size: var(--font-size-30);
@@ -2658,6 +2701,7 @@ textarea.form-control {
 }
 
 .course-card__visual {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2666,7 +2710,18 @@ textarea.form-control {
   background: var(--color-surface-subtle);
 }
 
+.course-card__visual img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.42;
+}
+
 .course-card__visual span {
+  position: relative;
+  z-index: 1;
   color: var(--color-primary);
   font-family: var(--font-mono);
   font-size: var(--font-size-12);
@@ -2674,6 +2729,8 @@ textarea.form-control {
 }
 
 .course-card__visual i {
+  position: relative;
+  z-index: 1;
   width: 34px;
   height: 34px;
   border: 1px solid var(--color-primary-border);
@@ -3169,6 +3226,16 @@ textarea.form-control {
 .draft-list__copy span {
   color: var(--color-text-muted);
   font-size: var(--font-size-11);
+}
+
+.draft-list__actions {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 420px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .lesson-page__header,
@@ -5095,13 +5162,17 @@ textarea.form-control {
 .lesson-page__header--premium { background: linear-gradient(135deg, #111827 0%, #27356b 62%, #4457a6 100%); color: #fff; border-radius: 24px; padding: 28px 32px; box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18); }
 .lesson-page__header--premium .page-kicker,
 .lesson-page__header--premium p { color: rgba(255, 255, 255, 0.75); }
+.lesson-page__header--premium h2,
+.lesson-page__header--premium .lesson-page__status strong { color: #fff; }
 .lesson-page__header--premium .btn-ghost { color: #fff; }
+.lesson-page__header--premium .btn-ghost:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
 .lesson-page__status { display: grid; justify-items: end; gap: 12px; }
 .lesson-workspace--premium { align-items: start; }
 .lesson-content--premium { min-width: 0; }
 .lesson-player__stage--content { min-height: 460px; display: flex; flex-direction: column; }
 .lesson-video { width: 100%; min-height: 360px; max-height: 620px; background: #05070d; object-fit: contain; }
 .lesson-player__empty { flex: 1; min-height: 330px; display: grid; place-items: center; align-content: center; gap: 12px; padding: 40px; text-align: center; color: #e5e7eb; background: radial-gradient(circle at top, #27356b, #0f172a 72%); }
+.lesson-player__empty h3 { color: #fff; }
 .lesson-player__empty p { max-width: 520px; color: #cbd5e1; }
 .lesson-tools-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 20px; }
 .resource-card { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 14px; color: inherit; text-decoration: none; background: #f8fafc; }

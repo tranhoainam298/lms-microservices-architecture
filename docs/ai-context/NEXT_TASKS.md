@@ -1,6 +1,12 @@
 # Next Tasks
 
-This list contains only work that remains after source alignment and final local verification. The 9/9 static suite, 38/38 Node syntax checks, Web and Exam builds, Compose rebuild/health, four-event RabbitMQ capture, and 16/16 role E2E are complete. This file must not be read as a request to add new core services or databases.
+This list starts after the completed architecture baseline and business CRUD/demo-data product pass. It must not be read as a request to add new core services or databases.
+
+## Product follow-ups
+
+1. If repeated automated E2E becomes routine, run the CRUD harness in an isolated disposable Compose project so published verification fixtures do not accumulate in a developer's persistent demo volume.
+2. Add local branded course-cover assets if the demo must be completely offline; the current external placeholders are presentation-only and do not affect course access.
+3. Add a standalone Course DB category entity only if it becomes an explicit business requirement. Until then, keep the real course-owned category update and do not introduce a Category Service.
 
 ## Credential-dependent verification
 

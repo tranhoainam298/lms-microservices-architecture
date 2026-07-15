@@ -69,6 +69,23 @@ public class QuizController(ExamDbContext db, IHttpClientFactory clients) : Cont
         _ => null
     };
 
+    private IActionResult? ValidateQuestion(QuestionInput question)
+    {
+        if (string.IsNullOrWhiteSpace(question.QuestionText)
+            || question.QuestionText.Trim().Length > 4000
+            || question.QuestionType != "single_choice")
+            return BadRequest(new { code = "VALIDATION_ERROR", message = "Each question must be a valid single-choice question." });
+        if (question.Options is null
+            || question.Options.Count is < 2 or > 6
+            || question.Options.Any(option => string.IsNullOrWhiteSpace(option) || option.Trim().Length > 1000))
+            return BadRequest(new { code = "VALIDATION_ERROR", message = "Each question must have 2 to 6 nonempty options." });
+        if (question.CorrectOptionIndex < 0
+            || question.CorrectOptionIndex >= question.Options.Count
+            || question.Points is <= 0 or > 100)
+            return BadRequest(new { code = "VALIDATION_ERROR", message = "Each question needs a valid correct option and points between 1 and 100." });
+        return null;
+    }
+
     private IActionResult? ValidateQuiz(QuizInput input)
     {
         var title = input.Title?.Trim();
@@ -79,14 +96,24 @@ public class QuizController(ExamDbContext db, IHttpClientFactory clients) : Cont
         if (input.Questions is null || input.Questions.Count is < 1 or > 100) return BadRequest(new { code = "VALIDATION_ERROR", message = "A quiz must contain between 1 and 100 questions." });
         foreach (var q in input.Questions)
         {
-            if (string.IsNullOrWhiteSpace(q.QuestionText) || q.QuestionText.Trim().Length > 4000 || q.QuestionType != "single_choice") return BadRequest(new { code = "VALIDATION_ERROR", message = "Each question must be a valid single-choice question." });
-            if (q.Options is null || q.Options.Count is < 2 or > 6 || q.Options.Any(o => string.IsNullOrWhiteSpace(o) || o.Trim().Length > 1000)) return BadRequest(new { code = "VALIDATION_ERROR", message = "Each question must have 2 to 6 nonempty options." });
-            if (q.CorrectOptionIndex < 0 || q.CorrectOptionIndex >= q.Options.Count || q.Points is <= 0 or > 100) return BadRequest(new { code = "VALIDATION_ERROR", message = "Each question needs a valid correct option and points between 0 and 100." });
+            if (ValidateQuestion(q) is IActionResult error) return error;
         }
         return null;
     }
 
     private object Summary(Quiz q) => new { id=q.Id, courseId=q.CourseId, title=q.Title, description=q.Description, durationMinutes=q.TimeLimitMinutes, passingScore=q.PassingScore, status=q.Status, instructorId=q.InstructorId, questionCount=q.Questions.Count, createdAt=q.CreatedAt, updatedAt=q.UpdatedAt };
+    private object ManagedQuestion(Question question) => new
+    {
+        id = question.Id,
+        quizId = question.QuizId,
+        courseId = question.CourseId,
+        questionText = question.Content,
+        questionType = question.Topic,
+        options = JsonSerializer.Deserialize<List<string>>(question.Options),
+        correctOptionIndex = CorrectOptionIndex(question),
+        points = question.Points,
+        sequenceOrder = question.OrderIndex
+    };
     private static Question BuildQuestion(QuestionInput q, int courseId, int order) => new() { CourseId=courseId, Topic="single_choice", Content=q.QuestionText!.Trim(), Options=JsonSerializer.Serialize(q.Options!.Select(x=>x.Trim())), CorrectAnswer=q.CorrectOptionIndex.ToString(), Difficulty="medium", Points=q.Points, OrderIndex=order, CreatedAt=DateTime.UtcNow };
     private static int? CorrectOptionIndex(Question question)
     {
@@ -153,6 +180,84 @@ public class QuizController(ExamDbContext db, IHttpClientFactory clients) : Cont
         return Ok(new { quiz = new { id=quiz.Id, courseId=quiz.CourseId, title=quiz.Title, description=quiz.Description, durationMinutes=quiz.TimeLimitMinutes, passingScore=quiz.PassingScore, questions=quiz.Questions.OrderBy(x=>x.OrderIndex).Select(x=>new { id=x.Id, questionText=x.Content, questionType=x.Topic, options=JsonSerializer.Deserialize<List<string>>(x.Options), correctOptionIndex=CorrectOptionIndex(x), points=x.Points, sequenceOrder=x.OrderIndex }) } });
     }
 
+    [HttpPost("courses/{courseId}/quizzes/{quizId}/questions")]
+    public async Task<IActionResult> CreateQuestion(string courseId, string quizId, QuestionInput input)
+    {
+        if (Role != "instructor") return Forbidden("Only instructors can manage questions.");
+        if (!Id(courseId, out var cid)) return BadRequest(new { code="INVALID_COURSE_ID", message="Course ID must be a positive integer." });
+        if (!Id(quizId, out var qid)) return BadRequest(new { code="INVALID_QUIZ_ID", message="Quiz ID must be a positive integer." });
+        var owns = await OwnsDraft(cid);
+        if (owns is null) return StatusCode(502, new { code="COURSE_SERVICE_UNAVAILABLE", message="Course Service is unavailable." });
+        if (!owns.Value) return NotFound(new { code="DRAFT_NOT_FOUND", message="The draft course was not found." });
+        if (ValidateQuestion(input) is IActionResult error) return error;
+        var quiz = await db.Quizzes.Include(x => x.Questions)
+            .SingleOrDefaultAsync(x => x.Id == qid && x.CourseId == cid && x.InstructorId == UserId && x.Status == "draft");
+        if (quiz is null) return NotFound(new { code="QUIZ_NOT_FOUND", message="The draft quiz was not found." });
+        var nextOrder = quiz.Questions.Count == 0 ? 1 : quiz.Questions.Max(x => x.OrderIndex) + 1;
+        var question = BuildQuestion(input, cid, nextOrder);
+        quiz.Questions.Add(question);
+        await db.SaveChangesAsync();
+        return StatusCode(201, new { question = ManagedQuestion(question) });
+    }
+
+    [HttpGet("courses/{courseId}/quizzes/{quizId}/questions/{questionId}")]
+    public async Task<IActionResult> QuestionDetail(string courseId, string quizId, string questionId)
+    {
+        if (Role != "instructor") return Forbidden("Only instructors can manage questions.");
+        if (!Id(courseId, out var cid)) return BadRequest(new { code="INVALID_COURSE_ID", message="Course ID must be a positive integer." });
+        if (!Id(quizId, out var qid)) return BadRequest(new { code="INVALID_QUIZ_ID", message="Quiz ID must be a positive integer." });
+        if (!Id(questionId, out var questionIdValue)) return BadRequest(new { code="INVALID_QUESTION_ID", message="Question ID must be a positive integer." });
+        var owns = await OwnsDraft(cid);
+        if (owns is null) return StatusCode(502, new { code="COURSE_SERVICE_UNAVAILABLE", message="Course Service is unavailable." });
+        if (!owns.Value) return NotFound(new { code="DRAFT_NOT_FOUND", message="The draft course was not found." });
+        var question = await db.Questions.AsNoTracking().Include(x => x.Quiz)
+            .SingleOrDefaultAsync(x => x.Id == questionIdValue && x.QuizId == qid && x.CourseId == cid && x.Quiz.InstructorId == UserId && x.Quiz.Status == "draft");
+        return question is null
+            ? NotFound(new { code="QUESTION_NOT_FOUND", message="The draft question was not found." })
+            : Ok(new { question = ManagedQuestion(question) });
+    }
+
+    [HttpPatch("courses/{courseId}/quizzes/{quizId}/questions/{questionId}")]
+    public async Task<IActionResult> UpdateQuestion(string courseId, string quizId, string questionId, QuestionInput input)
+    {
+        if (Role != "instructor") return Forbidden("Only instructors can manage questions.");
+        if (!Id(courseId, out var cid)) return BadRequest(new { code="INVALID_COURSE_ID", message="Course ID must be a positive integer." });
+        if (!Id(quizId, out var qid)) return BadRequest(new { code="INVALID_QUIZ_ID", message="Quiz ID must be a positive integer." });
+        if (!Id(questionId, out var questionIdValue)) return BadRequest(new { code="INVALID_QUESTION_ID", message="Question ID must be a positive integer." });
+        var owns = await OwnsDraft(cid);
+        if (owns is null) return StatusCode(502, new { code="COURSE_SERVICE_UNAVAILABLE", message="Course Service is unavailable." });
+        if (!owns.Value) return NotFound(new { code="DRAFT_NOT_FOUND", message="The draft course was not found." });
+        if (ValidateQuestion(input) is IActionResult error) return error;
+        var question = await db.Questions.Include(x => x.Quiz)
+            .SingleOrDefaultAsync(x => x.Id == questionIdValue && x.QuizId == qid && x.CourseId == cid && x.Quiz.InstructorId == UserId && x.Quiz.Status == "draft");
+        if (question is null) return NotFound(new { code="QUESTION_NOT_FOUND", message="The draft question was not found." });
+        question.Content = input.QuestionText!.Trim();
+        question.Topic = "single_choice";
+        question.Options = JsonSerializer.Serialize(input.Options!.Select(option => option.Trim()));
+        question.CorrectAnswer = input.CorrectOptionIndex.ToString();
+        question.Points = input.Points;
+        await db.SaveChangesAsync();
+        return Ok(new { question = ManagedQuestion(question) });
+    }
+
+    [HttpDelete("courses/{courseId}/quizzes/{quizId}/questions/{questionId}")]
+    public async Task<IActionResult> DeleteQuestion(string courseId, string quizId, string questionId)
+    {
+        if (Role != "instructor") return Forbidden("Only instructors can manage questions.");
+        if (!Id(courseId, out var cid)) return BadRequest(new { code="INVALID_COURSE_ID", message="Course ID must be a positive integer." });
+        if (!Id(quizId, out var qid)) return BadRequest(new { code="INVALID_QUIZ_ID", message="Quiz ID must be a positive integer." });
+        if (!Id(questionId, out var questionIdValue)) return BadRequest(new { code="INVALID_QUESTION_ID", message="Question ID must be a positive integer." });
+        var owns = await OwnsDraft(cid);
+        if (owns is null) return StatusCode(502, new { code="COURSE_SERVICE_UNAVAILABLE", message="Course Service is unavailable." });
+        if (!owns.Value) return NotFound(new { code="DRAFT_NOT_FOUND", message="The draft course was not found." });
+        var question = await db.Questions.Include(x => x.Quiz)
+            .SingleOrDefaultAsync(x => x.Id == questionIdValue && x.QuizId == qid && x.CourseId == cid && x.Quiz.InstructorId == UserId && x.Quiz.Status == "draft");
+        if (question is null) return NotFound(new { code="QUESTION_NOT_FOUND", message="The draft question was not found." });
+        db.Questions.Remove(question);
+        await db.SaveChangesAsync();
+        return Ok(new { deleted = true, questionId = questionIdValue });
+    }
+
     [HttpDelete("courses/{courseId}/quizzes/{quizId}")]
     public async Task<IActionResult> Delete(string courseId,string quizId)
     {
@@ -176,7 +281,24 @@ public class QuizController(ExamDbContext db, IHttpClientFactory clients) : Cont
     [HttpPost("quizzes/{quizId}/submit")]
     public async Task<IActionResult> Submit(string quizId,SubmitAnswersInput input)
     {
-        if(Role!="student")return Forbidden("Only students can submit quizzes.");if(!Id(quizId,out var qid))return BadRequest(new{code="INVALID_QUIZ_ID",message="Quiz ID must be a positive integer."});var quiz=await db.Quizzes.Include(x=>x.Questions).SingleOrDefaultAsync(x=>x.Id==qid&&x.Status=="published");if(quiz is null)return NotFound(new{code="QUIZ_NOT_FOUND",message="The published quiz was not found."});var access=await StudentCourseAccess(quiz.CourseId);if(CourseAccessFailure(access) is IActionResult failure)return failure;var answers=input.Answers??[];if(answers.GroupBy(x=>x.QuestionId).Any(g=>g.Count()>1))return BadRequest(new{code="VALIDATION_ERROR",message="Each question may be answered only once."});var map=quiz.Questions.ToDictionary(x=>x.Id);foreach(var a in answers){if(!map.TryGetValue(a.QuestionId,out var question)||a.SelectedOptionIndex<0||a.SelectedOptionIndex>=JsonSerializer.Deserialize<List<string>>(question.Options)!.Count)return BadRequest(new{code="VALIDATION_ERROR",message="An answer contains an invalid question or option."});}
+        if(Role!="student")return Forbidden("Only students can submit quizzes.");
+        if(!Id(quizId,out var qid))return BadRequest(new{code="INVALID_QUIZ_ID",message="Quiz ID must be a positive integer."});
+        var quiz=await db.Quizzes.Include(x=>x.Questions).SingleOrDefaultAsync(x=>x.Id==qid&&x.Status=="published");
+        if(quiz is null)return NotFound(new{code="QUIZ_NOT_FOUND",message="The published quiz was not found."});
+        var access=await StudentCourseAccess(quiz.CourseId);
+        if(CourseAccessFailure(access) is IActionResult failure)return failure;
+
+        var answers=input.Answers??[];
+        var map=quiz.Questions.ToDictionary(x=>x.Id);
+        if(map.Count==0)return Conflict(new{code="QUIZ_NOT_READY",message="This quiz has no questions available."});
+        if(answers.GroupBy(x=>x.QuestionId).Any(g=>g.Count()>1))return BadRequest(new{code="VALIDATION_ERROR",message="Each question may be answered only once."});
+        if(answers.Count!=map.Count||answers.Any(answer=>!map.ContainsKey(answer.QuestionId)))return BadRequest(new{code="VALIDATION_ERROR",message="Answer every quiz question exactly once before submitting."});
+        foreach(var a in answers)
+        {
+            var question=map[a.QuestionId];
+            var options=JsonSerializer.Deserialize<List<string>>(question.Options)??[];
+            if(a.SelectedOptionIndex<0||a.SelectedOptionIndex>=options.Count)return BadRequest(new{code="VALIDATION_ERROR",message="An answer contains an invalid option."});
+        }
         if(await db.QuizResults.AnyAsync(x=>x.QuizId==qid&&x.StudentId==UserId))return Conflict(new{code="QUIZ_ALREADY_SUBMITTED",message="This quiz has already been submitted."});decimal earned=0;foreach(var a in answers)if(CorrectOptionIndex(map[a.QuestionId]) is int correct&&correct==a.SelectedOptionIndex)earned+=map[a.QuestionId].Points;var max=quiz.Questions.Sum(x=>x.Points);var percentage=max==0?0:Math.Round(earned/max*100,2);var result=new QuizResult{QuizId=qid,StudentId=UserId,Score=earned,MaximumScore=max,Percentage=percentage,Passed=percentage>=quiz.PassingScore,SubmittedAnswers=JsonSerializer.Serialize(answers),SubmittedAt=DateTime.UtcNow};db.QuizResults.Add(result);
         try
         {
@@ -238,6 +360,61 @@ public class QuizController(ExamDbContext db, IHttpClientFactory clients) : Cont
             results
         });
     }
-    [HttpGet("results/mine")] public async Task<IActionResult> Results(){if(Role!="student")return Forbidden("Only students can view quiz results.");var items=await db.QuizResults.AsNoTracking().Where(x=>x.StudentId==UserId).OrderByDescending(x=>x.SubmittedAt).ToListAsync();return Ok(new{items=items.Select(Result),total=items.Count});}
+
+    [HttpGet("instructor/results/summary")]
+    public async Task<IActionResult> InstructorResultsSummary()
+    {
+        if (Role != "instructor") return Forbidden("Only instructors can view quiz results.");
+        var quizzes = await db.Quizzes.AsNoTracking().Include(x => x.QuizResults)
+            .Where(x => x.InstructorId == UserId)
+            .OrderByDescending(x => x.UpdatedAt)
+            .ToListAsync();
+        var results = quizzes.SelectMany(quiz => quiz.QuizResults.Select(result => new
+        {
+            id = result.Id,
+            quizId = quiz.Id,
+            quizTitle = quiz.Title,
+            courseId = quiz.CourseId,
+            studentId = result.StudentId,
+            percentage = result.Percentage,
+            passed = result.Passed,
+            submittedAt = result.SubmittedAt
+        })).OrderByDescending(result => result.submittedAt).ToList();
+        return Ok(new
+        {
+            summary = new
+            {
+                quizCount = quizzes.Count,
+                publishedQuizCount = quizzes.Count(quiz => quiz.Status == "published"),
+                draftQuizCount = quizzes.Count(quiz => quiz.Status == "draft"),
+                attemptCount = results.Count,
+                passedCount = results.Count(result => result.passed),
+                averagePercentage = results.Count == 0 ? 0 : Math.Round(results.Average(result => result.percentage), 2)
+            },
+            recentResults = results.Take(10)
+        });
+    }
+
+    [HttpGet("results/mine")]
+    public async Task<IActionResult> Results()
+    {
+        if (Role != "student") return Forbidden("Only students can view quiz results.");
+        var items = await db.QuizResults.AsNoTracking()
+            .Where(x => x.StudentId == UserId)
+            .OrderByDescending(x => x.SubmittedAt)
+            .ToListAsync();
+        return Ok(new
+        {
+            summary = new
+            {
+                totalAttempts = items.Count,
+                passedAttempts = items.Count(item => item.Passed),
+                averagePercentage = items.Count == 0 ? 0 : Math.Round(items.Average(item => item.Percentage), 2),
+                latestScore = items.Count == 0 ? 0 : items[0].Percentage
+            },
+            items = items.Select(Result),
+            total = items.Count
+        });
+    }
     [HttpGet("results/{resultId}")] public async Task<IActionResult> ResultById(string resultId){if(Role!="student")return Forbidden("Only students can view quiz results.");if(!Id(resultId,out var rid))return BadRequest(new{code="INVALID_RESULT_ID",message="Result ID must be a positive integer."});var result=await db.QuizResults.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==rid&&x.StudentId==UserId);return result is null?NotFound(new{code="RESULT_NOT_FOUND",message="The quiz result was not found."}):Ok(new{result=Result(result)});}
 }

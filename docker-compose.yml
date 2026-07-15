@@ -91,6 +91,7 @@ services:
     environment:
       PORT: "5001"
       JWT_SECRET: ${JWT_SECRET:-demo_jwt_secret_change_me_for_local_only}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-demo_internal_service_secret_change_me}
       BCRYPT_SALT_ROUNDS: "12"
       DB_HOST: ${USER_DB_HOST:-user-db-mysql}
       DB_PORT: ${USER_DB_PORT:-3306}
@@ -125,6 +126,7 @@ services:
       PORT: "5002"
       JWT_SECRET: ${JWT_SECRET:-demo_jwt_secret_change_me_for_local_only}
       INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-demo_internal_service_secret_change_me}
+      USER_SERVICE_URL: ${USER_SERVICE_URL:-http://user-service:5001}
       DB_HOST: ${COURSE_DB_HOST:-course-db-mysql}
       DB_PORT: ${COURSE_DB_PORT:-3306}
       DB_NAME: ${COURSE_DB_NAME:-lms_course_db}
@@ -277,6 +279,7 @@ services:
     volumes:
       - user-db-data:/var/lib/mysql
       - ./infra/mysql-init/init-user-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./infra/mysql-init/demo-seed-user.sql:/docker-entrypoint-initdb.d/zz-demo-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
@@ -301,6 +304,7 @@ services:
     volumes:
       - course-db-data:/var/lib/mysql
       - ./infra/mysql-init/init-course-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./infra/mysql-init/demo-seed-course.sql:/docker-entrypoint-initdb.d/zz-demo-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
@@ -325,6 +329,7 @@ services:
     volumes:
       - exam-db-data:/var/lib/mysql
       - ./infra/mysql-init/init-exam-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./infra/mysql-init/demo-seed-exam.sql:/docker-entrypoint-initdb.d/zz-demo-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
@@ -349,6 +354,7 @@ services:
     volumes:
       - payment-db-data:/var/lib/mysql
       - ./infra/mysql-init/init-payment-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./infra/mysql-init/demo-seed-payment.sql:/docker-entrypoint-initdb.d/zz-demo-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s

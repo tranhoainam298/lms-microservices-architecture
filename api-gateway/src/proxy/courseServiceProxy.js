@@ -95,7 +95,7 @@ function buildForwardedQuery(query, allowedKeys) {
 }
 
 export async function forwardGetCourses(query = {}) {
-  const queryString = buildForwardedQuery(query, ['search', 'category', 'minPrice', 'maxPrice']);
+  const queryString = buildForwardedQuery(query, ['search', 'category', 'priceType', 'minPrice', 'maxPrice']);
   let response;
   try {
     response = await fetch(`${courseServiceUrl}/courses${queryString}`, {
@@ -192,7 +192,7 @@ export async function forwardGetInstructorCourses(authorizationHeader) {
 }
 
 export async function forwardGetAdminCourseReport(query, authorizationHeader) {
-  const queryString = buildForwardedQuery(query, ['dateFrom', 'dateTo', 'category', 'status']);
+  const queryString = buildForwardedQuery(query, ['dateFrom', 'dateTo', 'category', 'status', 'instructorId']);
   let response;
   try {
     response = await fetch(`${courseServiceUrl}/courses/admin/reports/courses${queryString}`, {

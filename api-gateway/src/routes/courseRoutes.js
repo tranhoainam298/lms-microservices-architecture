@@ -29,7 +29,7 @@ function validateScalarQuery(res, query, allowedKeys) {
 
 router.get('/', async (req, res, next) => {
   try {
-    if (!validateScalarQuery(res, req.query, ['search', 'category', 'minPrice', 'maxPrice'])) return;
+    if (!validateScalarQuery(res, req.query, ['search', 'category', 'priceType', 'minPrice', 'maxPrice'])) return;
     const upstreamResponse = await forwardGetCourses(req.query);
     res.status(upstreamResponse.status).json(upstreamResponse.body);
   } catch (error) {
@@ -51,7 +51,7 @@ router.get('/admin/reports/courses', jwtAuth, async (req, res, next) => {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ code: 'FORBIDDEN', message: 'Only administrators can view course reports.' });
     }
-    if (!validateScalarQuery(res, req.query, ['dateFrom', 'dateTo', 'category', 'status'])) return;
+    if (!validateScalarQuery(res, req.query, ['dateFrom', 'dateTo', 'category', 'status', 'instructorId'])) return;
     const upstreamResponse = await forwardGetAdminCourseReport(req.query, req.headers.authorization);
     res.status(upstreamResponse.status).json(upstreamResponse.body);
   } catch (error) {

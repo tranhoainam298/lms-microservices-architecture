@@ -1104,20 +1104,18 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
               ) : (
                 <ul className="draft-list">
                   {drafts.map(draft => (
-                    <li className="draft-list__item" key={draft.id} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '8px' }}>
-                        <div className="draft-list__copy">
-                          <strong>{draft.title}</strong>
-                          <span>${Number(draft.price).toFixed(2)}</span>
-                        </div>
-                        <StatusBadge status={draft.status} />
+                    <li className="draft-list__item" key={draft.id}>
+                      <div className="draft-list__copy">
+                        <strong>{draft.title}</strong>
+                        <span>${Number(draft.price).toFixed(2)} / Draft</span>
                       </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      <div className="draft-list__actions">
+                        <StatusBadge status={draft.status} />
                         <button
                           type="button"
                           onClick={() => handleStartEdit(draft)}
                           className="btn btn-secondary btn-sm"
-                          style={{ padding: '3px 10px', fontSize: '11px' }}
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
                           disabled={deletingDraftId === draft.id}
                         >
                           Edit
@@ -1126,7 +1124,7 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                           type="button"
                           onClick={() => handleStartLesson(draft)}
                           className="btn btn-secondary btn-sm"
-                          style={{ padding: '3px 10px', fontSize: '11px' }}
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
                           disabled={deletingDraftId === draft.id}
                         >
                           Add Lesson
@@ -1135,18 +1133,18 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                           type="button"
                           onClick={() => handleViewLessons(draft)}
                           className="btn btn-secondary btn-sm"
-                          style={{ padding: '3px 10px', fontSize: '11px' }}
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
                           disabled={deletingDraftId === draft.id}
                         >
                           View Lessons
                         </button>
-                        <button type="button" onClick={() => startQuiz(draft)} className="btn btn-secondary btn-sm" style={{ padding: '3px 10px', fontSize: '11px' }} disabled={deletingDraftId === draft.id}>Add Quiz</button>
-                        <button type="button" onClick={() => loadQuizzes(draft)} className="btn btn-secondary btn-sm" style={{ padding: '3px 10px', fontSize: '11px' }} disabled={deletingDraftId === draft.id}>View Quizzes</button>
+                        <button type="button" onClick={() => startQuiz(draft)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '12px' }} disabled={deletingDraftId === draft.id}>Add Quiz</button>
+                        <button type="button" onClick={() => loadQuizzes(draft)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '12px' }} disabled={deletingDraftId === draft.id}>View Quizzes</button>
                         <button
                           type="button"
                           onClick={() => handlePublishDraft(draft)}
                           className="btn btn-primary btn-sm"
-                          style={{ padding: '3px 10px', fontSize: '11px' }}
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
                           disabled={publishingDraftId === draft.id || deletingDraftId === draft.id}
                         >
                           {publishingDraftId === draft.id ? 'Publishing...' : 'Publish'}
@@ -1155,10 +1153,10 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
                           type="button"
                           onClick={() => handleDeleteDraft(draft)}
                           className="btn btn-secondary btn-sm"
-                          style={{ padding: '3px 10px', fontSize: '11px', color: 'var(--color-error, #ef4444)' }}
+                          style={{ padding: '2px 8px', fontSize: '12px' }}
                           disabled={deletingDraftId === draft.id || publishingDraftId === draft.id}
                         >
-                          {deletingDraftId === draft.id ? 'Deleting...' : 'Delete'}
+                          {deletingDraftId === draft.id ? 'Deleting...' : 'Delete Draft'}
                         </button>
                       </div>
                     </li>

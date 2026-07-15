@@ -1,6 +1,31 @@
 import { pool } from '../data/database.js';
 import { publishCourseAccessActivated } from '../data/courseEventPublisher.js';
 
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://user-service:5001';
+
+async function getInstructorProfile(instructorId) {
+  const secret = process.env.INTERNAL_SERVICE_SECRET;
+  if (!secret) return null;
+  const endpoint = new URL('/users/internal/profiles', `${USER_SERVICE_URL.replace(/\/$/, '')}/`);
+  endpoint.searchParams.set('ids', String(instructorId));
+  try {
+    const response = await fetch(endpoint, {
+      headers: { 'x-internal-service-secret': secret },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!response.ok) return null;
+    const body = await response.json();
+    const profile = Array.isArray(body.items) ? body.items[0] : null;
+    return profile && Number(profile.id) === Number(instructorId)
+      ? { id: Number(profile.id), fullName: profile.fullName || null }
+      : null;
+  } catch (error) {
+    const errorCode = error?.code || error?.name || 'UNKNOWN';
+    console.error(`Instructor profile enrichment unavailable (${errorCode}).`);
+    return null;
+  }
+}
+
 export async function checkStudentExamAccess({ courseId, studentId }) {
   let connection;
   try {
@@ -794,6 +819,13 @@ function validateCatalogFilters(filters = {}) {
   if (search.error) return search;
   const category = validateOptionalText(filters.category, { field: 'Category', maxLength: 255 });
   if (category.error) return category;
+  let priceType = null;
+  if (filters.priceType !== undefined && filters.priceType !== null && filters.priceType !== '') {
+    if (typeof filters.priceType !== 'string' || !['free', 'paid'].includes(filters.priceType.trim().toLowerCase())) {
+      return { error: 'Price type must be free or paid.' };
+    }
+    priceType = filters.priceType.trim().toLowerCase();
+  }
   const minPrice = validateOptionalPrice(filters.minPrice, 'Minimum price');
   if (minPrice.error) return minPrice;
   const maxPrice = validateOptionalPrice(filters.maxPrice, 'Maximum price');
@@ -805,6 +837,7 @@ function validateCatalogFilters(filters = {}) {
     value: {
       search: search.value,
       category: category.value,
+      priceType,
       minPrice: minPrice.value,
       maxPrice: maxPrice.value
     }
@@ -819,7 +852,7 @@ export async function getCourses(filters = {}) {
 
   const clauses = ["status = 'published'"];
   const parameters = [];
-  const { search, category, minPrice, maxPrice } = validation.value;
+  const { search, category, priceType, minPrice, maxPrice } = validation.value;
   if (search) {
     clauses.push('(title LIKE ? OR description LIKE ?)');
     parameters.push(`%${search}%`, `%${search}%`);
@@ -828,6 +861,8 @@ export async function getCourses(filters = {}) {
     clauses.push('category = ?');
     parameters.push(category);
   }
+  if (priceType === 'free') clauses.push('price = 0');
+  if (priceType === 'paid') clauses.push('price > 0');
   if (minPrice !== null) {
     clauses.push('price >= ?');
     parameters.push(minPrice);
@@ -841,7 +876,7 @@ export async function getCourses(filters = {}) {
     const connection = await pool.getConnection();
     try {
       const [courses] = await connection.query(
-        `SELECT id, title, description, category, price, cover_image, status, created_at, updated_at
+        `SELECT id, title, description, category, price, cover_image, status, instructor_id, created_at, updated_at
          FROM courses
          WHERE ${clauses.join(' AND ')}
          ORDER BY created_at DESC, id DESC`,
@@ -865,7 +900,7 @@ export async function getPublishedCourseDetail(courseId) {
   try {
     connection = await pool.getConnection();
     const [courseRows] = await connection.query(
-      `SELECT id, title, description, category, price, cover_image, status, created_at, updated_at
+      `SELECT id, title, description, category, price, cover_image, status, instructor_id, created_at, updated_at
        FROM courses
        WHERE id = ? AND status = 'published'
        LIMIT 1`,
@@ -888,27 +923,35 @@ export async function getPublishedCourseDetail(courseId) {
       [courseId]
     );
     const course = courseRows[0];
+    const coursePayload = {
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      category: course.category,
+      price: Number(course.price),
+      cover_image: course.cover_image,
+      status: course.status,
+      instructorId: course.instructor_id,
+      created_at: course.created_at,
+      updated_at: course.updated_at,
+      lessonCount: lessonRows.length,
+      lessons: lessonRows.map(lesson => ({
+        id: lesson.id,
+        title: lesson.title,
+        orderIndex: lesson.order_index,
+        type: lesson.lesson_type,
+        createdAt: lesson.created_at
+      }))
+    };
+    connection.release();
+    connection = null;
+    const instructor = await getInstructorProfile(course.instructor_id);
     return {
       status: 200,
       body: {
         course: {
-          id: course.id,
-          title: course.title,
-          description: course.description,
-          category: course.category,
-          price: Number(course.price),
-          cover_image: course.cover_image,
-          status: course.status,
-          created_at: course.created_at,
-          updated_at: course.updated_at,
-          lessonCount: lessonRows.length,
-          lessons: lessonRows.map(lesson => ({
-            id: lesson.id,
-            title: lesson.title,
-            orderIndex: lesson.order_index,
-            type: lesson.lesson_type,
-            createdAt: lesson.created_at
-          }))
+          ...coursePayload,
+          instructor: instructor || { id: course.instructor_id, fullName: null }
         }
       }
     };
@@ -1006,7 +1049,16 @@ function validateAdminCourseReportFilters(filters = {}) {
     }
     status = filters.status.trim().toLowerCase();
   }
-  return { value: { category: category.value, dateFrom: dateFrom.value, dateTo: dateTo.value, status } };
+  let instructorId = null;
+  if (filters.instructorId !== undefined) {
+    const text = String(filters.instructorId);
+    const parsed = Number(text);
+    if (!/^[1-9]\d*$/.test(text) || !Number.isSafeInteger(parsed)) {
+      return { error: 'Instructor ID must be a positive integer.' };
+    }
+    instructorId = parsed;
+  }
+  return { value: { category: category.value, dateFrom: dateFrom.value, dateTo: dateTo.value, status, instructorId } };
 }
 
 export async function getAdminCourseReport(filters = {}) {
@@ -1016,7 +1068,7 @@ export async function getAdminCourseReport(filters = {}) {
   }
   const clauses = ["c.status <> 'deleted'"];
   const parameters = [];
-  const { category, dateFrom, dateTo, status } = validation.value;
+  const { category, dateFrom, dateTo, status, instructorId } = validation.value;
   if (category) {
     clauses.push('c.category = ?');
     parameters.push(category);
@@ -1024,6 +1076,10 @@ export async function getAdminCourseReport(filters = {}) {
   if (status) {
     clauses.push('c.status = ?');
     parameters.push(status);
+  }
+  if (instructorId) {
+    clauses.push('c.instructor_id = ?');
+    parameters.push(instructorId);
   }
   if (dateFrom) {
     clauses.push('c.created_at >= ?');
@@ -1039,14 +1095,14 @@ export async function getAdminCourseReport(filters = {}) {
   try {
     connection = await pool.getConnection();
     const [rows] = await connection.query(
-      `SELECT c.id, c.title, c.category, c.status, c.price, c.created_at, c.updated_at,
+      `SELECT c.id, c.title, c.category, c.status, c.price, c.instructor_id, c.created_at, c.updated_at,
               COUNT(e.id) AS enrollment_count,
               COALESCE(SUM(CASE WHEN e.status = 'active' THEN 1 ELSE 0 END), 0) AS active_enrollment_count,
               COALESCE(AVG(CASE WHEN e.status = 'active' THEN e.progress_percent END), 0) AS average_progress
        FROM courses c
        LEFT JOIN enrollments e ON e.course_id = c.id
        ${whereClause}
-       GROUP BY c.id, c.title, c.category, c.status, c.price, c.created_at, c.updated_at
+       GROUP BY c.id, c.title, c.category, c.status, c.price, c.instructor_id, c.created_at, c.updated_at
        ORDER BY c.created_at DESC, c.id DESC`,
       parameters
     );
@@ -1056,6 +1112,7 @@ export async function getAdminCourseReport(filters = {}) {
       category: row.category,
       status: row.status,
       price: Number(row.price),
+      instructorId: row.instructor_id,
       enrollmentCount: Number(row.enrollment_count),
       activeEnrollmentCount: Number(row.active_enrollment_count),
       averageProgress: Number(Number(row.average_progress || 0).toFixed(2)),
@@ -1195,12 +1252,26 @@ export async function getEnrolledCourses(studentId) {
     const connection = await pool.getConnection();
     try {
       const [courses] = await connection.query(
-        `SELECT c.*, e.progress_percent FROM courses c
-         JOIN enrollments e ON c.id = e.course_id 
-         WHERE e.student_id = ? AND e.status = 'active'`,
-        [studentId]
+        `SELECT c.*, e.progress_percent,
+                (SELECT COUNT(*) FROM lessons l WHERE l.course_id = c.id) AS total_lessons,
+                (SELECT COUNT(*) FROM lesson_progress lp
+                 WHERE lp.student_id = ? AND lp.course_id = c.id AND lp.status = 'completed') AS completed_lessons
+         FROM courses c
+         JOIN enrollments e ON c.id = e.course_id
+         WHERE e.student_id = ? AND e.status = 'active'
+         ORDER BY e.enrolled_at DESC, c.id DESC`,
+        [studentId, studentId]
       );
-      return { status: 200, body: courses };
+      return {
+        status: 200,
+        body: courses.map(course => ({
+          ...course,
+          price: Number(course.price),
+          progress_percent: Number(course.progress_percent || 0),
+          total_lessons: Number(course.total_lessons || 0),
+          completed_lessons: Number(course.completed_lessons || 0)
+        }))
+      };
     } finally {
       connection.release();
     }
@@ -1791,7 +1862,9 @@ export async function getInstructorCourses(instructorId) {
       `SELECT c.id, c.title, c.description, c.category, c.price, c.cover_image,
               c.status, c.created_at, c.updated_at,
               COUNT(DISTINCT l.id) AS lesson_count,
-              COUNT(DISTINCT e.id) AS enrollment_count
+              COUNT(DISTINCT e.id) AS enrollment_count,
+              COUNT(DISTINCT CASE WHEN e.status = 'active' THEN e.id END) AS active_enrollment_count,
+              COALESCE(AVG(CASE WHEN e.status = 'active' THEN e.progress_percent END), 0) AS average_progress
        FROM courses c
        LEFT JOIN lessons l ON l.course_id = c.id
        LEFT JOIN enrollments e ON e.course_id = c.id
@@ -1801,23 +1874,44 @@ export async function getInstructorCourses(instructorId) {
        ORDER BY c.updated_at DESC, c.id DESC`,
       [instructorId]
     );
+    const [[summaryRow]] = await connection.query(
+      `SELECT COUNT(DISTINCT CASE WHEN e.status = 'active' THEN e.student_id END) AS unique_students,
+              COUNT(DISTINCT CASE WHEN e.status = 'active' THEN e.id END) AS active_enrollments,
+              COALESCE(AVG(CASE WHEN e.status = 'active' THEN e.progress_percent END), 0) AS average_progress
+       FROM courses c
+       LEFT JOIN enrollments e ON e.course_id = c.id
+       WHERE c.instructor_id = ? AND c.status <> 'deleted'`,
+      [instructorId]
+    );
+    const items = rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      category: row.category,
+      price: Number(row.price),
+      coverImage: row.cover_image,
+      status: row.status,
+      lessonCount: Number(row.lesson_count),
+      enrollmentCount: Number(row.enrollment_count),
+      activeEnrollmentCount: Number(row.active_enrollment_count),
+      averageProgress: Number(Number(row.average_progress || 0).toFixed(2)),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
     return {
       status: 200,
       body: {
-        items: rows.map(row => ({
-          id: row.id,
-          title: row.title,
-          description: row.description,
-          category: row.category,
-          price: Number(row.price),
-          coverImage: row.cover_image,
-          status: row.status,
-          lessonCount: Number(row.lesson_count),
-          enrollmentCount: Number(row.enrollment_count),
-          createdAt: row.created_at,
-          updatedAt: row.updated_at
-        })),
-        total: rows.length
+        summary: {
+          totalCourses: items.length,
+          publishedCourses: items.filter(item => item.status === 'published').length,
+          draftCourses: items.filter(item => item.status === 'draft').length,
+          totalEnrollments: items.reduce((sum, item) => sum + item.enrollmentCount, 0),
+          activeEnrollments: Number(summaryRow.active_enrollments || 0),
+          uniqueStudents: Number(summaryRow.unique_students || 0),
+          averageProgress: Number(Number(summaryRow.average_progress || 0).toFixed(2))
+        },
+        items,
+        total: items.length
       }
     };
   } catch (error) {

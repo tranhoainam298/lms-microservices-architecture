@@ -17,10 +17,15 @@ Instructor identity comes from the JWT. Authoring is allowed only for the instru
 | `POST /api/exams/courses/:courseId/quizzes` | Create an owned draft quiz and questions; `201 { quiz }`. |
 | `GET /api/exams/courses/:courseId/quizzes/mine` | List owned quizzes; `{ items, total }`. |
 | `GET /api/exams/courses/:courseId/quizzes/:quizId/mine` | Load draft management detail including answer indices. |
+| `POST /api/exams/courses/:courseId/quizzes/:quizId/questions` | Add one validated question to an owned draft quiz; `201 { question }`. |
+| `GET /api/exams/courses/:courseId/quizzes/:quizId/questions/:questionId` | Load one owned draft question including its instructor-only answer index. |
+| `PATCH /api/exams/courses/:courseId/quizzes/:quizId/questions/:questionId` | Update one owned draft question. |
+| `DELETE /api/exams/courses/:courseId/quizzes/:quizId/questions/:questionId` | Delete one owned draft question; `{ deleted: true, questionId }`. |
 | `PATCH /api/exams/courses/:courseId/quizzes/:quizId` | Replace editable draft metadata and its question set transactionally. |
 | `DELETE /api/exams/courses/:courseId/quizzes/:quizId` | Delete one owned draft quiz; `{ deleted: true, quizId }`. |
 | `PATCH /api/exams/courses/:courseId/quizzes/:quizId/publish` | Publish an owned ready draft quiz. |
 | `GET /api/exams/courses/:courseId/results/summary` | Aggregate and list quiz attempts for an instructor-owned course. |
+| `GET /api/exams/instructor/results/summary` | Aggregate quiz/attempt/pass data across quizzes owned by the JWT instructor. |
 
 Create/update body:
 
@@ -46,6 +51,8 @@ Rules include title length 3–255, duration 1–300, passing score 0–100, 1�
 
 The management detail route is instructor-only and may return `correctOptionIndex`. Student routes never return it.
 
+The explicit question CRUD routes accept the same validated single-question shape used inside `questions`: `questionText`, `questionType=single_choice`, `options`, `correctOptionIndex`, and `points`. They require both ownership of the draft course (verified through Course Service) and ownership of the draft quiz (verified in Exam DB). Cross-instructor, published-quiz, or mismatched course/quiz/question access is not exposed as an editable resource.
+
 Result-summary success contains:
 
 ```json
@@ -58,6 +65,24 @@ Result-summary success contains:
 ```
 
 Exam Service verifies ownership through `GET /courses/:courseId/instructor-access` with the original JWT. Missing ownership returns `404 COURSE_NOT_FOUND`; Course Service failure returns `502 COURSE_SERVICE_UNAVAILABLE`.
+
+The instructor-wide endpoint returns:
+
+```json
+{
+  "summary": {
+    "quizCount": 0,
+    "publishedQuizCount": 0,
+    "draftQuizCount": 0,
+    "attemptCount": 0,
+    "passedCount": 0,
+    "averagePercentage": 0
+  },
+  "recentResults": []
+}
+```
+
+`recentResults` contains at most ten attempts and only Exam DB values required by the Instructor dashboard: result/quiz/course/student identifiers, quiz title, percentage, passed state, and submission time.
 
 ## Student quiz flow
 
@@ -124,8 +149,23 @@ Main errors:
 
 | Method and public path | Behavior |
 |---|---|
-| `GET /api/exams/results/mine` | Returns `{ items, total }` for the JWT student. Historical result access does not recheck current enrollment. |
+| `GET /api/exams/results/mine` | Returns `{ summary, items, total }` for the JWT student. Historical result access does not recheck current enrollment. |
 | `GET /api/exams/results/:resultId` | Returns `200 { result }` only when the result belongs to the JWT student; otherwise privacy-preserving `404 RESULT_NOT_FOUND`. |
+
+The `results/mine` summary is calculated in Exam Service from the JWT student's Exam DB rows:
+
+```json
+{
+  "summary": {
+    "totalAttempts": 0,
+    "passedAttempts": 0,
+    "averagePercentage": 0,
+    "latestScore": 0
+  },
+  "items": [],
+  "total": 0
+}
+```
 
 ## Authorization summary
 

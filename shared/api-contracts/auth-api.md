@@ -86,7 +86,26 @@ Optional query parameters:
 | `status` | `active` or `inactive`. |
 | `search` | Email/name search, maximum 100 characters. |
 
-Returns `{ items, total, page, pageSize }`; each item contains only public user fields.
+Returns `{ summary, items, total, page, pageSize }`; each item contains only public user fields. `summary` is calculated from the complete User DB account set, independently of the current page and optional list filters:
+
+```json
+{
+  "summary": {
+    "totalUsers": 0,
+    "students": 0,
+    "instructors": 0,
+    "admins": 0,
+    "activeUsers": 0,
+    "inactiveUsers": 0
+  },
+  "items": [],
+  "total": 0,
+  "page": 1,
+  "pageSize": 20
+}
+```
+
+`total` is the number of rows matching the supplied list filters; the summary remains the global account overview used by the Admin dashboard.
 
 ### `PATCH /api/users/admin/users/:userId/status`
 
@@ -118,3 +137,16 @@ Success shape:
 ```
 
 Activity items contain audit ID, nullable user identity metadata, status, failure reason, and occurrence time. They do not expose password data, JWTs, or stored credentials.
+
+## Internal profile lookup
+
+### `GET /users/internal/profiles?ids=9101,9102`
+
+This is a direct service-to-service User Service route. It is not exposed by API Gateway and requires a valid `X-Internal-Service-Secret` using timing-safe comparison.
+
+- `ids` is a comma-separated list of 1–100 unique positive integer user IDs.
+- Success returns only `{ "items": [{ "id": 9101, "fullName": "..." }] }`.
+- Missing IDs are omitted; email, role, status, password hashes, login activity, and other account fields are never returned.
+- Invalid input returns `400 INVALID_USER_IDS`; invalid internal authorization returns `403 FORBIDDEN`; a missing server-side secret returns `503 INTERNAL_AUTH_UNAVAILABLE`.
+
+Course Service uses this minimal endpoint to enrich a public course detail with its instructor display name. It does not connect to User DB directly.

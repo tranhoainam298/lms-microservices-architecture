@@ -17,7 +17,14 @@ const activeUiFiles = [
   'web-client/src/pages/InstructorCourseDraft.jsx',
   'web-client/src/pages/AdminRevenueReport.jsx',
   'web-client/src/pages/InstructorMonitoring.jsx',
-  'web-client/src/pages/AdminCourseOperations.jsx'
+  'web-client/src/pages/AdminCourseOperations.jsx',
+  'web-client/src/pages/InstructorDashboard.jsx',
+  'web-client/src/pages/AdminDashboard.jsx',
+  'web-client/src/pages/CourseDetailPage.jsx',
+  'web-client/src/pages/StudentCatalogPage.jsx',
+  'web-client/src/pages/StudentLearningPage.jsx',
+  'web-client/src/pages/StudentResultsPage.jsx',
+  'web-client/src/pages/InstructorCoursesPage.jsx'
 ];
 const banned = [
   'API Gateway', 'Web Client', 'Course Service', 'Course DB', 'Payment Service',

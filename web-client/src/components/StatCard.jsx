@@ -7,6 +7,7 @@ export default function StatCard({ title, value, description, eyebrow, tone = 'd
         <span>{eyebrow || title}</span>
         <i aria-hidden="true" />
       </div>
+      {eyebrow && <span className="metric-card__title">{title}</span>}
       <strong className="metric-card__value">{value}</strong>
       {description && <p>{description}</p>}
     </article>

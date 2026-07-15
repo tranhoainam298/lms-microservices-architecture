@@ -4,9 +4,17 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scriptPath = fileURLToPath(import.meta.url);
+const root = path.resolve(path.dirname(scriptPath), '..');
 const outputDirectory = path.join(root, 'docs', 'assets', 'readme');
 const appUrl = process.env.LMS_README_APP_URL || 'http://localhost:8080';
+const demoPassword = process.env.LMS_README_DEMO_PASSWORD;
+const captureTarget = String(process.env.LMS_README_CAPTURE_TARGET || 'all').toLowerCase();
+const demoAccounts = {
+  student: process.env.LMS_README_STUDENT_EMAIL || 'student1@lms.demo',
+  instructor: process.env.LMS_README_INSTRUCTOR_EMAIL || 'instructor1@lms.demo',
+  administrator: process.env.LMS_README_ADMIN_EMAIL || 'admin@lms.demo'
+};
 const width = 1600;
 const height = 1000;
 
@@ -116,6 +124,7 @@ async function navigate(sessionId, url = appUrl) {
 }
 
 async function capture(sessionId, filename) {
+  await send('Page.bringToFront', {}, sessionId);
   await evaluate(sessionId, `
     (() => {
       const style = document.createElement('style');
@@ -128,7 +137,7 @@ async function capture(sessionId, filename) {
       return true;
     })()
   `);
-  await sleep(250);
+  await sleep(500);
   const { data } = await send('Page.captureScreenshot', {
     format: 'png',
     fromSurface: true,
@@ -139,6 +148,11 @@ async function capture(sessionId, filename) {
 }
 
 async function login(sessionId, role) {
+  if (!demoPassword) {
+    throw new Error('Set LMS_README_DEMO_PASSWORD before capturing authenticated pages.');
+  }
+  const accountEmail = demoAccounts[role];
+  if (!accountEmail) throw new Error(`No README capture account is configured for ${role}.`);
   await navigate(sessionId);
   await waitFor(sessionId, "document.querySelector('.login-form')", 'login form');
   await evaluate(sessionId, `
@@ -152,6 +166,21 @@ async function login(sessionId, role) {
     })()
   `);
   await sleep(200);
+  await evaluate(sessionId, `
+    (() => {
+      const setValue = (selector, value) => {
+        const input = document.querySelector(selector);
+        if (!input) throw new Error('Login input not found: ' + selector);
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      setValue('#email', ${JSON.stringify(accountEmail)});
+      setValue('#password', ${JSON.stringify(demoPassword)});
+      return true;
+    })()
+  `);
   await evaluate(sessionId, "document.querySelector('.login-form').requestSubmit(); true");
   await waitFor(sessionId, "document.querySelector('.app-shell')", `${role} workspace`, 30000);
   await sleep(1400);
@@ -197,7 +226,7 @@ async function captureInstructor() {
   const page = await createPage();
   try {
     await login(page.sessionId, 'instructor');
-    await waitFor(page.sessionId, "document.querySelector('.course-draft-page')", 'instructor workspace');
+    await waitFor(page.sessionId, "document.querySelector('#instructor-dashboard-title')", 'instructor dashboard');
     await capture(page.sessionId, 'instructor-workspace.png');
   } finally {
     await send('Target.closeTarget', { targetId: page.targetId });
@@ -208,7 +237,7 @@ async function captureAdmin() {
   const page = await createPage();
   try {
     await login(page.sessionId, 'administrator');
-    await waitFor(page.sessionId, "document.querySelector('.revenue-page')", 'admin revenue workspace', 30000);
+    await waitFor(page.sessionId, "document.querySelector('#admin-dashboard-title')", 'admin dashboard', 30000);
     await sleep(1000);
     await capture(page.sessionId, 'admin-revenue.png');
   } finally {
@@ -216,11 +245,32 @@ async function captureAdmin() {
   }
 }
 
+function captureInFreshBrowser(target) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [scriptPath], {
+      env: { ...process.env, LMS_README_CAPTURE_TARGET: target },
+      stdio: 'inherit'
+    });
+    child.once('error', reject);
+    child.once('exit', code => code === 0
+      ? resolve()
+      : reject(new Error(`Isolated ${target} capture exited with code ${code}.`)));
+  });
+}
+
 try {
-  await captureLogin();
-  await captureStudent();
-  await captureInstructor();
-  await captureAdmin();
+  if (captureTarget === 'all') {
+    await captureLogin();
+    await captureStudent();
+    await captureAdmin();
+    // A fresh compositor process avoids intermittent transparent fixed-sidebar tiles
+    // observed when several authenticated targets are captured in one headless session.
+    await captureInFreshBrowser('instructor');
+  } else if (captureTarget === 'login') await captureLogin();
+  else if (captureTarget === 'student') await captureStudent();
+  else if (captureTarget === 'instructor') await captureInstructor();
+  else if (captureTarget === 'admin') await captureAdmin();
+  else throw new Error(`Unsupported LMS_README_CAPTURE_TARGET: ${captureTarget}`);
   console.log(`README media written to ${outputDirectory}`);
 } finally {
   for (const request of pending.values()) request.reject(new Error('Chrome closed before the command completed.'));

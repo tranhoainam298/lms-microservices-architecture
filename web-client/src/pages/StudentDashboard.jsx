@@ -4,7 +4,7 @@ import CourseCard from '../components/CourseCard';
 import StatusBadge from '../components/StatusBadge';
 import ProgressBar from '../components/ProgressBar';
 
-const emptyFilters = { search: '', category: '', minPrice: '', maxPrice: '' };
+const emptyFilters = { search: '', category: '', priceType: '', minPrice: '', maxPrice: '' };
 
 export default function StudentDashboard({
   courses,
@@ -18,12 +18,8 @@ export default function StudentDashboard({
   catalogLoading = false,
   catalogError = '',
   onCatalogFiltersChange,
-  onEnrollFreeCourse,
   onNavigate
 }) {
-  const [enrollmentNotice, setEnrollmentNotice] = React.useState('');
-  const [enrollmentError, setEnrollmentError] = React.useState('');
-  const [enrollingCourseId, setEnrollingCourseId] = React.useState(null);
   const [filters, setFilters] = React.useState(emptyFilters);
 
   const hasAccess = React.useCallback((courseId) => courseAccess.some(access => (
@@ -34,8 +30,11 @@ export default function StudentDashboard({
   const enrolledCourses = publishedCourses.filter(course => hasAccess(course.id));
   const availableCourses = publishedCourses.filter(course => !hasAccess(course.id));
   const enrolledCount = enrolledCourses.length;
-  const completedPayments = payments.filter(payment => payment.status === 'success');
-  const paymentTotal = completedPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0);
+  const completedLessonCount = enrolledCourses.reduce((total, course) => total + Number(course.completed_lessons || 0), 0);
+  const totalLessonCount = enrolledCourses.reduce((total, course) => total + Number(course.total_lessons || 0), 0);
+  const averageProgress = enrolledCount === 0
+    ? 0
+    : Math.round(enrolledCourses.reduce((total, course) => total + Number(course.progress_percent || 0), 0) / enrolledCount);
   const attemptedQuizIds = new Set(quizAttempts.map(attempt => Number(attempt.quizId)));
   const nextQuiz = quizzes.find(quiz => !attemptedQuizIds.has(Number(quiz.id))) || null;
   const sortedPayments = [...payments].sort((left, right) => (
@@ -51,27 +50,12 @@ export default function StudentDashboard({
     style: 'currency', currency: 'VND', maximumFractionDigits: 0
   }).format(Number(amount || 0));
 
-  const openCourse = async (course) => {
-    if (enrollingCourseId !== null) return;
-    setEnrollmentNotice('');
-    setEnrollmentError('');
+  const openCourse = (course) => {
     if (hasAccess(course.id)) {
       onNavigate('lesson', { courseId: course.id, course });
       return;
     }
-    if (Number(course.price) > 0) {
-      onNavigate('payment', { courseId: course.id, course });
-      return;
-    }
-    setEnrollingCourseId(Number(course.id));
-    try {
-      await onEnrollFreeCourse(course.id);
-      setEnrollmentNotice(`You are now enrolled in ${course.title}.`);
-    } catch (error) {
-      setEnrollmentError(error.message || 'The free course could not be enrolled.');
-    } finally {
-      setEnrollingCourseId(null);
-    }
+    onNavigate('course-detail', { courseId: course.id, course });
   };
 
   const handleFilterChange = (event) => {
@@ -142,9 +126,6 @@ export default function StudentDashboard({
           <ul>{dataErrors.map(message => <li key={message}>{message}</li>)}</ul>
         </div>
       )}
-      {enrollmentNotice && <div className="form-alert form-alert--success" role="status">{enrollmentNotice}</div>}
-      {enrollmentError && <div className="form-alert form-alert--error" role="alert">{enrollmentError}</div>}
-
       <div className="metrics-grid mb-6">
         <StatCard
           eyebrow="Course access"
@@ -160,12 +141,13 @@ export default function StudentDashboard({
           description="Completed assessments"
         />
         <StatCard
-          eyebrow="Payments"
-          title="Confirmed Payments"
-          value={formatPaymentAmount(paymentTotal)}
-          description="Successful course payments"
+          eyebrow="Learning progress"
+          title="Average progress"
+          value={`${averageProgress}%`}
+          description={`${completedLessonCount} of ${totalLessonCount} lessons completed`}
           tone="success"
         />
+        <StatCard eyebrow="Completed work" title="Completed lessons" value={completedLessonCount} description={`${Math.max(totalLessonCount - completedLessonCount, 0)} lessons remaining`} />
       </div>
 
       {continueCourse && (
@@ -252,6 +234,14 @@ export default function StudentDashboard({
                   </datalist>
                 </label>
                 <label className="form-field">
+                  <span>Course type</span>
+                  <select name="priceType" value={filters.priceType} onChange={handleFilterChange}>
+                    <option value="">Free and paid</option>
+                    <option value="free">Free courses</option>
+                    <option value="paid">Paid courses</option>
+                  </select>
+                </label>
+                <label className="form-field">
                   <span>Minimum price</span>
                   <input name="minPrice" type="number" min="0" step="0.01" value={filters.minPrice} onChange={handleFilterChange} placeholder="0" />
                 </label>
@@ -281,7 +271,7 @@ export default function StudentDashboard({
                     key={course.id}
                     course={course}
                     isEnrolled={false}
-                    actionLabel={enrollingCourseId === Number(course.id) ? 'Enrolling...' : Number(course.price) > 0 ? 'Buy Course' : 'Enroll for free'}
+                    actionLabel="View Course"
                     onAction={() => openCourse(course)}
                   />
                 ))}
@@ -320,6 +310,17 @@ export default function StudentDashboard({
                 ))}
               </ol>
             )}
+          </section>
+
+          <section className="card dashboard-panel" aria-labelledby="recent-quiz-results-title">
+            <div className="section-heading">
+              <div><p className="section-label">Assessment history</p><h2 id="recent-quiz-results-title">Recent quiz results</h2></div>
+              <span className="section-heading__meta">{quizAttempts.length} attempts</span>
+            </div>
+            {quizAttempts.length === 0 ? <div className="dashboard-empty-state" role="status"><strong>No quiz results yet</strong><p>Your saved scores will appear after you submit a quiz.</p></div> : <div className="table-container"><table className="table"><thead><tr><th>Quiz</th><th>Score</th><th>Result</th><th>Submitted</th></tr></thead><tbody>{quizAttempts.slice(0, 5).map(attempt => {
+              const quiz = quizzes.find(item => Number(item.id) === Number(attempt.quizId));
+              return <tr key={attempt.id}><td>{quiz?.title || `Quiz ${attempt.quizId}`}</td><td>{attempt.score} / {attempt.maximumScore} ({Number(attempt.percentage || 0).toFixed(0)}%)</td><td><StatusBadge status={attempt.passed ? 'completed' : 'failed'} /></td><td>{formatActivityDate(attempt.submittedAt)}</td></tr>;
+            })}</tbody></table></div>}
           </section>
         </div>
 

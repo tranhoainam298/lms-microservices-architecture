@@ -68,14 +68,14 @@
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="docs/assets/readme/instructor-workspace.png" alt="Instructor course authoring workspace" />
+      <img src="docs/assets/readme/instructor-workspace.png" alt="Instructor teaching dashboard" />
       <br /><strong>Instructor workspace</strong><br />
-      <sub>Draft courses, lessons, quizzes, previews, and publishing.</sub>
+      <sub>Owned courses, drafts, learners, progress, and assessment results.</sub>
     </td>
     <td width="50%" align="center">
-      <img src="docs/assets/readme/admin-revenue.png" alt="Administrator revenue dashboard" />
+      <img src="docs/assets/readme/admin-revenue.png" alt="Administrator platform dashboard" />
       <br /><strong>Administration</strong><br />
-      <sub>User management and backend-driven revenue reporting.</sub>
+      <sub>Users, courses, activity, successful sales, and revenue.</sub>
     </td>
   </tr>
 </table>
@@ -172,9 +172,18 @@ The complete deployment mapping is documented in [Docker Deployment](docs/deploy
 1. Install and open **Docker Desktop**.
 2. Double-click [`start-lms.bat`](start-lms.bat).
 3. Wait for the health checks.
-4. Open **http://localhost:8080**.
+4. Double-click [`seed-demo-data.bat`](seed-demo-data.bat) once to populate or refresh the local demonstration dataset safely.
+5. Open **http://localhost:8080**.
 
-The launcher builds the images, starts the complete Compose stack, waits for important containers, verifies the public health endpoint, and opens the browser. It does not delete volumes or run services locally.
+The startup launcher builds the images, starts the complete Compose stack, waits for important containers, verifies the public health endpoint, and opens the browser. The seed launcher is explicit and idempotent: it does not run during normal startup, reset volumes, or delete user-created rows.
+
+Demo references:
+
+- [Demo accounts](docs/demo/DEMO_ACCOUNTS.md) — local-only accounts and the documented demo password policy.
+- [10-minute demo guide](docs/demo/DEMO_GUIDE.md) — an end-to-end Student, Instructor, and Admin walkthrough.
+- [Demo data map](docs/demo/DEMO_DATA_MAP.md) — deterministic logical IDs and cross-service relationships.
+
+RabbitMQ management is available locally at **http://localhost:15672** while the Compose stack is running. Use the locally configured RabbitMQ credentials; credentials are not embedded in this README.
 
 ### Any platform — Docker Compose
 
@@ -184,6 +193,14 @@ cd lms-microservices-architecture
 docker compose up -d --build
 docker compose ps
 ```
+
+On Windows, populate the explicit local dataset after the services are healthy:
+
+```powershell
+.\seed-demo-data.bat
+```
+
+Running the seed command again is supported. It uses deterministic identifiers and upserts rather than wiping databases.
 
 Verify the public entry point:
 
@@ -328,25 +345,26 @@ Final architecture-alignment evidence:
 
 | Verification | Result |
 |---|---|
-| Focused static/security suite | 9/9 PASS |
-| Modified Node syntax checks | 38/38 PASS |
-| Web Client production build | PASS, 50 Vite modules |
+| Focused static/security suite | 13 focused suites PASS |
+| Demo seed on existing volumes | PASS twice; all counts unchanged and collision preflight clean |
+| Web Client production build | PASS, 61 Vite modules |
 | Exam Service build | PASS, 0 warnings / 0 errors |
 | Docker Compose rebuild and health | PASS, 14/14 LMS containers healthy |
 | Public health | HTTP 200, status `ok` |
-| Student / Instructor / Admin public-path E2E | 16/16 PASS |
-| Current-route smoke | 25 PASS, 0 FAIL, 1 intentional skip covered by the role E2E |
+| Product CRUD/RBAC public-path E2E | 18/18 PASS |
+| Browser-visible data and role navigation | PASS for public catalog plus Student, Instructor, and Admin workspaces |
 | Real RabbitMQ integration | PASS for `user.loggedin`, `payment.succeeded`, `payment.failed`, and `course.access.activated` |
 
 Live ZaloPay and AI provider checks are not reported as passes when their credential variables contain placeholders. Verified missing-configuration behavior is fail-closed: payment returns HTTP 503 without writing a transaction, and enrolled AI ask returns HTTP 503 `AI_PROVIDER_NOT_CONFIGURED` without a canned answer.
 
 Regenerate the README screenshots from the running application:
 
-```bash
+```powershell
+$env:LMS_README_DEMO_PASSWORD = '<documented local demo password>'
 node scripts/capture-readme-media.mjs
 ```
 
-The capture script uses Chrome or Edge headless mode, calls the real local application, and adds no npm dependency.
+The capture script uses Chrome or Edge headless mode, calls the real local application, and adds no npm dependency. The password is supplied only through the current process environment and is never written into the source or image captions.
 
 ## 📊 Implementation status
 
