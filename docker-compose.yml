@@ -159,7 +159,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-demo_jwt_secret_change_me_for_local_only}
       COURSE_SERVICE_URL: ${COURSE_SERVICE_URL:-http://course-service:5002}
       Kestrel__Endpoints__Http__Url: http://0.0.0.0:5003
-      ConnectionStrings__DefaultConnection: Server=${EXAM_DB_HOST:-exam-db-mysql};Port=${EXAM_DB_PORT:-3306};Database=${EXAM_DB_NAME:-lms_exam_db};User=${EXAM_DB_USER:-lms_exam_admin};Password=${EXAM_DB_PASSWORD:-demo_exam_db_password_change_me};
+      ConnectionStrings__DefaultConnection: Server=${EXAM_DB_HOST:-exam-db-mysql};Port=${EXAM_DB_PORT:-3306};Database=${EXAM_DB_NAME:-lms_exam_db};User=${EXAM_DB_USER:-lms_exam_admin};Password=${EXAM_DB_PASSWORD:-demo_exam_db_password_change_me};CharSet=utf8mb4;
     expose:
       - "5003"
     depends_on:
@@ -266,6 +266,7 @@ services:
   user-db-mysql:
     image: mysql:8.0
     container_name: user-db-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: ${USER_DB_ROOT_PASSWORD:-demo_user_root_password_change_me}
       MYSQL_DATABASE: ${USER_DB_NAME:-lms_user_db}
@@ -289,6 +290,7 @@ services:
   course-db-mysql:
     image: mysql:8.0
     container_name: course-db-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: ${COURSE_DB_ROOT_PASSWORD:-demo_course_root_password_change_me}
       MYSQL_DATABASE: ${COURSE_DB_NAME:-lms_course_db}
@@ -312,6 +314,7 @@ services:
   exam-db-mysql:
     image: mysql:8.0
     container_name: exam-db-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: ${EXAM_DB_ROOT_PASSWORD:-demo_exam_root_password_change_me}
       MYSQL_DATABASE: ${EXAM_DB_NAME:-lms_exam_db}
@@ -335,6 +338,7 @@ services:
   payment-db-mysql:
     image: mysql:8.0
     container_name: payment-db-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: ${PAYMENT_DB_ROOT_PASSWORD:-demo_payment_root_password_change_me}
       MYSQL_DATABASE: ${PAYMENT_DB_NAME:-lms_payment_db}
