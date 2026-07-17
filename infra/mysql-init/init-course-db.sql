@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS enrollments (
   progress_percent DECIMAL(5, 2) DEFAULT 0.0,
   status VARCHAR(50) DEFAULT 'active',
   enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_enrollment_student_course (student_id, course_id),
+  KEY idx_enrollment_course (course_id),
   FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

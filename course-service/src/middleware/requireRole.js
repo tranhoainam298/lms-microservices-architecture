@@ -4,7 +4,7 @@ export function requireRole(allowedRole) {
     if (!req.user || req.user.role !== targetRole) {
       return res.status(403).json({
         code: 'FORBIDDEN',
-        message: `Only ${allowedRole}s can create draft courses.`
+        message: `Only ${allowedRole}s can access this resource.`
       });
     }
     next();

@@ -920,12 +920,12 @@ export default function InstructorCourseDraft({ onSaveDraft, initialDrafts = [],
               ) : (
                 <ul className="draft-list">
                   {drafts.map(draft => (
-                    <li className="draft-list__item" key={draft.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <li className="draft-list__item" key={draft.id}>
                       <div className="draft-list__copy">
                         <strong>{draft.title}</strong>
                         <span>${Number(draft.price).toFixed(2)} / Draft</span>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <div className="draft-list__actions">
                         <StatusBadge status={draft.status} />
                         <button
                           type="button"

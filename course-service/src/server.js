@@ -9,6 +9,7 @@ import express from 'express';
 import courseRoutes from './routes/courseRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { migrateLessonProgress } from './data/migrateLessonProgress.js';
+import { migrateEnrollmentUniqueness } from './data/migrateEnrollmentUniqueness.js';
 import { startRabbitMQListener } from './rabbitmq-listener.js';
 
 const app = express();
@@ -21,6 +22,7 @@ app.use(errorHandler);
 
 try {
   await migrateLessonProgress();
+  await migrateEnrollmentUniqueness();
   app.listen(port, () => {
     console.log(`Course Service listening on http://localhost:${port}`);
     startRabbitMQListener();
